@@ -1,0 +1,72 @@
+version: '3'
+
+vars:
+  DEV_VENV: .venv
+  DEPLOY_ROOT: /kodiak00/opt/backup-server
+  DEPLOY_VENV: '{{.DEPLOY_ROOT}}/venv'
+  WRAPPER_PATH: /kodiak00/bin/backup-server
+  PYTHON: python3.13
+
+tasks:
+  default:
+    cmd: task --list
+    silent: true
+
+  setup:
+    desc: Create dev venv and install dev tools (ruff, pytest)
+    cmds:
+      - '{{.PYTHON}} -m venv {{.DEV_VENV}}'
+      - '{{.DEV_VENV}}/bin/pip install --upgrade pip'
+      - '{{.DEV_VENV}}/bin/pip install ruff pytest'
+      - '{{.DEV_VENV}}/bin/pip install -e .'
+    status:
+      - test -d {{.DEV_VENV}}
+      - test -x {{.DEV_VENV}}/bin/ruff
+
+  test:
+    desc: Run pytest
+    deps: [setup]
+    cmd: '{{.DEV_VENV}}/bin/pytest'
+
+  lint:
+    desc: Run ruff lint
+    deps: [setup]
+    cmd: '{{.DEV_VENV}}/bin/ruff check .'
+
+  fmt:
+    desc: Run ruff format
+    deps: [setup]
+    cmd: '{{.DEV_VENV}}/bin/ruff format .'
+
+  check:
+    desc: Lint + test
+    cmds:
+      - task: lint
+      - task: test
+
+  run:
+    desc: 'Run the script from dev venv. Pass args: task run -- saratoga --execute'
+    deps: [setup]
+    cmd: '{{.DEV_VENV}}/bin/backup-server {{.CLI_ARGS}}'
+
+  install:
+    desc: Deploy to /kodiak00 (creates pinned venv, installs package, drops wrapper)
+    cmds:
+      - mkdir -p {{.DEPLOY_ROOT}}
+      - test -d {{.DEPLOY_VENV}} || {{.PYTHON}} -m venv {{.DEPLOY_VENV}}
+      - '{{.DEPLOY_VENV}}/bin/pip install --upgrade pip'
+      - '{{.DEPLOY_VENV}}/bin/pip install .'
+      - |
+        cat > {{.WRAPPER_PATH}} <<'EOF'
+        #!/bin/sh
+        exec /kodiak00/opt/backup-server/venv/bin/backup-server "$@"
+        EOF
+      - chmod +x {{.WRAPPER_PATH}}
+      - echo "Installed. Try {{.WRAPPER_PATH}} --help"
+
+  uninstall:
+    desc: Remove the deployed install
+    cmds:
+      - rm -f {{.WRAPPER_PATH}}
+      - rm -rf {{.DEPLOY_ROOT}}
+      - echo "Uninstalled."
