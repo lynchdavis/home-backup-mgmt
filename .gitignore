@@ -18,9 +18,10 @@ dist/
 htmlcov/
 coverage.xml
 
-# Editors
+# Editors / agent state
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

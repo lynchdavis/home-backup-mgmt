@@ -6,6 +6,8 @@ vars:
   DEPLOY_VENV: '{{.DEPLOY_ROOT}}/venv'
   WRAPPER_PATH: /kodiak00/bin/backup-server
   PYTHON: python3.13
+  BACKUP_SARATOGA_BIN: /kodiak00/backups-00/bin
+  BACKUP_SARATOGA_SCRIPT: scripts/backup-saratoga.sh
 
 tasks:
   default:
@@ -70,3 +72,15 @@ tasks:
       - rm -f {{.WRAPPER_PATH}}
       - rm -rf {{.DEPLOY_ROOT}}
       - echo "Uninstalled."
+
+  deploy:
+    desc: Deploy backup-saratoga.sh to /kodiak00/backups-00/bin
+    preconditions:
+      - sh: mountpoint -q /kodiak00/backups-00
+        msg: "/kodiak00/backups-00 must be mounted before deploy"
+      - sh: test -f {{.BACKUP_SARATOGA_SCRIPT}}
+        msg: "{{.BACKUP_SARATOGA_SCRIPT}} not found — run from repo root"
+    cmds:
+      - mkdir -p {{.BACKUP_SARATOGA_BIN}}
+      - install -m 755 {{.BACKUP_SARATOGA_SCRIPT}} {{.BACKUP_SARATOGA_BIN}}/backup-saratoga.sh
+      - echo "Deployed to {{.BACKUP_SARATOGA_BIN}}/backup-saratoga.sh"
