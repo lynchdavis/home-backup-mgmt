@@ -33,16 +33,19 @@ readonly EXPORTS_DEST=/kodiak00/backups-00/saratoga
 readonly OUTLIER_DEST=/kodiak00/data-00/backups/host-backups/saratoga
 
 # Pipe-delimited: name | saratoga-source-path | local-destination
+#
+# saratoga's `music` and `MusicShare` shares (MP3) are intentionally omitted:
+# they are lossy transcodes of music_flac (lossless, backed up below), and an
+# AAC set exists separately for the Apple player. Regenerable from the FLAC
+# originals, so not worth the backup space.
 SHARES=(
   "applications|/mnt/saratoga-01/NetworkShares01/applications|${EXPORTS_DEST}/applications"
   "OpenAudible|/mnt/saratoga-01/NetworkShares01/OpenAudible|${EXPORTS_DEST}/OpenAudible"
   "archives|/mnt/saratoga-01/NetworkShares01/archives|${EXPORTS_DEST}/archives"
   "backups|/mnt/saratoga-01/NetworkShares01/backups|${EXPORTS_DEST}/backups"
-  "music|/mnt/saratoga-01/NetworkShares01/music|${EXPORTS_DEST}/music"
   "music_flac|/mnt/saratoga-01/NetworkShares01/music_flac|${EXPORTS_DEST}/music_flac"
   "RepositoryBackups|/mnt/saratoga-01/RepositoryBackups|${EXPORTS_DEST}/RepositoryBackups"
   "videos|/mnt/saratoga-01/videos|${EXPORTS_DEST}/videos"
-  "MusicShare|/mnt/saratoga-02/MusicShare|${EXPORTS_DEST}/MusicShare"
   "PhotoArchive_0000_2009|/mnt/saratoga-02/PhotoArchive/PhotoArchive_0000_2009|${EXPORTS_DEST}/PhotoArchive_0000_2009"
   "PhotoArchive_2010_2019|/mnt/saratoga-02/PhotoArchive/PhotoArchive_2010_2019|${EXPORTS_DEST}/PhotoArchive_2010_2019"
   "PhotoArchive_2020_2029|/mnt/saratoga-02/PhotoArchive/PhotoArchive_2020_2029|${EXPORTS_DEST}/PhotoArchive_2020_2029"
