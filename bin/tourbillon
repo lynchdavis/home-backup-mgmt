@@ -616,14 +616,15 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
         return 0
 
     now_ts = time.time()
-    interval_default_s = parse_interval(defaults.get("interval", "24h"))
+    quiet = bool(args.quiet)
 
     summary = {"ok": 0, "skipped": 0, "failed": 0, "total_bytes": 0, "total_seconds": 0.0}
-    print(f"sync target: {TARGET_ROOT}")
-    print(f"candidates:  {len(slugs)} repo(s)  (defaults interval = {defaults.get('interval', '24h')})")
-    if args.dry_run:
-        print("(dry-run: no clones, no state writes)")
-    print()
+    if not quiet:
+        print(f"sync target: {TARGET_ROOT}")
+        print(f"candidates:  {len(slugs)} repo(s)  (defaults interval = {defaults.get('interval', '24h')})")
+        if args.dry_run:
+            print("(dry-run: no clones, no state writes)")
+        print()
 
     longest = max(len(s) for s in slugs)
     for slug in slugs:
@@ -634,13 +635,15 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
 
         if not (args.force or due):
             summary["skipped"] += 1
-            print(f"  {slug:<{longest}}  skipped     ({why})")
+            if not quiet:
+                print(f"  {slug:<{longest}}  skipped     ({why})")
             continue
 
         result = sync_one_repo(slug, config, dry_run=args.dry_run)
 
         if args.dry_run:
-            print(f"  {slug:<{longest}}  {result['action']:<14} ({why})")
+            if not quiet:
+                print(f"  {slug:<{longest}}  {result['action']:<14} ({why})")
             continue
 
         # Update state and print summary line
@@ -656,26 +659,42 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
             summary["ok"] += 1
             summary["total_bytes"] += result.get("size_bytes", 0)
             summary["total_seconds"] += result["duration_s"]
-            size_str = format_size(result.get("size_bytes", 0))
-            dur_str = format_duration(result["duration_s"])
-            print(f"  {slug:<{longest}}  {result['action']:<14}  {size_str:>9}  in {dur_str}")
+            if not quiet:
+                size_str = format_size(result.get("size_bytes", 0))
+                dur_str = format_duration(result["duration_s"])
+                print(f"  {slug:<{longest}}  {result['action']:<14}  {size_str:>9}  in {dur_str}")
         else:
             new_state["last_error"] = result["reason"]
             new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
             save_state(slug, new_state)
             summary["failed"] += 1
+            # Failures always print, even in quiet mode (cron mails this).
             dur_str = format_duration(result.get("duration_s", 0))
-            print(f"  {slug:<{longest}}  FAILED       {dur_str}  {result['reason'][:80]}")
+            print(f"  {slug:<{longest}}  FAILED       {dur_str}  {result['reason'][:80]}",
+                  file=sys.stderr)
 
-    print()
-    if args.dry_run:
-        print(f"would process {len(slugs) - summary['skipped']} repo(s); "
-              f"{summary['skipped']} not due")
-    else:
-        print(f"summary: {summary['ok']} ok, {summary['failed']} failed, "
-              f"{summary['skipped']} skipped  |  "
-              f"{format_size(summary['total_bytes'])} on disk total, "
-              f"{format_duration(summary['total_seconds'])} cumulative")
+    # In quiet mode, only emit the summary if something actually happened.
+    # All-skipped (the normal cron case) stays silent so cron sends no mail.
+    if not quiet:
+        print()
+        if args.dry_run:
+            print(f"would process {len(slugs) - summary['skipped']} repo(s); "
+                  f"{summary['skipped']} not due")
+        else:
+            print(f"summary: {summary['ok']} ok, {summary['failed']} failed, "
+                  f"{summary['skipped']} skipped  |  "
+                  f"{format_size(summary['total_bytes'])} on disk total, "
+                  f"{format_duration(summary['total_seconds'])} cumulative")
+    elif summary["ok"] or summary["failed"]:
+        # Quiet mode + something happened → one-line summary (to stderr if any
+        # failed, stdout otherwise) so cron can route per channel.
+        stream = sys.stderr if summary["failed"] else sys.stdout
+        print(
+            f"tourbillon repos sync: {summary['ok']} ok, {summary['failed']} failed, "
+            f"{summary['skipped']} skipped  |  "
+            f"{format_size(summary['total_bytes'])} transferred",
+            file=stream,
+        )
 
     return 0 if summary["failed"] == 0 else 1
 
@@ -731,6 +750,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="ignore interval; sync every matching repo")
     rp.add_argument("--dry-run", action="store_true",
                     help="show what would happen; touch no repos and no state")
+    rp.add_argument("--quiet", action="store_true",
+                    help="suppress per-repo success lines; print failures + summary only "
+                         "(intended for cron — silent runs leave no mail)")
     rp.set_defaults(func=cmd_repos_sync)
 
     rp = rsubs.add_parser("prune", help="explicit removal of a local mirror (n.y.i.)")
