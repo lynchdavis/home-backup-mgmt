@@ -64,7 +64,7 @@
           "end": "23:59"
         },
         "id": 6,
-        "state": "{}"
+        "state": "{\"state\": {\"state\": \"ERROR\", \"datetime\": {\"$date\": 1779699600000}, \"error\": \"cannot create snapshot 'tank/active@auto-2026-05-25_02-00': dataset already exists\\ncannot create snapshot 'tank/active/aviation@auto-2026-05-25_02-00': dataset already exists\\ncannot create snapshot 'tank/active/finance-current@auto-2026-05-25_02-00': dataset already exists\\ncannot create snapshot 'tank/active/flightclub-personal@auto-2026-05-25_02-00': dataset already exists\\ncannot create snapshot 'tank/active/personal@auto-2026-05-25_02-00': dataset already exists\\nno snapshots were created.\"}}"
       }
     ],
     "naming_schema": [],
@@ -92,95 +92,60 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779660724000
+        "$date": 1779699682000
       },
       "warnings": [
-        "cannot receive aclinherit property on backups-00/saratoga/tank: permission denied",
-        "cannot receive aclmode property on backups-00/saratoga/tank: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank: permission denied",
-        "cannot mount 'backups-00/saratoga/tank': Insufficient privileges",
         "cannot receive copies property on backups-00/saratoga/tank/active: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/tank/active: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/tank/active: permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/active': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/aviation': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/finance-current': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/flightclub-personal': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/personal': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/tank/active/aviation: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/tank/active/aviation: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/tank/active/aviation: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/aviation': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/tank/active/finance-current: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/tank/active/finance-current: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/tank/active/finance-current: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/finance-current': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/tank/active/flightclub-personal: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/tank/active/flightclub-personal: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/tank/active/flightclub-personal: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/flightclub-personal': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/tank/active/personal: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/tank/active/personal: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/tank/active/personal: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/active/personal': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive: permission denied",
+        "cannot mount 'backups-00/saratoga/tank': Insufficient privileges",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/archive': failed to create mountpoint: Permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/books: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/books: permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/scratch': failed to create mountpoint: Permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/books': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/employers: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/employers: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/employers: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/employers': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/finance: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/finance: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/finance: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/finance': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/legal: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/legal: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/legal: permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/legal': failed to create mountpoint: Permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/medical: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/medical: permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/finance': failed to create mountpoint: Permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/medical': failed to create mountpoint: Permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/personal: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/personal: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/personal': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/photography: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/photography: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/photography: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/photography': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/software: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/software: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/software: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/software': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/archive/writing: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/archive/writing: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/archive/writing: permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/writing': failed to create mountpoint: Permission denied",
-        "cannot receive copies property on backups-00/saratoga/tank/scratch: permission denied",
-        "cannot receive sharenfs property on backups-00/saratoga/tank/scratch: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/tank/scratch: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/tank/scratch': failed to create mountpoint: Permission denied"
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/personal': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/software': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/employers': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/tank/archive/photography': failed to create mountpoint: Permission denied"
       ],
-      "last_snapshot": "tank/scratch@auto-2026-05-24_09-48"
+      "last_snapshot": "tank/active/personal@auto-2026-05-25_02-00"
     },
     "job": {
-      "id": 12510,
-      "message_ids": [
-        "458c958f-e9fa-4f48-9e3e-e340a1a68c14"
-      ],
+      "id": 14453,
+      "message_ids": [],
       "method": "replication.run",
       "arguments": [
-        1
+        1,
+        false
       ],
       "transient": false,
       "description": null,
       "abortable": false,
-      "logs_path": "/var/log/jobs/12510.log",
-      "logs_excerpt": "[2026/05/24 10:06:33] INFO     [Thread-235] [zettarepl.paramiko.replication_task__task_1] Connected (version 2.0, client OpenSSH_10.0p2)\n[2026/05/24 10:06:34] INFO     [Thread-235] [zettarepl.paramiko.replication_task__task_1] Authentication (publickey) successful!\n[2026/05/24 10:06:36] INFO     [replication_task__task_1] [zettarepl.replication.pre_retention] Pre-retention destroying snapshots: []\n[2026/05/24 10:06:36] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank' to 'backups-00/saratoga/tank' of snapshot='auto-2026-05-24_09-48' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 10:06:37] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive aclinherit property on backups-00/saratoga/tank: permission denied'\n[2026/05/24 10:06:37] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive aclmode property on backups-00/saratoga/tank: permission denied'\n[2026/05/24 10:06:37] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharenfs property on backups-00/saratoga/tank: permission denied'\n[2026/05/24 10:06:37] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharesmb property on backups-00/saratoga/tank: permission denied'\n[2026/05/24 10:06:37] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: \"cannot mount 'backups-00/saratoga/tank': Insufficient privileges\"\n[2026/05/24 10:06:37] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank/active' to 'backups-00/saratoga/tank/active' of snapshot='auto-2026-05-23_10-00' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n... 872 more lines ...\n[2026/05/24 15:11:59] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank/scratch' to 'backups-00/saratoga/tank/scratch' of snapshot='auto-2026-05-24_03-00' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive copies property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharenfs property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharesmb property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/tank/scratch': failed to create mountpoint: Permission denied\"\n[2026/05/24 15:12:02] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank/scratch' to 'backups-00/saratoga/tank/scratch' of snapshot='auto-2026-05-24_09-48' incremental_base='auto-2026-05-24_03-00' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive copies property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharenfs property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharesmb property on backups-00/saratoga/tank/scratch: permission denied'\n[2026/05/24 15:12:02] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/tank/scratch': failed to create mountpoint: Permission denied\"\n",
+      "logs_path": "/var/log/jobs/14453.log",
+      "logs_excerpt": "[2026/05/25 02:00:01] INFO     [Thread-324] [zettarepl.paramiko.replication_task__task_1] Connected (version 2.0, client OpenSSH_10.0p2)\n[2026/05/25 02:00:01] INFO     [Thread-324] [zettarepl.paramiko.replication_task__task_1] Authentication (publickey) successful!\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.pre_retention] Pre-retention destroying snapshots: []\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive/books'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive/employers'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive/finance'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive/legal'\n[2026/05/25 02:00:04] INFO     [replication_task__task_1] [zettarepl.replication.run] No snapshots to send for replication task 'task_1' on dataset 'tank/archive/medical'\n... 455 more lines ...\n[2026/05/25 02:01:19] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank/active/personal' to 'backups-00/saratoga/tank/active/personal' of snapshot='auto-2026-05-25_01-00' incremental_base='auto-2026-05-25_00-00' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/25 02:01:20] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive copies property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:20] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharenfs property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:20] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharesmb property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:20] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/tank/active/personal': failed to create mountpoint: Permission denied\"\n[2026/05/25 02:01:20] INFO     [replication_task__task_1] [zettarepl.replication.run] For replication task 'task_1': doing push from 'tank/active/personal' to 'backups-00/saratoga/tank/active/personal' of snapshot='auto-2026-05-25_02-00' incremental_base='auto-2026-05-25_01-00' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/25 02:01:21] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive copies property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:21] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharenfs property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:21] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: 'cannot receive sharesmb property on backups-00/saratoga/tank/active/personal: permission denied'\n[2026/05/25 02:01:21] INFO     [replication_task__task_1.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_1] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/tank/active/personal': failed to create mountpoint: Permission denied\"\n",
       "progress": {
         "percent": 100,
-        "description": "Sending 180 of 180: tank/scratch@auto-2026-05-24_09-48 [total 1.99 TiB of 1.99 TiB]",
+        "description": "Sending 80 of 80: tank/active/personal@auto-2026-05-25_02-00 [total 1.99 TiB of 1.99 TiB]",
         "extra": null
       },
       "result": null,
@@ -190,10 +155,10 @@
       "exc_info": null,
       "state": "SUCCESS",
       "time_started": {
-        "$date": 1779642393000
+        "$date": 1779699600000
       },
       "time_finished": {
-        "$date": 1779660724000
+        "$date": 1779699682000
       },
       "credentials": null
     },
@@ -261,7 +226,7 @@
           "end": "23:59"
         },
         "id": 7,
-        "state": "{}"
+        "state": "{\"last_snapshot\": \"media@auto-2026-05-25_02-00\", \"state\": {\"state\": \"FINISHED\", \"datetime\": {\"$date\": 1779699600000}}}"
       }
     ],
     "naming_schema": [],
@@ -289,7 +254,7 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779667253000
+        "$date": 1779699611000
       },
       "warnings": [
         "cannot receive aclmode property on backups-00/saratoga/media: permission denied",
@@ -305,52 +270,53 @@
         "cannot receive sharenfs property on backups-00/saratoga/media: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media: permission denied",
         "cannot mount '/kodiak00/backups-00/saratoga/media': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/audiobooks': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/movies': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/music': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/music/aac': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/music/flac': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/staging': failed to create mountpoint: Permission denied",
+        "cannot mount '/kodiak00/backups-00/saratoga/media/tv': failed to create mountpoint: Permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/audiobooks: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/audiobooks: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/audiobooks': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/media/movies: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/movies: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/movies: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/movies': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/media/music: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/music: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/music: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/music': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/media/music/aac: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/music/aac: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/music/aac: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/music/aac': failed to create mountpoint: Permission denied",
         "cannot receive snapdir property on backups-00/saratoga/media/music/flac: permission denied",
         "cannot receive copies property on backups-00/saratoga/media/music/flac: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/music/flac: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/music/flac: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/music/flac': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/media/staging: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/staging: permission denied",
         "cannot receive sharesmb property on backups-00/saratoga/media/staging: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/staging': failed to create mountpoint: Permission denied",
         "cannot receive copies property on backups-00/saratoga/media/tv: permission denied",
         "cannot receive sharenfs property on backups-00/saratoga/media/tv: permission denied",
-        "cannot receive sharesmb property on backups-00/saratoga/media/tv: permission denied",
-        "cannot mount '/kodiak00/backups-00/saratoga/media/tv': failed to create mountpoint: Permission denied"
+        "cannot receive sharesmb property on backups-00/saratoga/media/tv: permission denied"
       ],
-      "last_snapshot": "media/tv@auto-2026-05-24_18-33"
+      "last_snapshot": "media/tv@auto-2026-05-25_02-00"
     },
     "job": {
-      "id": 13180,
+      "id": 14454,
       "message_ids": [],
       "method": "replication.run",
       "arguments": [
-        2
+        2,
+        false
       ],
       "transient": false,
       "description": null,
       "abortable": false,
-      "logs_path": "/var/log/jobs/13180.log",
-      "logs_excerpt": "[2026/05/24 15:34:15] INFO     [Thread-273] [zettarepl.paramiko.replication_task__task_2] Connected (version 2.0, client OpenSSH_10.0p2)\n[2026/05/24 15:34:16] INFO     [Thread-273] [zettarepl.paramiko.replication_task__task_2] Authentication (publickey) successful!\n[2026/05/24 15:34:17] INFO     [replication_task__task_2] [zettarepl.replication.pre_retention] Pre-retention destroying snapshots: []\n[2026/05/24 15:34:17] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media' to 'backups-00/saratoga/media' of snapshot='auto-2026-05-24_18-33' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive aclmode property on backups-00/saratoga/media: permission denied'\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive dedup property on backups-00/saratoga/media: permission denied'\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive special_small_blocks property on backups-00/saratoga/media: permission denied'\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive snapdir property on backups-00/saratoga/media: permission denied'\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive checksum property on backups-00/saratoga/media: permission denied'\n[2026/05/24 15:34:19] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive exec property on backups-00/saratoga/media: permission denied'\n... 48 more lines ...\n[2026/05/24 17:00:50] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media/staging' to 'backups-00/saratoga/media/staging' of snapshot='auto-2026-05-24_18-33' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 17:00:52] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive copies property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/24 17:00:52] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharenfs property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/24 17:00:52] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharesmb property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/24 17:00:52] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/media/staging': failed to create mountpoint: Permission denied\"\n[2026/05/24 17:00:52] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media/tv' to 'backups-00/saratoga/media/tv' of snapshot='auto-2026-05-24_18-33' incremental_base=None include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/24 17:00:53] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive copies property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/24 17:00:53] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharenfs property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/24 17:00:53] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharesmb property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/24 17:00:53] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/media/tv': failed to create mountpoint: Permission denied\"\n",
+      "logs_path": "/var/log/jobs/14454.log",
+      "logs_excerpt": "[2026/05/25 02:00:01] INFO     [Thread-326] [zettarepl.paramiko.replication_task__task_2] Connected (version 2.0, client OpenSSH_10.0p2)\n[2026/05/25 02:00:01] INFO     [Thread-326] [zettarepl.paramiko.replication_task__task_2] Authentication (publickey) successful!\n[2026/05/25 02:00:03] INFO     [replication_task__task_2] [zettarepl.replication.pre_retention] Pre-retention destroying snapshots: []\n[2026/05/25 02:00:03] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media' to 'backups-00/saratoga/media' of snapshot='auto-2026-05-25_02-00' incremental_base='auto-2026-05-24_18-33' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive aclmode property on backups-00/saratoga/media: permission denied'\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive dedup property on backups-00/saratoga/media: permission denied'\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive special_small_blocks property on backups-00/saratoga/media: permission denied'\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive snapdir property on backups-00/saratoga/media: permission denied'\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive checksum property on backups-00/saratoga/media: permission denied'\n[2026/05/25 02:00:04] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive exec property on backups-00/saratoga/media: permission denied'\n... 41 more lines ...\n[2026/05/25 02:00:09] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media/staging' to 'backups-00/saratoga/media/staging' of snapshot='auto-2026-05-25_02-00' incremental_base='auto-2026-05-24_18-33' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/25 02:00:10] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive copies property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/25 02:00:10] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharenfs property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/25 02:00:10] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharesmb property on backups-00/saratoga/media/staging: permission denied'\n[2026/05/25 02:00:10] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/media/staging': failed to create mountpoint: Permission denied\"\n[2026/05/25 02:00:10] INFO     [replication_task__task_2] [zettarepl.replication.run] For replication task 'task_2': doing push from 'media/tv' to 'backups-00/saratoga/media/tv' of snapshot='auto-2026-05-25_02-00' incremental_base='auto-2026-05-24_18-33' include_intermediate=False receive_resume_token=None encryption=False\n[2026/05/25 02:00:11] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive copies property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/25 02:00:11] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharenfs property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/25 02:00:11] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: 'cannot receive sharesmb property on backups-00/saratoga/media/tv: permission denied'\n[2026/05/25 02:00:11] INFO     [replication_task__task_2.process] [zettarepl.transport.base_ssh] [ssh:tnreplicate@192.168.0.61] [replication_process:task_2] Warning: \"cannot mount '/kodiak00/backups-00/saratoga/media/tv': failed to create mountpoint: Permission denied\"\n",
       "progress": {
         "percent": 100,
-        "description": "Sending 11 of 11: media/tv@auto-2026-05-24_18-33 [total 425.45 GiB of 427.81 GiB]",
+        "description": "Sending 8 of 8: media/tv@auto-2026-05-25_02-00",
         "extra": null
       },
       "result": null,
@@ -360,25 +326,12 @@
       "exc_info": null,
       "state": "SUCCESS",
       "time_started": {
-        "$date": 1779662055000
+        "$date": 1779699600000
       },
       "time_finished": {
-        "$date": 1779667253000
+        "$date": 1779699611000
       },
-      "credentials": {
-        "type": "API_KEY",
-        "data": {
-          "username": "truenas_admin",
-          "login_id": null,
-          "login_at": {
-            "$date": 1779662055000
-          },
-          "api_key": {
-            "id": 1,
-            "name": "kodiak-dump"
-          }
-        }
-      }
+      "credentials": null
     },
     "has_encrypted_dataset_keys": false
   }

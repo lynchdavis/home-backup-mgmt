@@ -21,9 +21,9 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779667200000
+        "$date": 1779710400000
       },
-      "last_snapshot": "tank/active@auto-2026-05-24_17-00"
+      "last_snapshot": "tank/active@auto-2026-05-25_05-00"
     },
     "vmware_sync": false
   },
@@ -49,9 +49,9 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779616800000
+        "$date": 1779703200000
       },
-      "last_snapshot": "tank/archive@auto-2026-05-24_03-00"
+      "last_snapshot": "tank/archive@auto-2026-05-25_03-00"
     },
     "vmware_sync": false
   },
@@ -77,9 +77,9 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779616800000
+        "$date": 1779703200000
       },
-      "last_snapshot": "tank/system@auto-2026-05-24_03-00"
+      "last_snapshot": "tank/system@auto-2026-05-25_03-00"
     },
     "vmware_sync": false
   },
@@ -159,7 +159,12 @@
     },
     "id": 6,
     "state": {
-      "state": "PENDING"
+      "state": "ERROR",
+      "datetime": {
+        "$date": 1779699600000
+      },
+      "error": "cannot create snapshot 'tank/active@auto-2026-05-25_02-00': dataset already exists\ncannot create snapshot 'tank/active/aviation@auto-2026-05-25_02-00': dataset already exists\ncannot create snapshot 'tank/active/finance-current@auto-2026-05-25_02-00': dataset already exists\ncannot create snapshot 'tank/active/flightclub-personal@auto-2026-05-25_02-00': dataset already exists\ncannot create snapshot 'tank/active/personal@auto-2026-05-25_02-00': dataset already exists\nno snapshots were created.",
+      "last_snapshot": null
     },
     "vmware_sync": false
   },
@@ -183,7 +188,11 @@
     },
     "id": 7,
     "state": {
-      "state": "PENDING"
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779699600000
+      },
+      "last_snapshot": "media@auto-2026-05-25_02-00"
     },
     "vmware_sync": false
   }
