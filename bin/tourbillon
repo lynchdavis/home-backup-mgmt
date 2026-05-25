@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""tourbillon — keeper of the home-backup system's truth over time.
+
+A CLI that observes, reports on, and triggers backups across the system
+(saratoga ZFS replication, github+bitbucket repo mirrors, eventually
+linux/mac/windows hosts). Stdlib only.
+
+See doc/NAMING.md for the name's pedigree, PLAYBOOK.md for how the
+overall system works, and doc/ADR-001-repo-mirror.md for the design
+this CLI implements.
+
+Usage:
+    . ~/.config/tourbillon/env     # GITHUB_TOKEN, BITBUCKET_TOKEN, etc.
+    tourbillon repos discover      # enumerate upstream; create configs
+
+Run `tourbillon -h` for the full command tree.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import subprocess
+import sys
+import tomllib
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIGS_REPOS = REPO_ROOT / "configs" / "repos"
+DEFAULTS_PATH = CONFIGS_REPOS / "defaults.toml"
+
+DEFAULTS_BODY = """\
+# Tourbillon repo-mirror defaults. Per-repo files in this directory
+# override these on a field-by-field basis. See doc/ADR-001-repo-mirror.md.
+
+interval = "24h"                  # how often to sync (suffix: s|m|h|d)
+target_dataset = "backups-00/repos"
+on_orphan = "warn"                # warn | error  (never auto-delete)
+include_collaborator = false
+include_organization = false
+"""
+
+PER_REPO_TEMPLATE = """\
+# Auto-created by tourbillon on first discovery.
+# Per-repo settings override fields in ../../../defaults.toml.
+# Add overrides below as needed; common one is a tighter interval for
+# actively-developed repos:
+#
+#   interval = "1h"
+"""
+
+
+# ---------- Types ----------
+
+@dataclass
+class Repo:
+    provider: str
+    owner: str
+    name: str
+    is_private: bool
+    clone_url_https: str
+    default_branch: str | None = None
+    pushed_at: str | None = None
+    size_kb: int | None = None
+
+    @property
+    def slug(self) -> str:
+        return f"{self.provider}/{self.owner}/{self.name}"
+
+
+class HTTPError(Exception):
+    def __init__(self, status: int, body: str, url: str):
+        super().__init__(f"HTTP {status} for {url}: {body[:300]}")
+        self.status = status
+        self.body = body
+        self.url = url
+
+
+def http_get_json(url: str, headers: dict[str, str]) -> dict | list:
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise HTTPError(e.code, body, url) from e
+
+
+# ---------- Providers ----------
+
+def github_list_owned(token: str) -> Iterator[Repo]:
+    """Paginated list of owner-affiliated repos on GitHub."""
+    page = 1
+    while True:
+        url = (
+            "https://api.github.com/user/repos"
+            f"?affiliation=owner&visibility=all&per_page=100&page={page}"
+        )
+        data = http_get_json(url, {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        if not data:
+            return
+        for entry in data:
+            yield Repo(
+                provider="github",
+                owner=entry["owner"]["login"],
+                name=entry["name"],
+                is_private=entry["private"],
+                clone_url_https=entry["clone_url"],
+                default_branch=entry.get("default_branch"),
+                pushed_at=entry.get("pushed_at"),
+                size_kb=entry.get("size"),
+            )
+        if len(data) < 100:
+            return
+        page += 1
+
+
+def bitbucket_list_workspace_repos(
+    workspace: str, email: str, token: str,
+) -> Iterator[Repo]:
+    """Paginated list of repos in a Bitbucket workspace, role=owner."""
+    auth = base64.b64encode(f"{email}:{token}".encode()).decode()
+    headers = {"Authorization": f"Basic {auth}"}
+    url = (
+        f"https://api.bitbucket.org/2.0/repositories/{workspace}"
+        "?role=owner&pagelen=100"
+    )
+    while url:
+        data = http_get_json(url, headers)
+        for entry in data.get("values", []):
+            clone_urls = entry.get("links", {}).get("clone", [])
+            https_url = next(
+                (u["href"] for u in clone_urls if u.get("name") == "https"),
+                "",
+            )
+            yield Repo(
+                provider="bitbucket",
+                owner=entry["workspace"]["slug"],
+                name=entry["slug"],
+                is_private=entry.get("is_private", True),
+                clone_url_https=https_url,
+                pushed_at=entry.get("updated_on"),
+                size_kb=int((entry.get("size") or 0) / 1024) or None,
+            )
+        url = data.get("next")
+
+
+# ---------- Config files ----------
+
+def per_repo_path(repo: Repo) -> Path:
+    return CONFIGS_REPOS / repo.provider / repo.owner / f"{repo.name}.toml"
+
+
+def slug_from_config_path(path: Path) -> str:
+    """configs/repos/github/lynchdavis/foo.toml  ->  'github/lynchdavis/foo'"""
+    rel = path.relative_to(CONFIGS_REPOS).with_suffix("")
+    return "/".join(rel.parts)
+
+
+def ensure_repo_config(repo: Repo) -> Path | None:
+    """Create per-repo config file if missing. Returns the path if created, else None."""
+    path = per_repo_path(repo)
+    if path.exists():
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(PER_REPO_TEMPLATE)
+    return path
+
+
+def ensure_defaults() -> bool:
+    """Create configs/repos/defaults.toml if missing. Returns True if created."""
+    CONFIGS_REPOS.mkdir(parents=True, exist_ok=True)
+    if DEFAULTS_PATH.exists():
+        return False
+    DEFAULTS_PATH.write_text(DEFAULTS_BODY)
+    return True
+
+
+# ---------- Git auto-commit ----------
+
+def git_commit_paths(paths: list[Path], message: str) -> str | None:
+    """Stage and commit just these paths. Returns short hash on success."""
+    if not paths:
+        return None
+    rel = [str(p.relative_to(REPO_ROOT)) for p in paths]
+    env = os.environ.copy()
+    # Don't accidentally launch an editor from cron.
+    env.setdefault("GIT_EDITOR", "true")
+    subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "add", "--", *rel],
+        check=True, env=env,
+    )
+    # Commit only the staged paths matching `rel`. Other unrelated staged
+    # changes (if any) are left as-is.
+    subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "commit", "-m", message, "--", *rel],
+        check=True, env=env,
+    )
+    out = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
+        check=True, capture_output=True, text=True, env=env,
+    )
+    return out.stdout.strip()
+
+
+# ---------- Discovery orchestration ----------
+
+@dataclass
+class DiscoveryResult:
+    github_repos: list[Repo]
+    github_error: str | None
+    bitbucket_repos: list[Repo]
+    bitbucket_error: str | None
+    new_config_paths: list[Path]
+    orphan_slugs: list[str]
+
+    @property
+    def all_repos(self) -> list[Repo]:
+        return self.github_repos + self.bitbucket_repos
+
+    @property
+    def has_any_error(self) -> bool:
+        return bool(self.github_error or self.bitbucket_error)
+
+
+def discover_all() -> DiscoveryResult:
+    result = DiscoveryResult(
+        github_repos=[], github_error=None,
+        bitbucket_repos=[], bitbucket_error=None,
+        new_config_paths=[], orphan_slugs=[],
+    )
+
+    # GitHub
+    gh_token = os.environ.get("GITHUB_TOKEN")
+    if not gh_token:
+        result.github_error = "GITHUB_TOKEN not set"
+    else:
+        try:
+            result.github_repos = list(github_list_owned(gh_token))
+        except HTTPError as e:
+            result.github_error = f"HTTP {e.status}: {e.body[:200]}"
+        except Exception as e:
+            result.github_error = f"{type(e).__name__}: {e}"
+
+    # Bitbucket
+    bb_token = os.environ.get("BITBUCKET_TOKEN")
+    bb_email = os.environ.get("ATLASSIAN_EMAIL")
+    bb_workspace = os.environ.get("BITBUCKET_WORKSPACE")
+    missing = [k for k, v in [
+        ("BITBUCKET_TOKEN", bb_token),
+        ("ATLASSIAN_EMAIL", bb_email),
+        ("BITBUCKET_WORKSPACE", bb_workspace),
+    ] if not v]
+    if missing:
+        result.bitbucket_error = f"missing env: {', '.join(missing)}"
+    else:
+        try:
+            result.bitbucket_repos = list(
+                bitbucket_list_workspace_repos(bb_workspace, bb_email, bb_token)
+            )
+        except HTTPError as e:
+            result.bitbucket_error = f"HTTP {e.status}: {e.body[:200]}"
+        except Exception as e:
+            result.bitbucket_error = f"{type(e).__name__}: {e}"
+
+    # Create per-repo config files for any new repos
+    for repo in result.all_repos:
+        new = ensure_repo_config(repo)
+        if new:
+            result.new_config_paths.append(new)
+
+    # Detect orphans: configs that exist for repos no longer in upstream listing
+    upstream_slugs = {r.slug for r in result.all_repos}
+    if CONFIGS_REPOS.exists():
+        for cfg in sorted(CONFIGS_REPOS.rglob("*.toml")):
+            if cfg.name == "defaults.toml":
+                continue
+            slug = slug_from_config_path(cfg)
+            # Don't mark a slug orphan if its provider had an error — we
+            # might just be looking at stale data.
+            provider = slug.split("/", 1)[0]
+            had_error = (
+                (provider == "github" and result.github_error)
+                or (provider == "bitbucket" and result.bitbucket_error)
+            )
+            if not had_error and slug not in upstream_slugs:
+                result.orphan_slugs.append(slug)
+
+    return result
+
+
+# ---------- Subcommands ----------
+
+def cmd_repos_discover(args: argparse.Namespace) -> int:
+    if ensure_defaults():
+        rel = DEFAULTS_PATH.relative_to(REPO_ROOT)
+        print(f"created {rel}")
+
+    print("discovering...")
+    result = discover_all()
+
+    print()
+    for name, repos, err in [
+        ("github", result.github_repos, result.github_error),
+        ("bitbucket", result.bitbucket_repos, result.bitbucket_error),
+    ]:
+        if err:
+            print(f"  {name:9s}  ERROR: {err}", file=sys.stderr)
+            continue
+        pub = sum(1 for r in repos if not r.is_private)
+        priv = sum(1 for r in repos if r.is_private)
+        print(f"  {name:9s}  {len(repos):3d} repos  ({pub} public, {priv} private)")
+
+    if result.new_config_paths:
+        print()
+        print(f"created {len(result.new_config_paths)} new per-repo config file(s):")
+        for p in result.new_config_paths:
+            print(f"  + {p.relative_to(REPO_ROOT)}")
+
+        # Auto-commit (per ADR-001: local-only, never pushed)
+        if args.no_commit:
+            print()
+            print("(--no-commit: not committing; review with `git status`)")
+        else:
+            n = len(result.new_config_paths)
+            new_slugs = [
+                slug_from_config_path(p) for p in result.new_config_paths
+            ]
+            slug_lines = "\n".join(f"  - {s}" for s in new_slugs)
+            msg = (
+                f"configs/repos: discover {n} new repo(s)\n\n"
+                f"Auto-created by `tourbillon repos discover`.\n"
+                f"Repos newly catalogued:\n{slug_lines}\n"
+            )
+            paths_to_commit = list(result.new_config_paths)
+            # Also stage defaults.toml if it was newly created
+            if (CONFIGS_REPOS / "defaults.toml").exists() and (
+                "defaults.toml" not in [p.name for p in paths_to_commit]
+            ):
+                # only include defaults.toml if it's git-untracked currently
+                status = subprocess.run(
+                    ["git", "-C", str(REPO_ROOT), "status", "--porcelain",
+                     str((DEFAULTS_PATH).relative_to(REPO_ROOT))],
+                    capture_output=True, text=True, check=False,
+                )
+                if status.stdout.strip().startswith("??"):
+                    paths_to_commit.append(DEFAULTS_PATH)
+            try:
+                short = git_commit_paths(paths_to_commit, msg)
+                print(f"committed locally as {short} (not pushed)")
+            except subprocess.CalledProcessError as e:
+                print(f"  git commit failed: {e}", file=sys.stderr)
+                return 1
+    else:
+        print()
+        print("(no new configs — all upstream repos already catalogued)")
+
+    if result.orphan_slugs:
+        print()
+        print(f"ORPHANED ({len(result.orphan_slugs)}) — config present, no longer in upstream:")
+        for slug in result.orphan_slugs:
+            print(f"  ! {slug}")
+        print("(not deleted; use `tourbillon repos prune <slug>` once you're sure — n.y.i.)")
+
+    return 1 if result.has_any_error else 0
+
+
+def cmd_not_yet(label: str):
+    def _impl(args: argparse.Namespace) -> int:
+        print(f"not yet implemented: {label}", file=sys.stderr)
+        return 2
+    return _impl
+
+
+# ---------- CLI ----------
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="tourbillon",
+        description="Keeper of the home-backup system's state. See doc/NAMING.md.",
+    )
+    subs = p.add_subparsers(dest="command", required=True, metavar="<command>")
+
+    # Top-level placeholders
+    sp = subs.add_parser("status", help="overall rollup (not yet implemented)")
+    sp.set_defaults(func=cmd_not_yet("status"))
+    sp = subs.add_parser("health", help="disk + pool health (not yet implemented)")
+    sp.set_defaults(func=cmd_not_yet("health"))
+    sp = subs.add_parser("logs", help="recent job logs (not yet implemented)")
+    sp.set_defaults(func=cmd_not_yet("logs"))
+    sp = subs.add_parser("perf", help="transfer-rate history (not yet implemented)")
+    sp.set_defaults(func=cmd_not_yet("perf"))
+
+    # repos noun
+    repos = subs.add_parser("repos", help="git repo mirroring (github + bitbucket)")
+    rsubs = repos.add_subparsers(dest="repos_cmd", required=True, metavar="<verb>")
+
+    rp = rsubs.add_parser(
+        "discover",
+        help="enumerate upstream repos via API; create per-repo configs as needed",
+    )
+    rp.add_argument(
+        "--no-commit", action="store_true",
+        help="don't auto-commit newly-created config files (default: do commit)",
+    )
+    rp.set_defaults(func=cmd_repos_discover)
+
+    rp = rsubs.add_parser("status", help="show last-run state per repo (n.y.i.)")
+    rp.set_defaults(func=cmd_not_yet("repos status"))
+
+    rp = rsubs.add_parser("sync", help="clone / remote-update due repos (n.y.i.)")
+    rp.set_defaults(func=cmd_not_yet("repos sync"))
+
+    rp = rsubs.add_parser("prune", help="explicit removal of a local mirror (n.y.i.)")
+    rp.add_argument("slug", help="provider/owner/repo to prune")
+    rp.set_defaults(func=cmd_not_yet("repos prune"))
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("interrupted", file=sys.stderr)
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())
