@@ -1,0 +1,190 @@
+[
+  {
+    "dataset": "tank/active",
+    "recursive": true,
+    "lifetime_value": 1,
+    "lifetime_unit": "DAY",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "*",
+      "dom": "*",
+      "month": "*",
+      "dow": "*",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 1,
+    "state": {
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779667200000
+      },
+      "last_snapshot": "tank/active@auto-2026-05-24_17-00"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "tank/archive",
+    "recursive": true,
+    "lifetime_value": 30,
+    "lifetime_unit": "DAY",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "3",
+      "dom": "*",
+      "month": "*",
+      "dow": "*",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 2,
+    "state": {
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779616800000
+      },
+      "last_snapshot": "tank/archive@auto-2026-05-24_03-00"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "tank/system",
+    "recursive": true,
+    "lifetime_value": 30,
+    "lifetime_unit": "DAY",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "3",
+      "dom": "*",
+      "month": "*",
+      "dow": "*",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 3,
+    "state": {
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779616800000
+      },
+      "last_snapshot": "tank/system@auto-2026-05-24_03-00"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "tank/scratch",
+    "recursive": true,
+    "lifetime_value": 8,
+    "lifetime_unit": "WEEK",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "3",
+      "dom": "*",
+      "month": "*",
+      "dow": "0",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 4,
+    "state": {
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779616800000
+      },
+      "last_snapshot": "tank/scratch@auto-2026-05-24_03-00"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "media/music",
+    "recursive": true,
+    "lifetime_value": 1,
+    "lifetime_unit": "YEAR",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "4",
+      "dom": "*",
+      "month": "*",
+      "dow": "0",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 5,
+    "state": {
+      "state": "FINISHED",
+      "datetime": {
+        "$date": 1779620400000
+      },
+      "last_snapshot": "media/music@auto-2026-05-24_04-00"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "tank",
+    "recursive": true,
+    "lifetime_value": 2,
+    "lifetime_unit": "WEEK",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "2",
+      "dom": "*",
+      "month": "*",
+      "dow": "*",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 6,
+    "state": {
+      "state": "PENDING"
+    },
+    "vmware_sync": false
+  },
+  {
+    "dataset": "media",
+    "recursive": true,
+    "lifetime_value": 2,
+    "lifetime_unit": "WEEK",
+    "enabled": true,
+    "exclude": [],
+    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "allow_empty": true,
+    "schedule": {
+      "minute": "0",
+      "hour": "2",
+      "dom": "*",
+      "month": "*",
+      "dow": "*",
+      "begin": "00:00",
+      "end": "23:59"
+    },
+    "id": 7,
+    "state": {
+      "state": "PENDING"
+    },
+    "vmware_sync": false
+  }
+]

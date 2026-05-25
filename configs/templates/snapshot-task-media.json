@@ -1,0 +1,17 @@
+{
+  "dataset": "media",
+  "recursive": true,
+  "exclude": [],
+  "lifetime_value": 2,
+  "lifetime_unit": "WEEK",
+  "naming_schema": "auto-%Y-%m-%d_%H-%M",
+  "schedule": {
+    "minute": "0",
+    "hour": "2",
+    "dom": "*",
+    "month": "*",
+    "dow": "*"
+  },
+  "allow_empty": true,
+  "enabled": true
+}

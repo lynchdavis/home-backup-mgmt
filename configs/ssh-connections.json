@@ -1,0 +1,15 @@
+[
+  {
+    "id": 2,
+    "name": "kodiak",
+    "type": "SSH_CREDENTIALS",
+    "attributes": {
+      "host": "192.168.0.61",
+      "port": 22,
+      "username": "tnreplicate",
+      "private_key": 1,
+      "remote_host_key": "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBD56qVkhQqxBAi9LP4CXk6HuE2+W9X0vC06nU3dxhwhPoeOC4AHgxx6hk5hmmHmKhvabYKCtwgMZEf+JJKtcz3Y=\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDhfx2trVrHLquGi6nTizc654jljmf8RegoCHBJbkfvqxWbUtJOkkWm769ybGwPdjuL03lxa0w7SS8Xgi+D5JDJjq3eRAFciVuPrC7rfSCBAOMZFPO4y8TMiBAoj+K7U+igg5eO6XeoLg6X1jgxsO+tJw6H3HjhJwqmmUPidq0yMN2C0JogIouGy0i7r3cvW3C6Z61X898Q1BRjUwJO/ufEj2/7H/m45/nQbTjoxsquQSzwtIx2fd46CDXF2TXG9LepD0DFc0DnMYdTEETODHfef5FYFOqcRCZiut2awjwmZ09R51OmMFoovjMk7uPiLCdtG1bqYJ6GdITiVRMY/bJiYFLnjbZ0d135fumeYljtf4XnDaEFB3zIeCyq+WT4OWJHSpQwEyGDBXs47hkpOefsE8+la0TL7B5lXLC3X15BTjzqfb0LzKgep0vHCO/wX6GedMa//Gj4n7hNdWHU+BAddrFPjK8hGrJJpkXOM1v41QddgBKhjw0pruBQ0udGfQE=\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJtImWu0/O0uYlgv9xpZeB7PnUgDdsw3kL0EjT0pqjL9",
+      "connect_timeout": 10
+    }
+  }
+]

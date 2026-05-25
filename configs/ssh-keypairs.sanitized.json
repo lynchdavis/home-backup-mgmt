@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "name": "kodiak-tnreplicate",
+    "type": "SSH_KEY_PAIR",
+    "attributes": {
+      "private_key": "<REDACTED - regenerable in TrueNAS UI>",
+      "public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDIVjyVa7pRXyOfiNW631xAGHIdZaOi/SRLU0LKW9vVFET0ZmzRbvvub2vxT/Xqx/fRs4b1Qa4yz2B42wCdWfIF192iPS3DuQNz3ruDlCQbL+P3ie2/BWu+skwgN8lAeT9pVybbJHm23odUuqKVBZL47kZ0od81ZujQFO8kU16WuvGhJ0GuF51DkQV6LyDHhXrCMCqvuPFu4ObU+56eT1zVOg8FciKvwDgBehku+DvqbykNeswklWEsbBNKdJp6qVeva6J3yYRx4EW/eYtxU0UnxJ8UCA1YDUhjGtLa/aHpkfWCkEf6BCF3EuKyV1DieGVVk0C4NqP8X+yVPUsFBwfclWr01e/9kPskaipGixJelV2BGXsDMdIgycs71pAq3EKL3ZhCr/pieuJMu5s556H0zQu1fszhIBRmBE9ZKuvfYiup9PVRW2f0mP7TDKhJL9QXbpl4QWwMly/hG9pWEHshSWPkmFSal34GPj53dSNw+sgDY1XyifT5J9UMDSBgqiU= root@saratoga\n"
+    }
+  }
+]

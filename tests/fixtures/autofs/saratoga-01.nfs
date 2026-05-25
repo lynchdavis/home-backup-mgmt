@@ -1,6 +1,0 @@
-applications    -fstype=nfs,hard,intr,nodev,nosuid 192.168.0.60:/mnt/saratoga-01/NetworkShares01/applications
-archives        -fstype=nfs,hard,intr,nodev,nosuid 192.168.0.60:/mnt/saratoga-01/NetworkShares01/archives
-photography     -fstype=nfs,hard,intr,nodev,nosuid 192.168.0.60:/mnt/saratoga-01/NetworkShares01/photography
-
-## music share is ??
-PhotoArchive_2020_2029    -fstype=nfs,hard,intr,nodev,nosuid 192.168.0.60:/mnt/saratoga-02/PhotoArchive/PhotoArchive_2020_2029
