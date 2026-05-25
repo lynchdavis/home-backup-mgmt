@@ -133,12 +133,33 @@ On kodiak, paste the public key into `/var/lib/tnreplicate/.ssh/authorized_keys`
 
 ### 6. API key + initial config dump
 
-In TrueNAS UI: *Credentials → Local Users → root → API Keys → Add*. Copy the token. Store it where you'll find it; **TrueNAS shows it exactly once**.
+In TrueNAS UI: *Credentials → Local Users → root → API Keys → Add*. Copy the token. **TrueNAS shows it exactly once.**
+
+Persist it at `~/.config/saratoga/env` so future shells (and cron) can source it. The file is `chmod 600`, not in git:
 
 ```bash
-export TRUENAS_API_TOKEN='1-...'
-bin/dump-saratoga-config.sh   # snapshot the current live state into configs/
+install -d -m 700 ~/.config/saratoga
+cat > ~/.config/saratoga/env <<'EOF'
+# TrueNAS API access. If lost: regenerate in UI -> Credentials -> Local Users
+# -> root -> API Keys. Token shows once.
+export TRUENAS_API_TOKEN='1-...'                       # paste the new token here
+export SARATOGA_API_URL='https://192.168.0.60/api/v2.0'
+EOF
+chmod 600 ~/.config/saratoga/env
 ```
+
+Usage thereafter:
+```bash
+. ~/.config/saratoga/env
+bin/dump-saratoga-config.sh   # snapshot live state into configs/
+```
+
+For cron entries that need API access (the scripts fail-fast on missing `TRUENAS_API_TOKEN`):
+```
+0 4 * * 0  . $HOME/.config/saratoga/env && $HOME/development/server-backups/bin/dump-saratoga-config.sh
+```
+
+**Gotcha worth flagging early:** the token only lives in shell environment variables during a session. If you didn't persist it the first time you generated it, the only fix is regenerating a new one in the UI — TrueNAS never re-displays an issued token.
 
 ### 7. Snapshot + Replication Tasks via API
 

@@ -8,9 +8,11 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 
 - **[PLAYBOOK.md](PLAYBOOK.md)** — the operational playbook: what runs where, how to recreate from scratch, what to do when things change, gotchas captured the hard way.
 - **[SARATOGA_RESTORE.md](SARATOGA_RESTORE.md)** — restore scenarios (single-file → full DR), in priority order.
+- **[CHANGELOG.md](CHANGELOG.md)** — pragmatic record of functional changes (what shipped, when, what to remove later).
 - `configs/` — JSON dumps of the live TrueNAS replication / snapshot / SSH configuration. Refresh with `bin/dump-saratoga-config.sh`.
 - `configs/templates/` — JSON templates used to create new tasks via API.
 - `bin/` — small scripts for setup, monitoring, and config dumping. No framework; each script does one thing.
+- `doc/` — ADRs and explanations (e.g., `doc/NAMING.md` — name origins, including what a tourbillon is).
 
 ## Status
 

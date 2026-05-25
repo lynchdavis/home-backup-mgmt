@@ -21,9 +21,9 @@
     "state": {
       "state": "FINISHED",
       "datetime": {
-        "$date": 1779710400000
+        "$date": 1779717600000
       },
-      "last_snapshot": "tank/active@auto-2026-05-25_05-00"
+      "last_snapshot": "tank/active@auto-2026-05-25_07-00"
     },
     "vmware_sync": false
   },
@@ -146,10 +146,10 @@
     "lifetime_unit": "WEEK",
     "enabled": true,
     "exclude": [],
-    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "naming_schema": "auto-tank-%Y-%m-%d_%H-%M",
     "allow_empty": true,
     "schedule": {
-      "minute": "5",
+      "minute": "0",
       "hour": "2",
       "dom": "*",
       "month": "*",
@@ -175,7 +175,7 @@
     "lifetime_unit": "WEEK",
     "enabled": true,
     "exclude": [],
-    "naming_schema": "auto-%Y-%m-%d_%H-%M",
+    "naming_schema": "auto-media-%Y-%m-%d_%H-%M",
     "allow_empty": true,
     "schedule": {
       "minute": "0",

@@ -52,10 +52,10 @@
         "lifetime_unit": "WEEK",
         "enabled": true,
         "exclude": [],
-        "naming_schema": "auto-%Y-%m-%d_%H-%M",
+        "naming_schema": "auto-tank-%Y-%m-%d_%H-%M",
         "allow_empty": true,
         "schedule": {
-          "minute": "5",
+          "minute": "0",
           "hour": "2",
           "dom": "*",
           "month": "*",
@@ -68,7 +68,9 @@
       }
     ],
     "naming_schema": [],
-    "also_include_naming_schema": [],
+    "also_include_naming_schema": [
+      "auto-%Y-%m-%d_%H-%M"
+    ],
     "name_regex": null,
     "auto": true,
     "schedule": null,
@@ -214,7 +216,7 @@
         "lifetime_unit": "WEEK",
         "enabled": true,
         "exclude": [],
-        "naming_schema": "auto-%Y-%m-%d_%H-%M",
+        "naming_schema": "auto-media-%Y-%m-%d_%H-%M",
         "allow_empty": true,
         "schedule": {
           "minute": "0",
@@ -230,7 +232,9 @@
       }
     ],
     "naming_schema": [],
-    "also_include_naming_schema": [],
+    "also_include_naming_schema": [
+      "auto-%Y-%m-%d_%H-%M"
+    ],
     "name_regex": null,
     "auto": true,
     "schedule": null,
