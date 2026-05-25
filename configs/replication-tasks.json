@@ -55,7 +55,7 @@
         "naming_schema": "auto-%Y-%m-%d_%H-%M",
         "allow_empty": true,
         "schedule": {
-          "minute": "0",
+          "minute": "5",
           "hour": "2",
           "dom": "*",
           "month": "*",
