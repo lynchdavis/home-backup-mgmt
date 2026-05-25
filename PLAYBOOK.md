@@ -51,7 +51,7 @@ What this design gives up:
 - **SSH Keypair** named `kodiak-tnreplicate` (Credentials → Backup Credentials → SSH Keypairs).
 - **SSH Connection** named `kodiak` pointing at `192.168.0.61:22` as user `tnreplicate` (Credentials → Backup Credentials → SSH Connections).
 - **API Key** (one) for config dumps from kodiak.
-- **Periodic Snapshot Tasks** — `tank` (recursive, 2-week lifetime, daily @ 02:00), `media` (same), plus pre-existing finer-grained tasks (`tank/active` 1-day, `tank/archive` 30-day, `media/music` 1-year, etc. — all using the `auto-%Y-%m-%d_%H-%M` naming schema).
+- **Periodic Snapshot Tasks** — `tank` (recursive, 2-week lifetime, daily @ **02:05**), `media` (recursive, 2-week, daily @ 02:00), plus pre-existing finer-grained tasks (`tank/active` 1-day hourly, `tank/archive` 30-day @ 03:00, `media/music` 1-year, etc. — all using the `auto-%Y-%m-%d_%H-%M` naming schema). The 02:05 minute offset on the `tank` task is intentional — see "Snapshot-task scope/schedule collisions" below.
 - **Replication Tasks**:
   - `tank - backups-00/saratoga` → push, recursive, exclude `tank/system, tank/timemachine`, properties_exclude `[mountpoint, canmount]`, large_block=true, compressed=true, sudo=false (the source side; we *do* need sudo on target but TrueNAS handles that via the connection user's privileges, not this flag).
   - `media - backups-00/saratoga` → push, recursive, no excludes, same properties_exclude, same flags.
@@ -181,11 +181,30 @@ Tank's first seed (1.99 TiB) took ~2.5 hours over 10 GbE. Media (~430 GB) took ~
 ## Adding a new replication target
 
 1. Pre-create destination dataset on kodiak: `sudo zfs create -o canmount=noauto backups-00/saratoga/<new>`.
-2. In TrueNAS UI, add a Periodic Snapshot Task at the source (recursive, naming schema `auto-%Y-%m-%d_%H-%M`, sensible lifetime). Or do it via API.
+2. In TrueNAS UI, add a Periodic Snapshot Task at the source (recursive, naming schema `auto-%Y-%m-%d_%H-%M`, sensible lifetime). Or do it via API. **Pick a minute that doesn't collide with any ancestor- or descendant-scoped task** (see "Snapshot-task scope/schedule collisions" below).
 3. Add the Replication Task — easiest via `bin/apply-<target>-tasks.sh` mirroring `apply-media-tasks.sh`. Same templated settings.
 4. Create the first parent-level snapshot via API (the precondition gotcha above).
 5. Fire the replication via API or UI Run Now.
 6. After it succeeds, run `bin/dump-saratoga-config.sh` to refresh the JSON in this repo.
+
+---
+
+## Snapshot-task scope/schedule collisions
+
+If two Periodic Snapshot Tasks cover overlapping datasets, use the same naming schema (`auto-%Y-%m-%d_%H-%M`), and fire in the same minute, the later one aborts entirely. TrueNAS does not detect this at create time; it shows up in the snapshot task `state` as `ERROR`:
+
+> `cannot create snapshot 'tank/active@auto-<ts>': dataset already exists ... no snapshots were created.`
+
+"No snapshots were created" is literal — the recursive operation rolls back on first conflict, so even non-overlapping datasets in the same task get no snapshot for that slot. If that task is the trigger for a replication task (the common case), the replication also skips that slot.
+
+The collision exists between any pair where one task's recursive scope contains the other's dataset AND their schedules land on the same `HH:MM`. With the `tank` recursive task @ 02:00 and the `tank/active` recursive task at minute 0 of every hour, both fired at 02:00 → `tank/active` won, `tank` aborted.
+
+**Fix:** offset one task's minute (currently: `tank` is at 02:05, the hourly `tank/active` keeps 02:00). Schedules with different `HH` automatically don't collide because the timestamp embeds `HH-MM`.
+
+**When adding any new snapshot task**, before saving:
+- List datasets it will recursively touch.
+- For each, check whether an existing snapshot task covers it with the same naming schema.
+- If yes, pick a minute that doesn't match any of them — even one minute of offset is enough.
 
 ---
 
@@ -232,6 +251,7 @@ Things tried during setup that don't work, with the specific failure mode so you
 | **URL `POST /replication/id/<id>/run`** | `404 Not Found` | Correct shape is `POST /replication/run` with raw integer task id as JSON body. |
 | **URL `POST /zfs/snapshot`** | `404 Not Found` | Correct path is `POST /pool/snapshot`. |
 | **Recursive snapshot via `zfs snapshot -r media@...` as ldavis** | `cannot create snapshots : permission denied` | ldavis has no ZFS delegation (those grants were going to be done during the pull design, never executed before the push pivot). Use the API instead, or grant explicit `snapshot` delegation. |
+| **Two snapshot tasks on overlapping scopes at the same minute, same naming schema** | Later task: `cannot create snapshot '<dataset>@auto-<ts>': dataset already exists ... no snapshots were created` — the whole recursive op rolls back, downstream replication misses the slot | See "Snapshot-task scope/schedule collisions" above. Offset minute by 1+ on one of the tasks. |
 
 ---
 
