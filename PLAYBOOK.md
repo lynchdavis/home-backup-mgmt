@@ -37,10 +37,11 @@ What this design gives up:
 - **ZFS pool `backups-00`** on `/dev/sdb` (WDC WD40EFRX 4TB, by-id `ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP`).
   - `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`, `acltype=posixacl`.
   - Mountpoint `/kodiak00/backups-00` (drop-in for the old LVM that lived there).
-- **Datasets** (pre-created with `canmount=noauto`):
-  - `backups-00/saratoga` — parent container
-  - `backups-00/saratoga/tank` — receives saratoga's `tank` tree
-  - `backups-00/saratoga/media` — receives saratoga's `media` tree
+- **Datasets**:
+  - `backups-00/saratoga` — parent container for saratoga DR (`canmount=noauto`)
+  - `backups-00/saratoga/tank` — receives saratoga's `tank` tree (`canmount=noauto`)
+  - `backups-00/saratoga/media` — receives saratoga's `media` tree (`canmount=noauto`)
+  - `backups-00/repos` — bare-repo mirrors from GitHub + Bitbucket (`canmount=on`, `recordsize=128K`, owned by `ldavis`). Managed by `bin/tourbillon repos sync`.
 - **User `tnreplicate`** (uid 997, home `/var/lib/tnreplicate`, shell bash).
   - `~/.ssh/authorized_keys` contains TrueNAS's replication pubkey.
   - `/etc/sudoers.d/tnreplicate` grants passwordless sudo for `/usr/sbin/zfs` and `/usr/sbin/zpool` (and `/sbin/` versions).
@@ -91,14 +92,34 @@ sudo zpool create \
 
 **Gotcha:** also confirm `/etc/fstab` doesn't have a stale `/kodiak00/backups-00` entry from any prior LVM setup; if so comment it out. ZFS auto-imports via `zfs-import.target`, doesn't need fstab.
 
-### 3. Pre-create destination datasets, *unmounted*
+### 3. Pre-create destination datasets
+
+Two distinct datasets with different settings — one for saratoga (must stay
+unmounted), one for repo mirrors (mounted, ldavis-writable).
 
 ```bash
+# saratoga DR — canmount=noauto to sidestep Linux's mount-permission gate
 sudo zfs create -o canmount=noauto backups-00/saratoga
 sudo zfs create -o canmount=noauto backups-00/saratoga/tank
 sudo zfs create -o canmount=noauto backups-00/saratoga/media
+
+# repo mirrors — small files, mounted, owned by the script user
+sudo zfs create -o canmount=on -o compression=lz4 -o atime=off \
+                -o recordsize=128K -o xattr=sa -o acltype=posixacl \
+                backups-00/repos
+sudo chown ldavis:ldavis /kodiak00/backups-00/repos
 ```
-**Why `canmount=noauto`:** OpenZFS on Linux gates the mount/umount syscall at the kernel level regardless of ZFS-layer delegation. If destination datasets are mounted, `zfs recv -F` tries to unmount them and fails with `permission denied`. `canmount=noauto` keeps them unmounted; recv has nothing to unmount.
+
+**Why `canmount=noauto` on the saratoga side:** OpenZFS on Linux gates the
+mount/umount syscall at the kernel level regardless of ZFS-layer delegation.
+If destination datasets are mounted, `zfs recv -F` tries to unmount them and
+fails with `permission denied`. `canmount=noauto` keeps them unmounted; recv
+has nothing to unmount.
+
+**Why `canmount=on` + chown on the repos side:** bare-repo mirrors are
+written via plain `git clone --mirror` / `git remote update`, which need a
+mounted filesystem and the script user (ldavis) to be able to write. No ZFS
+recv tricks involved.
 
 ### 4. `tnreplicate` user + sudoers + ZFS delegation
 

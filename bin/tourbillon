@@ -21,18 +21,27 @@ import argparse
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
+import time
 import tomllib
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_REPOS = REPO_ROOT / "configs" / "repos"
 DEFAULTS_PATH = CONFIGS_REPOS / "defaults.toml"
+
+# Where bare repo mirrors actually live (the ZFS dataset).
+TARGET_ROOT = Path("/kodiak00/backups-00/repos")
+
+# Mutable per-host state, NOT git-tracked.
+STATE_ROOT = Path.home() / ".local" / "state" / "tourbillon" / "repos"
 
 DEFAULTS_BODY = """\
 # Tourbillon repo-mirror defaults. Per-repo files in this directory
@@ -297,6 +306,220 @@ def discover_all() -> DiscoveryResult:
     return result
 
 
+# ---------- Sync helpers ----------
+
+def iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def iso_parse(s: str) -> datetime:
+    """Parse an ISO timestamp; tolerate both '...Z' and '...+00:00' suffixes."""
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def parse_interval(s: str) -> int:
+    """'24h' -> 86400. Supports s/m/h/d suffixes."""
+    s = s.strip().lower()
+    if not s:
+        raise ValueError("empty interval")
+    n = int(s[:-1])
+    unit = s[-1]
+    return {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit] * n
+
+
+def format_size(b: int | float) -> str:
+    b = float(b)
+    for unit in ("B", "KB", "MB", "GB"):
+        if b < 1024:
+            return f"{b:.1f} {unit}"
+        b /= 1024
+    return f"{b:.1f} TB"
+
+
+def format_duration(s: float) -> str:
+    if s < 60:
+        return f"{s:.1f}s"
+    if s < 3600:
+        return f"{s/60:.1f}m"
+    return f"{s/3600:.2f}h"
+
+
+def state_path(slug: str) -> Path:
+    return STATE_ROOT / f"{slug}.json"
+
+
+def load_state(slug: str) -> dict | None:
+    p = state_path(slug)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except json.JSONDecodeError:
+        return None
+
+
+def save_state(slug: str, state: dict) -> None:
+    p = state_path(slug)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(state, indent=2) + "\n")
+
+
+def slug_split(slug: str) -> tuple[str, str, str]:
+    """'github/owner/repo' -> ('github', 'owner', 'repo')"""
+    parts = slug.split("/", 2)
+    if len(parts) != 3:
+        raise ValueError(f"invalid slug {slug!r} (expected provider/owner/name)")
+    return parts[0], parts[1], parts[2]
+
+
+def public_clone_url(provider: str, owner: str, name: str) -> str:
+    if provider == "github":
+        return f"https://github.com/{owner}/{name}.git"
+    if provider == "bitbucket":
+        return f"https://bitbucket.org/{owner}/{name}.git"
+    raise ValueError(f"unknown provider {provider!r}")
+
+
+def git_auth_header_for(provider: str) -> str:
+    """Returns the Authorization header value for git-over-HTTPS operations.
+
+    The git HTTP backends use HTTP Basic auth, but each provider has its own
+    "magic username" convention for token-based auth:
+
+      - GitHub:    Basic x-access-token:<pat>
+      - Bitbucket: Basic x-bitbucket-api-token-auth:<token>
+                   (the email-as-username form works for the REST API but
+                   not for git; the magic username is required here.)
+    """
+    if provider == "github":
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise RuntimeError("GITHUB_TOKEN not in environment")
+        creds = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+        return f"Authorization: Basic {creds}"
+    if provider == "bitbucket":
+        token = os.environ.get("BITBUCKET_TOKEN")
+        if not token:
+            raise RuntimeError("BITBUCKET_TOKEN not in environment")
+        creds = base64.b64encode(f"x-bitbucket-api-token-auth:{token}".encode()).decode()
+        return f"Authorization: Basic {creds}"
+    raise ValueError(f"unknown provider {provider!r}")
+
+
+def repo_destination(provider: str, owner: str, name: str) -> Path:
+    """Where the bare repo lives on disk."""
+    return TARGET_ROOT / provider / owner / f"{name}.git"
+
+
+def load_defaults_config() -> dict:
+    if DEFAULTS_PATH.exists():
+        return tomllib.loads(DEFAULTS_PATH.read_text())
+    return {"interval": "24h", "on_orphan": "warn"}
+
+
+def load_repo_config(slug: str, defaults: dict | None = None) -> dict:
+    """defaults overridden by per-repo TOML if present."""
+    if defaults is None:
+        defaults = load_defaults_config()
+    config = dict(defaults)
+    provider, owner, name = slug_split(slug)
+    per_path = CONFIGS_REPOS / provider / owner / f"{name}.toml"
+    if per_path.exists():
+        config.update(tomllib.loads(per_path.read_text()))
+    return config
+
+
+def known_slugs() -> list[str]:
+    """All repo slugs we have configs for, from configs/repos/<provider>/<owner>/<name>.toml."""
+    out = []
+    if not CONFIGS_REPOS.exists():
+        return out
+    for p in sorted(CONFIGS_REPOS.rglob("*.toml")):
+        if p.name == "defaults.toml":
+            continue
+        out.append(slug_from_config_path(p))
+    return out
+
+
+def dir_size_bytes(path: Path) -> int:
+    total = 0
+    for p in path.rglob("*"):
+        if p.is_file() and not p.is_symlink():
+            try:
+                total += p.stat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def is_due(state: dict | None, interval_s: int, now_ts: float) -> tuple[bool, str]:
+    """Returns (due, reason)."""
+    if state is None:
+        return True, "no prior state"
+    last_ok = state.get("last_success_at")
+    if not last_ok:
+        return True, "no successful run yet"
+    last_ok_ts = iso_parse(last_ok).timestamp()
+    age = now_ts - last_ok_ts
+    if age > interval_s:
+        return True, f"last success {format_duration(age)} ago, interval {format_duration(interval_s)}"
+    return False, f"last success {format_duration(age)} ago, next in {format_duration(interval_s - age)}"
+
+
+def sync_one_repo(slug: str, config: dict, dry_run: bool = False) -> dict:
+    """Clone or update a single repo. Returns a result dict; never raises for
+    repo-specific failures (those go into the result)."""
+    provider, owner, name = slug_split(slug)
+    dest = repo_destination(provider, owner, name)
+    url = public_clone_url(provider, owner, name)
+
+    try:
+        header = git_auth_header_for(provider)
+    except RuntimeError as e:
+        return {"slug": slug, "ok": False, "action": "skip", "reason": str(e)}
+
+    if dry_run:
+        action = "clone" if not dest.exists() else "update"
+        return {"slug": slug, "ok": True, "action": f"would {action}", "reason": "dry-run"}
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    env = os.environ.copy()
+    env.setdefault("GIT_TERMINAL_PROMPT", "0")  # don't hang on auth prompts
+
+    if not dest.exists():
+        # First-time clone (--mirror)
+        cmd = [
+            "git", "-c", f"http.extraHeader={header}",
+            "clone", "--mirror", url, str(dest),
+        ]
+        action = "cloned"
+    else:
+        # Incremental update; --prune drops refs deleted upstream
+        cmd = [
+            "git", "-C", str(dest),
+            "-c", f"http.extraHeader={header}",
+            "remote", "update", "--prune",
+        ]
+        action = "updated"
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    duration = time.time() - started
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "<no output>").strip().splitlines()[-1]
+        return {
+            "slug": slug, "ok": False, "action": action,
+            "reason": err, "duration_s": duration,
+        }
+
+    size = dir_size_bytes(dest) if dest.exists() else 0
+    return {
+        "slug": slug, "ok": True, "action": action,
+        "size_bytes": size, "duration_s": duration,
+    }
+
+
 # ---------- Subcommands ----------
 
 def cmd_repos_discover(args: argparse.Namespace) -> int:
@@ -373,6 +596,90 @@ def cmd_repos_discover(args: argparse.Namespace) -> int:
     return 1 if result.has_any_error else 0
 
 
+def cmd_repos_sync(args: argparse.Namespace) -> int:
+    if not TARGET_ROOT.exists():
+        print(f"ERROR: target dataset not present: {TARGET_ROOT}", file=sys.stderr)
+        print("  did you create backups-00/repos? See PLAYBOOK 'Adding a new replication target'", file=sys.stderr)
+        return 1
+
+    defaults = load_defaults_config()
+
+    # Decide which slugs to consider
+    if args.name:
+        slugs = [args.name]
+    else:
+        slugs = known_slugs()
+    if args.provider:
+        slugs = [s for s in slugs if s.startswith(args.provider + "/")]
+    if not slugs:
+        print("no repos match the filter; nothing to do.")
+        return 0
+
+    now_ts = time.time()
+    interval_default_s = parse_interval(defaults.get("interval", "24h"))
+
+    summary = {"ok": 0, "skipped": 0, "failed": 0, "total_bytes": 0, "total_seconds": 0.0}
+    print(f"sync target: {TARGET_ROOT}")
+    print(f"candidates:  {len(slugs)} repo(s)  (defaults interval = {defaults.get('interval', '24h')})")
+    if args.dry_run:
+        print("(dry-run: no clones, no state writes)")
+    print()
+
+    longest = max(len(s) for s in slugs)
+    for slug in slugs:
+        config = load_repo_config(slug, defaults)
+        interval_s = parse_interval(str(config.get("interval", "24h")))
+        state = load_state(slug)
+        due, why = is_due(state, interval_s, now_ts)
+
+        if not (args.force or due):
+            summary["skipped"] += 1
+            print(f"  {slug:<{longest}}  skipped     ({why})")
+            continue
+
+        result = sync_one_repo(slug, config, dry_run=args.dry_run)
+
+        if args.dry_run:
+            print(f"  {slug:<{longest}}  {result['action']:<14} ({why})")
+            continue
+
+        # Update state and print summary line
+        new_state = dict(state) if state else {"first_seen_at": iso_now()}
+        new_state["last_attempt_at"] = iso_now()
+        if result["ok"]:
+            new_state["last_success_at"] = iso_now()
+            new_state["last_duration_s"] = round(result["duration_s"], 1)
+            new_state["last_size_bytes"] = result.get("size_bytes", 0)
+            new_state["last_error"] = None
+            new_state["upstream_present"] = True
+            save_state(slug, new_state)
+            summary["ok"] += 1
+            summary["total_bytes"] += result.get("size_bytes", 0)
+            summary["total_seconds"] += result["duration_s"]
+            size_str = format_size(result.get("size_bytes", 0))
+            dur_str = format_duration(result["duration_s"])
+            print(f"  {slug:<{longest}}  {result['action']:<14}  {size_str:>9}  in {dur_str}")
+        else:
+            new_state["last_error"] = result["reason"]
+            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+            save_state(slug, new_state)
+            summary["failed"] += 1
+            dur_str = format_duration(result.get("duration_s", 0))
+            print(f"  {slug:<{longest}}  FAILED       {dur_str}  {result['reason'][:80]}")
+
+    print()
+    if args.dry_run:
+        print(f"would process {len(slugs) - summary['skipped']} repo(s); "
+              f"{summary['skipped']} not due")
+    else:
+        print(f"summary: {summary['ok']} ok, {summary['failed']} failed, "
+              f"{summary['skipped']} skipped  |  "
+              f"{format_size(summary['total_bytes'])} on disk total, "
+              f"{format_duration(summary['total_seconds'])} cumulative")
+
+    return 0 if summary["failed"] == 0 else 1
+
+
 def cmd_not_yet(label: str):
     def _impl(args: argparse.Namespace) -> int:
         print(f"not yet implemented: {label}", file=sys.stderr)
@@ -416,8 +723,15 @@ def build_parser() -> argparse.ArgumentParser:
     rp = rsubs.add_parser("status", help="show last-run state per repo (n.y.i.)")
     rp.set_defaults(func=cmd_not_yet("repos status"))
 
-    rp = rsubs.add_parser("sync", help="clone / remote-update due repos (n.y.i.)")
-    rp.set_defaults(func=cmd_not_yet("repos sync"))
+    rp = rsubs.add_parser("sync", help="clone / remote-update due repos")
+    rp.add_argument("--name", metavar="SLUG", help="sync only this repo (provider/owner/name)")
+    rp.add_argument("--provider", choices=("github", "bitbucket"),
+                    help="restrict to one provider")
+    rp.add_argument("--force", action="store_true",
+                    help="ignore interval; sync every matching repo")
+    rp.add_argument("--dry-run", action="store_true",
+                    help="show what would happen; touch no repos and no state")
+    rp.set_defaults(func=cmd_repos_sync)
 
     rp = rsubs.add_parser("prune", help="explicit removal of a local mirror (n.y.i.)")
     rp.add_argument("slug", help="provider/owner/repo to prune")
