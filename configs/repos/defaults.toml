@@ -1,0 +1,8 @@
+# Tourbillon repo-mirror defaults. Per-repo files in this directory
+# override these on a field-by-field basis. See doc/ADR-001-repo-mirror.md.
+
+interval = "24h"                  # how often to sync (suffix: s|m|h|d)
+target_dataset = "backups-00/repos"
+on_orphan = "warn"                # warn | error  (never auto-delete)
+include_collaborator = false
+include_organization = false
