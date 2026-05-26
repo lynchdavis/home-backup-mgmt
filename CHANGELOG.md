@@ -8,6 +8,12 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — A2 host backups, slice 5d (`tourbillon status` Hosts rollup)
+
+- **`bin/tourbillon`**: new `hosts_summary_dict()` parallel to `repos_summary_dict()`. One-pass walk over per-host configs + state. Returns counts (with `unreachable` as its own slot — powered-off ≠ failed), total mirror size, oldest/newest sync ages.
+- New `== Host backups (backups-00/hosts) ==` section in `print_status()`, between Repos and Pool. Output style matches Repos: one-line tally, oldest/newest if any. Friendly "(no hosts configured)" line when the directory is empty.
+- Top-level `tourbillon status` now covers all three subsystems (saratoga DR, repos, hosts) on one screen.
+
 ### Added — A2 host backups, slice 5a (HOSTS_RESTORE.md)
 
 - **`HOSTS_RESTORE.md`** — restore companion to `SARATOGA_RESTORE.md`. Covers single-file recovery, directory tree restore, full host rebuild for both multi-user and single-user modes. Mac and Windows path variants documented. Includes a quick-reference table at the bottom. Named `HOSTS_RESTORE` (not `LINUX_RESTORE`) since it covers all OS variants.
