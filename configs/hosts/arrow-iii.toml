@@ -1,13 +1,16 @@
 # arrow-iii — minimal-use linux host on the LAN.
 #
-# Before this config is operational, the dedicated `backup` user needs to
-# exist on the target. Bootstrap with (run on arrow-iii as root):
-#
-#   sudo bash bootstrap-backup-user.sh \
-#     'ssh-ed25519 AAAA... kodiak backup user pull-key for linux hosts (no passphrase)'
-#
-# (The bootstrap script is at bin/bootstrap-backup-user.sh in this repo.
-# The pubkey arg comes from kodiak's `cat ~/.ssh/id_ed25519_backup.pub`.)
+# Bootstrap (one-time per host):
+#   1. On the TARGET, as root:  sudo bash bin/bootstrap-tourbillon-user.sh
+#      This creates the `tourbillon` user, generates a temp random
+#      password, and drops the narrow sudoers entry. The password is
+#      printed at the end.
+#   2. On KODIAK:                bin/bootstrap-from-kodiak.sh arrow-iii
+#      This generates a per-host keypair at
+#      ~/.ssh/id_ed25519_tourbillon_arrow-iii, ssh-copy-id pushes the
+#      pubkey to the target (operator pastes the temp password once),
+#      verifies key-based auth, and locks the target's tourbillon
+#      password so only key-auth works thereafter.
 
 host = "192.168.1.65"
 
@@ -15,5 +18,6 @@ host = "192.168.1.65"
 # worth keeping; everything else is rebuildable from a fresh install.
 paths = ["/home", "/etc"]
 
-# schedule_when_up, ssh_user, ssh_key, target_dataset, excludes_file
-# all inherited from configs/hosts/defaults.toml — no override needed.
+# schedule_when_up, ssh_user, target_dataset, excludes_file inherited from
+# configs/hosts/defaults.toml. ssh_key derived by tourbillon as
+# ~/.ssh/id_ed25519_tourbillon_arrow-iii (no field needed here).

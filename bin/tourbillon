@@ -770,12 +770,24 @@ def parse_seconds_field(val) -> int:
     return int(s)
 
 
+def resolve_ssh_key(host_cfg: dict) -> str:
+    """Return the SSH key path for this host. If the per-host config and
+    defaults both omit `ssh_key`, derive from convention:
+    ~/.ssh/id_ed25519_tourbillon_<config-basename>. Per-host explicit value
+    always wins."""
+    key = host_cfg.get("ssh_key")
+    if key:
+        return str(Path(key).expanduser())
+    name = host_cfg.get("_name", "")
+    return str(Path.home() / ".ssh" / f"id_ed25519_tourbillon_{name}")
+
+
 def ssh_probe(host_cfg: dict) -> tuple[bool, str]:
     """`ssh -o BatchMode=yes ... true` with a short timeout.
     Returns (reachable, message). Never raises."""
     host = host_cfg.get("host", host_cfg["_name"])
-    user = host_cfg.get("ssh_user", "backup")
-    key = host_cfg.get("ssh_key", "")
+    user = host_cfg.get("ssh_user", "tourbillon")
+    key = resolve_ssh_key(host_cfg)
     timeout_s = parse_seconds_field(host_cfg.get("ssh_probe_timeout", "5s"))
     cmd = [
         "ssh",
@@ -893,7 +905,7 @@ def cmd_hosts_ping(args: argparse.Namespace) -> int:
         print(f"unknown host: {args.host}  (no configs/hosts/{args.host}.toml)", file=sys.stderr)
         return 2
     cfg = load_host_config(args.host)
-    target = f"{cfg.get('ssh_user', 'backup')}@{cfg.get('host', args.host)}"
+    target = f"{cfg.get('ssh_user', 'tourbillon')}@{cfg.get('host', args.host)}"
     print(f"probing {target} ...", flush=True)
     started = time.time()
     reachable, msg = ssh_probe(cfg)

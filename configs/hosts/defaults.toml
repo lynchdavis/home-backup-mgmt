@@ -3,8 +3,11 @@
 # Per-host files in configs/hosts/<hostname>.toml override individual fields.
 
 # SSH identity used to pull from each target.
-ssh_user = "backup"
-ssh_key  = "/home/ldavis/.ssh/id_ed25519_backup"
+# `ssh_key` is NOT set here — tourbillon derives it per-host as
+#   ~/.ssh/id_ed25519_tourbillon_<config-basename>
+# so configs/hosts/arrow-iii.toml gets ~/.ssh/id_ed25519_tourbillon_arrow-iii.
+# Per-host configs can still set `ssh_key` explicitly to override that default.
+ssh_user = "tourbillon"
 
 # Default cadence — "try every 24h, never error if the host is offline."
 # Per-host override available for hosts that warrant tighter sync.

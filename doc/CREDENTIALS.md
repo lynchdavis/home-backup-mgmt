@@ -18,7 +18,7 @@ None of these tokens or keys are stored in git. The repo only references their *
 | GitHub PAT (`kodiak-tourbillon-mirror`) | `~/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-05-25 | none (until revoked) | — |
 | TrueNAS API token (`kodiak-dump`) | `~/.config/saratoga/env` → `TRUENAS_API_TOKEN` | 2026-05-24 | none (until revoked) | — |
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
-| SSH keypair `kodiak-backup` (outbound) | kodiak: `~/.ssh/id_ed25519_backup` (private, mode 600); target side at `~backup/.ssh/authorized_keys` on each linux host | 2026-05-26 | none | — |
+| SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
 
 ---
 
@@ -80,23 +80,41 @@ Public key: `/var/lib/tnreplicate/.ssh/authorized_keys` on kodiak (the only plac
 4. Test replication once (Run Now on either task) to confirm new key works.
 5. Delete the old SSH Keypair from TrueNAS.
 
-### SSH keypair `kodiak-backup` (outbound)
+### SSH keypair `kodiak → tourbillon@<host>` (per-host)
 
-Used for: kodiak's pull-side rsync from each linux host's `backup` user.
-Type: ed25519, no passphrase. Single key shared across all target hosts.
-Private key: `~/.ssh/id_ed25519_backup` on kodiak, mode 600.
-Public key: `~backup/.ssh/authorized_keys` on each target linux host (installed by `bin/bootstrap-backup-user.sh`).
+Used for: kodiak's pull-side rsync from each linux host's `tourbillon` user.
+Type: ed25519, no passphrase.
+**One keypair per target host.** Compromise of one host's key opens only that one host's backup pathway.
 
-**No expiration.** Replace when:
-- The kodiak-side private key leaks (file is mode 600 ldavis-only; unlikely)
-- You want to rotate routinely (good hygiene every few years; not required)
+- Private keys: `~/.ssh/id_ed25519_tourbillon_<hostname>` on kodiak, mode 600.
+- Public keys: `~tourbillon/.ssh/authorized_keys` on the corresponding target.
 
-**Regenerate** flow:
-1. `ssh-keygen -t ed25519 -C 'kodiak backup user pull-key' -N '' -f ~/.ssh/id_ed25519_backup`
-2. For each target host: re-run `bin/bootstrap-backup-user.sh` with the new pubkey to update its `authorized_keys` (the script is idempotent — it won't dup existing lines but will append the new one). Then manually remove the old line.
-3. Test from kodiak with `ssh -i ~/.ssh/id_ed25519_backup backup@<host> true`.
+**Bootstrap a new host** (two-script flow):
 
-Single key across hosts is deliberate: simplifies rotation (one update on kodiak, one bootstrap re-run per host) at the cost of "key compromise opens every host's backup user." That trade-off is acceptable for personal home infrastructure where the targets are all under the operator's direct control; a wider deployment would want per-host keys.
+1. **On the target host**, run `bin/bootstrap-tourbillon-user.sh` as root.
+   It creates the `tourbillon` user, generates a fresh random password,
+   and drops the sudoers entry (`NOPASSWD: /usr/bin/rsync --server *`).
+   The password is printed at the end.
+
+2. **On kodiak**, run `bin/bootstrap-from-kodiak.sh <hostname>`. It:
+   - Generates `~/.ssh/id_ed25519_tourbillon_<hostname>`
+   - Runs `ssh-copy-id` (interactive — paste the password from step 1 once)
+   - Verifies key-based auth works
+   - Locks the target's tourbillon password (key-only thereafter)
+
+After both: the target's tourbillon user has no usable password; ongoing
+operation is key-based only.
+
+**Rotation** (per host): re-run `bin/bootstrap-tourbillon-user.sh` on the
+target to unlock + reset password, delete the old key on kodiak, re-run
+`bin/bootstrap-from-kodiak.sh`. The bootstrap path is idempotent.
+
+**No expiration.** Replace when the kodiak-side private key leaks or when
+you're rotating routinely.
+
+Per-host keys are deliberate (vs the single-key approach we briefly held in
+slice 1): if any one host's key leaks, only that one host's backup pathway
+is exposed; other hosts are unaffected. Each key's blast radius is itself.
 
 ---
 

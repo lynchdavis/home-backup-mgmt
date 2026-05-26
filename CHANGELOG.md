@@ -8,6 +8,19 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Revised — slice 1 backup-user model (per-host keys, ssh-copy-id flow)
+
+Slice 1 originally landed with a single shared SSH key (`~/.ssh/id_ed25519_backup`) authorized on every host's `backup` user. Reviewed and revised to a per-host key model — compromise of one host's key opens only that one host. Same files / same patterns; the only "structural" change is one-key → key-per-host plus the username choice.
+
+- **`tourbillon` is the target-side user** (replaces the `backup` placeholder, which collided with Debian's default `backup` user uid=34 anyway).
+- **Per-host SSH keypair**, kodiak-side, at `~/.ssh/id_ed25519_tourbillon_<hostname>`. Generated at bootstrap; one keypair per target host.
+- **`bin/bootstrap-tourbillon-user.sh`** (target-side, replaces the old `bootstrap-backup-user.sh`) — creates the `tourbillon` user with a randomly-generated temporary password + the narrow sudoers entry (NOPASSWD on `rsync --server *` and `passwd -l tourbillon`). Prints the password for one-time use by ssh-copy-id.
+- **`bin/bootstrap-from-kodiak.sh`** (new, kodiak-side) — generates the per-host keypair, runs `ssh-copy-id` (interactive paste of the temp password once), verifies key-auth works, then locks the target's tourbillon password (key-only thereafter). One-shot per host.
+- **`configs/hosts/defaults.toml`**: `ssh_user = "tourbillon"`. `ssh_key` is no longer in the file — tourbillon derives it as `~/.ssh/id_ed25519_tourbillon_<config-basename>` automatically. Per-host configs can override if a non-default path is wanted.
+- **`bin/tourbillon`**: new `resolve_ssh_key(host_cfg)` helper does the convention-based lookup. `hosts ping` already uses it.
+- **Deleted the slice-1 `~/.ssh/id_ed25519_backup`** (had never been distributed) and removed `bin/bootstrap-backup-user.sh` from the repo.
+- **`doc/CREDENTIALS.md`** updated: per-host keypair model with the new bootstrap flow.
+
 ### Added — A2 host backups, slice 2 (tourbillon hosts CLI plumbing)
 
 - **`tourbillon hosts ping <host>`** — SSH-probe a configured host's reachability right now. Exits 0 if reachable, 1 otherwise. The probe uses `BatchMode=yes` + short ConnectTimeout so it can't hang.
