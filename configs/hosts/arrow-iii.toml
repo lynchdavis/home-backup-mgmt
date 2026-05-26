@@ -1,0 +1,19 @@
+# arrow-iii — minimal-use linux host on the LAN.
+#
+# Before this config is operational, the dedicated `backup` user needs to
+# exist on the target. Bootstrap with (run on arrow-iii as root):
+#
+#   sudo bash bootstrap-backup-user.sh \
+#     'ssh-ed25519 AAAA... kodiak backup user pull-key for linux hosts (no passphrase)'
+#
+# (The bootstrap script is at bin/bootstrap-backup-user.sh in this repo.
+# The pubkey arg comes from kodiak's `cat ~/.ssh/id_ed25519_backup.pub`.)
+
+host = "192.168.1.65"
+
+# Mirror /home + /etc — minimal-use machine, /etc has some hand-curated drift
+# worth keeping; everything else is rebuildable from a fresh install.
+paths = ["/home", "/etc"]
+
+# schedule_when_up, ssh_user, ssh_key, target_dataset, excludes_file
+# all inherited from configs/hosts/defaults.toml — no override needed.

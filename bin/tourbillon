@@ -38,6 +38,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_REPOS = REPO_ROOT / "configs" / "repos"
 DEFAULTS_PATH = CONFIGS_REPOS / "defaults.toml"
 
+# Host-backups paths
+CONFIGS_HOSTS = REPO_ROOT / "configs" / "hosts"
+HOSTS_DEFAULTS_PATH = CONFIGS_HOSTS / "defaults.toml"
+STATE_HOSTS = Path.home() / ".local" / "state" / "tourbillon" / "hosts"
+
 # Where bare repo mirrors actually live (the ZFS dataset).
 TARGET_ROOT = Path("/kodiak00/backups-00/repos")
 
@@ -706,6 +711,226 @@ def print_repo_status_table(rows: list[dict], now_ts: float) -> None:
     print(f"  {' | '.join(parts)}  |  {format_size(total_size)} on disk")
 
 
+# ---------- Hosts subsystem (A2) ----------
+
+def load_hosts_defaults() -> dict:
+    if not HOSTS_DEFAULTS_PATH.exists():
+        return {}
+    return tomllib.loads(HOSTS_DEFAULTS_PATH.read_text())
+
+
+def known_host_names() -> list[str]:
+    """Walk configs/hosts/ for per-host .toml files (defaults.toml excluded)."""
+    if not CONFIGS_HOSTS.exists():
+        return []
+    return sorted(
+        p.stem for p in CONFIGS_HOSTS.glob("*.toml")
+        if p.name != "defaults.toml"
+    )
+
+
+def load_host_config(name: str, defaults: dict | None = None) -> dict:
+    if defaults is None:
+        defaults = load_hosts_defaults()
+    cfg = dict(defaults)
+    p = CONFIGS_HOSTS / f"{name}.toml"
+    if p.exists():
+        cfg.update(tomllib.loads(p.read_text()))
+    cfg["_name"] = name
+    return cfg
+
+
+def host_state_path(name: str) -> Path:
+    return STATE_HOSTS / f"{name}.json"
+
+
+def load_host_state(name: str) -> dict | None:
+    p = host_state_path(name)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except json.JSONDecodeError:
+        return None
+
+
+def save_host_state(name: str, state: dict) -> None:
+    p = host_state_path(name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(state, indent=2) + "\n")
+
+
+def parse_seconds_field(val) -> int:
+    """Accepts '5s', '10', or 10. Returns int seconds."""
+    if isinstance(val, (int, float)):
+        return int(val)
+    s = str(val).strip().lower()
+    if s.endswith("s"):
+        return int(s[:-1])
+    return int(s)
+
+
+def ssh_probe(host_cfg: dict) -> tuple[bool, str]:
+    """`ssh -o BatchMode=yes ... true` with a short timeout.
+    Returns (reachable, message). Never raises."""
+    host = host_cfg.get("host", host_cfg["_name"])
+    user = host_cfg.get("ssh_user", "backup")
+    key = host_cfg.get("ssh_key", "")
+    timeout_s = parse_seconds_field(host_cfg.get("ssh_probe_timeout", "5s"))
+    cmd = [
+        "ssh",
+        "-o", "BatchMode=yes",
+        "-o", f"ConnectTimeout={timeout_s}",
+        "-o", "StrictHostKeyChecking=accept-new",
+    ]
+    if key:
+        cmd += ["-i", key]
+    cmd += [f"{user}@{host}", "true"]
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_s + 5
+        )
+    except subprocess.TimeoutExpired:
+        return False, "ssh probe timed out"
+    except FileNotFoundError:
+        return False, "ssh binary not in PATH"
+    if proc.returncode == 0:
+        return True, "reachable"
+    last = (proc.stderr or proc.stdout or "").strip().splitlines()
+    return False, last[-1] if last else f"ssh exited {proc.returncode}"
+
+
+def host_status_row(name: str, defaults: dict, now_ts: float) -> dict:
+    """Categorize a host into ok / due / unreachable / FAILED / NEVER.
+
+    Pure state-file read; no live SSH probe. (Use `hosts ping` for that.)
+    """
+    cfg = load_host_config(name, defaults)
+    interval_s = parse_interval(str(cfg.get("schedule_when_up", "24h")))
+    state = load_host_state(name)
+
+    row = {
+        "name": name,
+        "host": cfg.get("host", name),
+        "state": "NEVER",
+        "last_success_at": None,
+        "last_unreachable_at": None,
+        "last_reachable_at": None,
+        "last_error": None,
+        "size": 0,
+        "interval_s": interval_s,
+    }
+    if state is None:
+        return row
+
+    row["last_success_at"] = state.get("last_success_at")
+    row["last_unreachable_at"] = state.get("last_unreachable_at")
+    row["last_reachable_at"] = state.get("last_reachable_at")
+    row["last_error"] = state.get("last_error")
+    row["size"] = state.get("last_size_bytes", 0)
+
+    # Currently unreachable if the most recent attempt was an SSH probe failure.
+    last_attempt = state.get("last_attempt_at")
+    if last_attempt and state.get("last_unreachable_at") == last_attempt:
+        row["state"] = "unreachable"
+        return row
+
+    if state.get("last_error") and not state.get("last_success_at"):
+        row["state"] = "FAILED"
+        return row
+
+    if not state.get("last_success_at"):
+        row["state"] = "NEVER"
+        return row
+
+    age = now_ts - iso_parse(state["last_success_at"]).timestamp()
+    if age > interval_s:
+        row["state"] = "due" if not state.get("last_error") else "FAILED"
+    else:
+        row["state"] = "ok"
+    return row
+
+
+def print_hosts_table(rows: list[dict], now_ts: float) -> None:
+    if not rows:
+        print("  (no hosts configured — drop a config in configs/hosts/<name>.toml)")
+        return
+    longest = max(len(r["name"]) for r in rows)
+    longest = max(longest, len("HOST"))
+    print(f"  {'HOST':<{longest}}   {'STATE':<11}  {'LAST OK':<8}  {'LAST SEEN':<10}  {'SIZE':>9}  NOTE")
+    print(f"  {'-'*longest}   {'-'*11}  {'-'*8}  {'-'*10}  {'-'*9}  {'-'*30}")
+    for r in sorted(rows, key=lambda r: r["name"]):
+        last_ok = format_age(r["last_success_at"], now_ts)
+        # "last seen" = most-recent reachable attempt (whether or not sync succeeded)
+        last_seen = format_age(r["last_reachable_at"], now_ts)
+        size_str = format_size(r["size"]) if r["size"] else "—"
+        note = ""
+        if r["state"] == "unreachable":
+            note = "host currently offline"
+        elif r["state"] == "FAILED" and r["last_error"]:
+            note = r["last_error"][:60]
+        elif r["state"] == "ok":
+            note = f"interval {format_duration(r['interval_s'])}"
+        elif r["state"] == "NEVER":
+            note = "never attempted — bootstrap + first seed pending"
+        elif r["state"] == "due":
+            note = f"overdue by {format_duration(now_ts - iso_parse(r['last_success_at']).timestamp() - r['interval_s'])}"
+        print(f"  {r['name']:<{longest}}   {r['state']:<11}  {last_ok:<8}  {last_seen:<10}  {size_str:>9}  {note}")
+
+    counts = {"ok": 0, "due": 0, "FAILED": 0, "NEVER": 0, "unreachable": 0}
+    total_size = 0
+    for r in rows:
+        counts[r["state"]] = counts.get(r["state"], 0) + 1
+        total_size += r["size"] or 0
+    print()
+    print(f"  {counts['ok']} ok | {counts['due']} due | "
+          f"{counts['unreachable']} unreachable | {counts['FAILED']} failed | "
+          f"{counts['NEVER']} never  |  {format_size(total_size)} on disk")
+
+
+def cmd_hosts_ping(args: argparse.Namespace) -> int:
+    if args.host not in known_host_names():
+        print(f"unknown host: {args.host}  (no configs/hosts/{args.host}.toml)", file=sys.stderr)
+        return 2
+    cfg = load_host_config(args.host)
+    target = f"{cfg.get('ssh_user', 'backup')}@{cfg.get('host', args.host)}"
+    print(f"probing {target} ...", flush=True)
+    started = time.time()
+    reachable, msg = ssh_probe(cfg)
+    elapsed = time.time() - started
+    if reachable:
+        print(f"  reachable  ({elapsed:.2f}s)")
+        return 0
+    print(f"  UNREACHABLE  ({elapsed:.2f}s): {msg}", file=sys.stderr)
+    return 1
+
+
+def cmd_hosts_status(args: argparse.Namespace) -> int:
+    defaults = load_hosts_defaults()
+    names = known_host_names()
+    if args.name:
+        names = [n for n in names if n == args.name]
+    now_ts = time.time()
+    rows = [host_status_row(n, defaults, now_ts) for n in names]
+    print_hosts_table(rows, now_ts)
+    return 0
+
+
+def cmd_hosts_issues(args: argparse.Namespace) -> int:
+    """Filtered view: only hosts not in 'ok' state."""
+    defaults = load_hosts_defaults()
+    names = known_host_names()
+    now_ts = time.time()
+    rows = [host_status_row(n, defaults, now_ts) for n in names]
+    rows = [r for r in rows if r["state"] != "ok"]
+    if not rows:
+        if not args.quiet:
+            print("no issues — all hosts ok within interval.")
+        return 0
+    print_hosts_table(rows, now_ts)
+    return 1
+
+
 # ---------- Top-level status sources ----------
 
 def now_local_str() -> str:
@@ -1152,6 +1377,26 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_not_yet("health"))
     sp = subs.add_parser("logs", help="recent job logs (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("logs"))
+
+    # hosts noun
+    hosts = subs.add_parser("hosts", help="linux host backups (rsync over SSH)")
+    hsubs = hosts.add_subparsers(dest="hosts_cmd", required=True, metavar="<verb>")
+
+    hp = hsubs.add_parser("ping", help="SSH-probe a host's reachability right now")
+    hp.add_argument("host", help="configured host name (basename of configs/hosts/*.toml)")
+    hp.set_defaults(func=cmd_hosts_ping)
+
+    hp = hsubs.add_parser("status", help="per-host last-sync state + reachability summary")
+    hp.add_argument("--name", help="show one specific host")
+    hp.set_defaults(func=cmd_hosts_status)
+
+    hp = hsubs.add_parser("issues", help="filtered status — only hosts not in 'ok' state")
+    hp.add_argument("--quiet", action="store_true",
+                    help="suppress 'no issues' line when everything is healthy (cron-friendly)")
+    hp.set_defaults(func=cmd_hosts_issues)
+
+    hp = hsubs.add_parser("sync", help="clone or rsync-update due, reachable hosts (n.y.i.)")
+    hp.set_defaults(func=cmd_not_yet("hosts sync"))
     sp = subs.add_parser("perf", help="transfer-rate history (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("perf"))
 
