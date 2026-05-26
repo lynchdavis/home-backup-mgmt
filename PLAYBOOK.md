@@ -150,6 +150,47 @@ deltas is generous without being expensive.
 one is due. If you want a true dry-run, just read the config and trust
 that the policy does what it says.
 
+### 3b. Monthly `zpool scrub` on `backups-00`
+
+Scrub reads every block in the pool and verifies checksums against ZFS's
+recorded metadata. On a single-disk pool there's no parity for self-repair,
+but scrub *detects* silent corruption before you hit it during a real read.
+Standard cadence: monthly.
+
+`zfsutils-linux` ships a parameterized systemd timer for exactly this. We
+don't need a custom cron entry — just enable the shipped timer:
+
+```bash
+sudo systemctl enable --now zfs-scrub-monthly@backups-00.timer
+```
+
+Verify:
+```bash
+systemctl status zfs-scrub-monthly@backups-00.timer
+systemctl list-timers 'zfs-scrub*'
+```
+
+What the timer does:
+- Fires on `OnCalendar=monthly` (first of each month, jittered by up to 1h).
+- `Persistent=true` — catches up if the host was off when the timer would have fired.
+- `ConditionACPower=true` — skips on battery (irrelevant for a NAS but defensible).
+- Service uses `zpool scrub -w <pool>` which **blocks** until scrub completes,
+  so the systemd unit's state accurately reflects scrub progress / completion.
+- Scrub on this 4 TB drive at ~150 MB/s read = ~7-8 hours wall clock.
+
+To watch progress mid-scrub:
+```bash
+zpool status backups-00          # shows "scrub in progress" with % and ETA
+```
+
+To check post-scrub:
+```bash
+zpool status -x backups-00        # "all pools are healthy" or details
+```
+
+`zpool status -x` is the right thing to wrap if you want a periodic email
+heartbeat: it's silent on healthy pools and outputs problems otherwise.
+
 ### 4. `tnreplicate` user + sudoers + ZFS delegation
 
 ```bash
