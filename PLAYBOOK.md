@@ -316,6 +316,30 @@ Tank's first seed (1.99 TiB) took ~2.5 hours over 10 GbE. Media (~430 GB) took ~
 
 ---
 
+### 9b. Cron entries (operator monitoring + tourbillon A2 runtime)
+
+Two crontabs, one per user. Canonical content is checked in under
+`configs/cron/` so a kodiak rebuild can install from-file rather than
+typing them back from memory.
+
+**Operator (`ldavis`) — saratoga DR freshness monitoring** (one entry, daily):
+
+```bash
+crontab configs/cron/ldavis-crontab
+crontab -l    # confirm
+```
+
+**Service user (`tourbillon`) — A2 sync (repos every 30 min, hosts at 5/35)**:
+
+```bash
+sudo crontab -u tourbillon configs/cron/tourbillon-crontab
+sudo crontab -u tourbillon -l    # confirm
+```
+
+The tourbillon crontab assumes `~tourbillon/.config/tourbillon/env` exists (github + bitbucket tokens — see `doc/CREDENTIALS.md`). The repos sync entry sources it before running; failures land in cron mail via `MAILTO=ldavis`. The hosts sync entry doesn't need the env file (rsync over SSH, no API tokens).
+
+---
+
 ## Adding a new replication target
 
 1. Pre-create destination dataset on kodiak: `sudo zfs create -o canmount=noauto backups-00/saratoga/<new>`.

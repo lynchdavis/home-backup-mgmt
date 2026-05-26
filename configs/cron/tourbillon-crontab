@@ -1,0 +1,21 @@
+# tourbillon A2 runtime crontab (kodiak-side, per ADR-004).
+#
+# Repos + host pulls run as the dedicated `tourbillon` service user
+# (not `ldavis`). Failures mail to ldavis — the operator — via
+# MAILTO=ldavis so the human reads them.
+#
+# The binary, configs, and exclude files live in the repo at
+# /home/ldavis/development/server-backups/ (operator-owned, tourbillon
+# reads via standard 755-traverse). State and env live under tourbillon's
+# own home (/var/lib/tourbillon/).
+MAILTO=ldavis
+
+# Every 30 min — sync any due repo mirrors. Per-repo interval (default 24h).
+# Silent when nothing's due; one-line summary when work happens; failures
+# to stderr (cron mails non-empty output).
+*/30 * * * * . $HOME/.config/tourbillon/env && /home/ldavis/development/server-backups/bin/tourbillon repos sync --quiet
+
+# Every 30 min, offset 5 — sync any due host backups. Per-host schedule_when_up
+# (default 24h). Silent on no-op AND on host-offline (unreachable is normal
+# for laptops/desktops, not a failure). Failures to stderr (cron mails).
+5,35 * * * * /home/ldavis/development/server-backups/bin/tourbillon hosts sync --quiet

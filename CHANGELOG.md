@@ -8,6 +8,16 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — canonical crontabs checked in under `configs/cron/`
+
+Following the ADR-004 refactor and arrow-iii first-seed, the two live crontabs (ldavis's saratoga monitoring entry; tourbillon's A2 sync entries) only existed in the running cron daemon — not in the repo. A kodiak rebuild would have meant retyping them from CHANGELOG archaeology.
+
+- **`configs/cron/ldavis-crontab`** — the operator's crontab. One entry: daily `0 8` saratoga replication freshness check.
+- **`configs/cron/tourbillon-crontab`** — the service user's crontab. Two entries: `*/30` repos sync (sources env file), `5,35` hosts sync.
+- **PLAYBOOK section 9b** (new) — install commands: `crontab configs/cron/ldavis-crontab` and `sudo crontab -u tourbillon configs/cron/tourbillon-crontab`. One operation each, no per-line retyping.
+
+Both files are the exact `crontab -l` output at commit time, including comment headers, so reading the file is the same experience as reading the live crontab. No drift.
+
 ### Hardened — bootstrap scripts capture every gap surfaced by arrow-iii's first seed
 
 While attempting to re-bootstrap arrow-iii under the ADR-004 model, hit four undocumented gotchas in a row. Captured each one into the setup scripts so a kodiak rebuild (or any subsequent host onboarding) doesn't repeat the dance:
