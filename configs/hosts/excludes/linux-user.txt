@@ -1,0 +1,99 @@
+# tourbillon excludes for linux user-home backups (rsync --exclude-from=)
+#
+# Patterns are matched anywhere in the source tree unless they start with '/'.
+# Goal: skip regenerable cruft so backups stay focused on irreplaceable data.
+#
+# Per-host extras can be added at configs/hosts/excludes/<hostname>-extras.txt
+# and chained in the per-host config.
+#
+# Trash (~/.local/share/Trash/) is INCLUDED on purpose. The kodiak-side
+# snapshot retention covers "wait, I shouldn't have deleted that" recovery
+# for a couple weeks. See doc/ADR-002-host-backups-linux.md and the
+# memory note "safety-nets-for-scratch."
+
+# ========== Python ==========
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.cache/uv/
+.cache/pip/
+
+# ========== Node / JavaScript ==========
+node_modules/
+.npm/_cacache/
+.yarn/cache/
+.next/
+.nuxt/
+.parcel-cache/
+.turbo/
+
+# ========== Rust ==========
+target/
+.cargo/registry/cache/
+.cargo/registry/src/
+.rustup/toolchains/
+.rustup/downloads/
+
+# ========== Go ==========
+.cache/go-build/
+go/pkg/mod/cache/
+
+# ========== Java / JVM ==========
+.gradle/caches/
+.m2/repository/
+.ivy2/cache/
+
+# ========== Editor / IDE caches ==========
+.vscode/extensions/
+.idea/caches/
+.idea/shelf/
+.cache/JetBrains/
+*.swp
+*.swo
+*.swn
+
+# ========== Browser caches ==========
+.cache/google-chrome/
+.cache/chromium/
+.cache/mozilla/
+.mozilla/firefox/*/Cache*/
+.config/google-chrome/Default/Cache*/
+.config/chromium/Default/Cache*/
+
+# ========== VM / container disks ==========
+*.vdi
+*.vmdk
+*.qcow2
+*.qed
+*.img
+.docker/
+.local/share/containers/storage/
+containers/storage/
+
+# ========== Desktop / general OS cruft ==========
+.thumbnails/
+.thumbnails-large/
+.cache/thumbnails/
+.cache/mesa_shader_cache/
+.cache/fontconfig/
+
+# ========== Cross-OS metadata that occasionally rides linux dirs ==========
+.DS_Store
+._.*
+Thumbs.db
+desktop.ini
+
+# ========== Build artifacts (common across languages) ==========
+dist/
+build/
+out/
+
+# ========== Backup-of-backup paranoia ==========
+# Don't recurse into other tourbillon installs (unlikely but cheap).
+.local/share/tourbillon/

@@ -18,6 +18,7 @@ None of these tokens or keys are stored in git. The repo only references their *
 | GitHub PAT (`kodiak-tourbillon-mirror`) | `~/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-05-25 | none (until revoked) | — |
 | TrueNAS API token (`kodiak-dump`) | `~/.config/saratoga/env` → `TRUENAS_API_TOKEN` | 2026-05-24 | none (until revoked) | — |
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
+| SSH keypair `kodiak-backup` (outbound) | kodiak: `~/.ssh/id_ed25519_backup` (private, mode 600); target side at `~backup/.ssh/authorized_keys` on each linux host | 2026-05-26 | none | — |
 
 ---
 
@@ -78,6 +79,24 @@ Public key: `/var/lib/tnreplicate/.ssh/authorized_keys` on kodiak (the only plac
 3. Replace the public key in `/var/lib/tnreplicate/.ssh/authorized_keys` on kodiak.
 4. Test replication once (Run Now on either task) to confirm new key works.
 5. Delete the old SSH Keypair from TrueNAS.
+
+### SSH keypair `kodiak-backup` (outbound)
+
+Used for: kodiak's pull-side rsync from each linux host's `backup` user.
+Type: ed25519, no passphrase. Single key shared across all target hosts.
+Private key: `~/.ssh/id_ed25519_backup` on kodiak, mode 600.
+Public key: `~backup/.ssh/authorized_keys` on each target linux host (installed by `bin/bootstrap-backup-user.sh`).
+
+**No expiration.** Replace when:
+- The kodiak-side private key leaks (file is mode 600 ldavis-only; unlikely)
+- You want to rotate routinely (good hygiene every few years; not required)
+
+**Regenerate** flow:
+1. `ssh-keygen -t ed25519 -C 'kodiak backup user pull-key' -N '' -f ~/.ssh/id_ed25519_backup`
+2. For each target host: re-run `bin/bootstrap-backup-user.sh` with the new pubkey to update its `authorized_keys` (the script is idempotent — it won't dup existing lines but will append the new one). Then manually remove the old line.
+3. Test from kodiak with `ssh -i ~/.ssh/id_ed25519_backup backup@<host> true`.
+
+Single key across hosts is deliberate: simplifies rotation (one update on kodiak, one bootstrap re-run per host) at the cost of "key compromise opens every host's backup user." That trade-off is acceptable for personal home infrastructure where the targets are all under the operator's direct control; a wider deployment would want per-host keys.
 
 ---
 

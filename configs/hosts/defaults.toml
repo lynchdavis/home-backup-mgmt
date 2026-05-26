@@ -1,0 +1,25 @@
+# Tourbillon defaults for linux host backups.
+# See doc/ADR-002-host-backups-linux.md for the full design + rationale.
+# Per-host files in configs/hosts/<hostname>.toml override individual fields.
+
+# SSH identity used to pull from each target.
+ssh_user = "backup"
+ssh_key  = "/home/ldavis/.ssh/id_ed25519_backup"
+
+# Default cadence — "try every 24h, never error if the host is offline."
+# Per-host override available for hosts that warrant tighter sync.
+schedule_when_up = "24h"
+
+# Default scope per host. Per-host files can specify a different array
+# (e.g. ["/home", "/etc"] when /etc opt-in is wanted; or ["/home/lynch"]
+# when a multi-user host should only mirror specific users).
+paths = ["/home"]
+
+# rsync --exclude-from path (relative to the repo root).
+excludes_file = "configs/hosts/excludes/linux-user.txt"
+
+# Where mirrors land on kodiak. Each host gets a child dataset under this.
+target_dataset = "backups-00/hosts"
+
+# SSH probe timeout for the reachability check before each sync attempt.
+ssh_probe_timeout = "5s"
