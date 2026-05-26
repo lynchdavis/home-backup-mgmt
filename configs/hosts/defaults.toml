@@ -1,28 +1,75 @@
-# Tourbillon defaults for linux host backups.
-# See doc/ADR-002-host-backups-linux.md for the full design + rationale.
-# Per-host files in configs/hosts/<hostname>.toml override individual fields.
+# Tourbillon defaults for host backups.
+# See doc/ADR-002-host-backups-linux.md (multi-user shape)
+#     doc/ADR-003-host-backups-single-user-mode.md (single-user variant).
+#
+# This file is declarative: every settable field appears with its default
+# value and a one-line comment. Per-host files in configs/hosts/<host>.toml
+# override individual fields. Editing per-host fields here changes the
+# default; per-host wins on a field-by-field basis.
 
-# SSH identity used to pull from each target.
-# `ssh_key` is NOT set here — tourbillon derives it per-host as
-#   ~/.ssh/id_ed25519_tourbillon_<config-basename>
-# so configs/hosts/arrow-iii.toml gets ~/.ssh/id_ed25519_tourbillon_arrow-iii.
-# Per-host configs can still set `ssh_key` explicitly to override that default.
+
+# ──────────────────────────────────────────────────────────────────────
+# Authentication
+# ──────────────────────────────────────────────────────────────────────
+
+# SSH user on the target host.
+#   multi-user linux  : "tourbillon"  (dedicated service account)
+#   single-user mac   : the operator's existing user (e.g. "lynch")
+#   single-user win   : the operator's existing user (whatever Windows username)
 ssh_user = "tourbillon"
 
-# Default cadence — "try every 24h, never error if the host is offline."
-# Per-host override available for hosts that warrant tighter sync.
-schedule_when_up = "24h"
+# Path to the per-host SSH private key on kodiak. {host} is substituted
+# with the per-host config's basename at runtime. Override per-host only
+# if a non-default path is wanted.
+ssh_key = "~/.ssh/id_ed25519_tourbillon_{host}"
 
-# Default scope per host. Per-host files can specify a different array
-# (e.g. ["/home", "/etc"] when /etc opt-in is wanted; or ["/home/lynch"]
-# when a multi-user host should only mirror specific users).
+# Whether target-side rsync must be wrapped in sudo to read the configured
+# paths.
+#   true  : multi-user host. rsync runs as the `tourbillon` service account
+#           and needs `sudo /usr/bin/rsync --server *` (the sudoers entry
+#           bootstrap-tourbillon-user.sh installs).
+#   false : single-user host. rsync runs as the operator's own user with
+#           direct read access to their own home — no sudo wrapper.
+sudo_required = true
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Source (the target host)
+# ──────────────────────────────────────────────────────────────────────
+
+# Default paths to back up. Almost always per-host overridden:
+#   multi-user linux  : ["/home"]  (default) or ["/home", "/etc"]
+#   single-user mac   : ["/Users/<user>"]
+#   single-user win   : ["/cygdrive/c/Users/<user>"]   (cwRsync)
+#                       or ["/mnt/c/Users/<user>"]      (WSL rsync)
 paths = ["/home"]
 
-# rsync --exclude-from path (relative to the repo root).
+# rsync --exclude-from path, relative to the repo root. Pick by platform:
+#   linux-user.txt    : multi-user linux (default)
+#   mac-user.txt      : macOS single-user
+#   windows-user.txt  : Windows single-user (when one onboards)
 excludes_file = "configs/hosts/excludes/linux-user.txt"
 
-# Where mirrors land on kodiak. Each host gets a child dataset under this.
-target_dataset = "backups-00/hosts"
 
-# SSH probe timeout for the reachability check before each sync attempt.
+# ──────────────────────────────────────────────────────────────────────
+# Schedule + reachability
+# ──────────────────────────────────────────────────────────────────────
+
+# Cadence — "try every N, never error if the host is offline."
+# Cron fires the outer loop every 30 min; this is each host's interval
+# threshold for "would I do work?"
+schedule_when_up = "24h"
+
+# SSH probe timeout (seconds) for the "is this host up?" check before each
+# sync attempt. Short to fail-fast on offline hosts.
 ssh_probe_timeout = "5s"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Destination (kodiak side)
+# ──────────────────────────────────────────────────────────────────────
+
+# ZFS parent dataset for host mirrors. Each host's first sync auto-creates
+# a child dataset here (e.g. backups-00/hosts/arrow-iii) so per-host
+# snapshot retention is independent.
+target_dataset = "backups-00/hosts"

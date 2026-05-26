@@ -8,6 +8,18 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — A2 host backups, slice 4 (single-user mode + declarative defaults)
+
+- **`doc/ADR-003-host-backups-single-user-mode.md`** — captures the multi-user-vs-single-user architectural fork. One config knob (`sudo_required`) distinguishes the two modes. Includes Windows readiness checklist (OpenSSH Server + cwRsync) for the day a Windows target arrives.
+- **`configs/hosts/defaults.toml` rewritten as declarative**: every settable field appears in the file with its default value + a one-line comment. No defaults hidden in code. `ssh_key` is now a templated default `~/.ssh/id_ed25519_tourbillon_{host}` (the `{host}` placeholder is substituted with the per-host config's basename at runtime).
+- **`configs/hosts/excludes/mac-user.txt`** — new exclude file for single-user macOS targets. Ported wholesale from `~/development/data-organizer/excludes/lynchmbp.txt` (battle-tested during the migration). Trash (`~/.Trash/`) is INCLUDED per the `safety-nets-for-scratch` policy; 30-day kodiak-side snapshot retention covers the recovery case.
+- **`configs/hosts/excludes/linux-user.txt`** — minor additions caught during the diff against lynchmbp.txt: `*.egg-info/` (Python build artifacts), `.cargo/git/` (Rust git checkout cache).
+- **`bin/tourbillon` updates**:
+  - `resolve_ssh_key()` reads the templated `ssh_key` value from config and substitutes `{host}`. No more code-only fallback (the default is now in `defaults.toml`).
+  - `rsync_one_path()` honors `sudo_required`: omits `--rsync-path='sudo /usr/bin/rsync'` when false. Single-user hosts get a plain `rsync --server` invocation as their existing user.
+- **`bin/bootstrap-from-kodiak-single-user.sh`** — wrapper script for single-user host onboarding. Generates per-host keypair → ssh-copy-id to the operator's existing user → verify → print per-host config template. No target-side script needed; no password-lock dance (the user's password stays the operator's own).
+- **`doc/CREDENTIALS.md`** — updated to cover both bootstrap flows (multi-user vs single-user) under the per-host keypair entry.
+
 ### Revised — slice 1 backup-user model (per-host keys, ssh-copy-id flow)
 
 Slice 1 originally landed with a single shared SSH key (`~/.ssh/id_ed25519_backup`) authorized on every host's `backup` user. Reviewed and revised to a per-host key model — compromise of one host's key opens only that one host. Same files / same patterns; the only "structural" change is one-key → key-per-host plus the username choice.

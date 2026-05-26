@@ -82,14 +82,18 @@ Public key: `/var/lib/tnreplicate/.ssh/authorized_keys` on kodiak (the only plac
 
 ### SSH keypair `kodiak → tourbillon@<host>` (per-host)
 
-Used for: kodiak's pull-side rsync from each linux host's `tourbillon` user.
+Used for: kodiak's pull-side rsync from each backed-up host.
 Type: ed25519, no passphrase.
 **One keypair per target host.** Compromise of one host's key opens only that one host's backup pathway.
 
 - Private keys: `~/.ssh/id_ed25519_tourbillon_<hostname>` on kodiak, mode 600.
-- Public keys: `~tourbillon/.ssh/authorized_keys` on the corresponding target.
+- Public keys: in `authorized_keys` on the target — location depends on the host's mode (see below).
 
-**Bootstrap a new host** (two-script flow):
+There are **two bootstrap flows** depending on whether the target is a multi-user host or a single-user host (Mac, Windows, single-user linux). See `doc/ADR-003-host-backups-single-user-mode.md` for the architectural fork.
+
+#### Multi-user hosts (e.g. linux servers)
+
+Public key lives in `~tourbillon/.ssh/authorized_keys` on the target (a dedicated `tourbillon` service account). Two-script bootstrap:
 
 1. **On the target host**, run `bin/bootstrap-tourbillon-user.sh` as root.
    It creates the `tourbillon` user, generates a fresh random password,
@@ -102,19 +106,35 @@ Type: ed25519, no passphrase.
    - Verifies key-based auth works
    - Locks the target's tourbillon password (key-only thereafter)
 
-After both: the target's tourbillon user has no usable password; ongoing
-operation is key-based only.
+After both: the target's tourbillon user has no usable password; ongoing operation is key-based only.
 
-**Rotation** (per host): re-run `bin/bootstrap-tourbillon-user.sh` on the
-target to unlock + reset password, delete the old key on kodiak, re-run
-`bin/bootstrap-from-kodiak.sh`. The bootstrap path is idempotent.
+**Rotation** (per host): re-run `bin/bootstrap-tourbillon-user.sh` on the target to unlock + reset password, delete the old key on kodiak, re-run `bin/bootstrap-from-kodiak.sh`. The bootstrap path is idempotent.
 
-**No expiration.** Replace when the kodiak-side private key leaks or when
-you're rotating routinely.
+#### Single-user hosts (Mac, Windows, single-user linux)
 
-Per-host keys are deliberate (vs the single-key approach we briefly held in
-slice 1): if any one host's key leaks, only that one host's backup pathway
-is exposed; other hosts are unaffected. Each key's blast radius is itself.
+Public key lives in the operator's EXISTING user's `~/.ssh/authorized_keys` — no service account is created. One-script bootstrap on kodiak:
+
+```bash
+bin/bootstrap-from-kodiak-single-user.sh <hostname> <existing-user>
+```
+
+It generates the per-host keypair, runs `ssh-copy-id` (interactive: prompts for the user's existing password once), verifies key-auth, and prints the template for the per-host config. The user's password is NOT locked — it's the operator's own to keep using interactively.
+
+Per-host config on kodiak (key fields):
+```toml
+ssh_user = "lynch"               # operator's existing user
+sudo_required = false            # rsync runs as the user; no sudo wrapper
+paths = ["/Users/lynch"]         # mac; "/cygdrive/c/Users/lynch" for Windows
+excludes_file = "configs/hosts/excludes/mac-user.txt"
+```
+
+**Rotation**: re-run `bin/bootstrap-from-kodiak-single-user.sh`. ssh-copy-id dedupes; old key on the target can be hand-removed later if you care.
+
+#### Common to both flows
+
+**No expiration.** Replace when the kodiak-side private key leaks or when you're rotating routinely.
+
+Per-host keys are deliberate (vs a single-key approach briefly held during slice 1's design phase): if any one host's key leaks, only that one host's backup pathway is exposed; other hosts are unaffected. Each key's blast radius is itself.
 
 ---
 

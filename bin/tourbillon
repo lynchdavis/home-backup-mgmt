@@ -771,15 +771,14 @@ def parse_seconds_field(val) -> int:
 
 
 def resolve_ssh_key(host_cfg: dict) -> str:
-    """Return the SSH key path for this host. If the per-host config and
-    defaults both omit `ssh_key`, derive from convention:
-    ~/.ssh/id_ed25519_tourbillon_<config-basename>. Per-host explicit value
-    always wins."""
-    key = host_cfg.get("ssh_key")
-    if key:
-        return str(Path(key).expanduser())
+    """Resolve the per-host SSH key path. The value (from defaults.toml or
+    per-host) is a template with optional `{host}` placeholder, substituted
+    here with the per-host config basename. Code-side default is the same
+    convention defaults.toml declares, used as a fallback only if both
+    defaults.toml and the per-host config somehow omit `ssh_key`."""
     name = host_cfg.get("_name", "")
-    return str(Path.home() / ".ssh" / f"id_ed25519_tourbillon_{name}")
+    template = host_cfg.get("ssh_key", "~/.ssh/id_ed25519_tourbillon_{host}")
+    return str(Path(template.replace("{host}", name)).expanduser())
 
 
 def ssh_probe(host_cfg: dict) -> tuple[bool, str]:
@@ -1020,6 +1019,8 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
         f"-o StrictHostKeyChecking=accept-new"
     )
 
+    sudo_required = cfg.get("sudo_required", True)
+
     cmd = [
         "sudo", "-n", "rsync",
         "-avHAX",
@@ -1029,10 +1030,14 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
         "--stats",
         f"--exclude-from={excludes_path}",
         "-e", ssh_cmd,
-        "--rsync-path=sudo /usr/bin/rsync",
-        src,
-        dst,
     ]
+    if sudo_required:
+        # Multi-user mode: target-side rsync must run as root to read /home/*.
+        # Matches the sudoers entry that bootstrap-tourbillon-user.sh installs.
+        cmd.append("--rsync-path=sudo /usr/bin/rsync")
+    # else: single-user mode — rsync runs as the operator's user with direct
+    # access to their own home; no sudo wrapper needed.
+    cmd += [src, dst]
 
     started = time.time()
     proc = subprocess.run(cmd, capture_output=True, text=True)
