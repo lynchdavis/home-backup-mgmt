@@ -8,6 +8,11 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — A2 host backups, slice 5a (HOSTS_RESTORE.md)
+
+- **`HOSTS_RESTORE.md`** — restore companion to `SARATOGA_RESTORE.md`. Covers single-file recovery, directory tree restore, full host rebuild for both multi-user and single-user modes. Mac and Windows path variants documented. Includes a quick-reference table at the bottom. Named `HOSTS_RESTORE` (not `LINUX_RESTORE`) since it covers all OS variants.
+- README pointer updated to include the new doc.
+
 ### Added — A2 host backups, slice 5b + 5c (sanoid policy + cron wiring)
 
 - **Sanoid policy for `backups-00/hosts`** — recursive snapshot retention (30 daily / no hourly/monthly), same template shape as `backups-00/repos`. Recursive so each per-host child dataset (created at first-seed time) gets its own snapshot timeline automatically. Config in `configs/sanoid/sanoid.conf` and deployed to `/etc/sanoid/sanoid.conf`.
