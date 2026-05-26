@@ -1305,6 +1305,39 @@ def repos_summary_dict() -> dict:
     }
 
 
+def hosts_summary_dict() -> dict:
+    """One-pass walk over host configs + state. Parallel to repos_summary_dict().
+    Returns counts (incl. unreachable) + total mirror size + oldest/newest sync ages."""
+    defaults = load_hosts_defaults()
+    names = known_host_names()
+    now_ts = time.time()
+
+    counts = {"ok": 0, "due": 0, "FAILED": 0, "NEVER": 0, "unreachable": 0}
+    total_size = 0
+    oldest = (None, None)  # (name, age_seconds)
+    newest = (None, None)
+
+    for name in names:
+        row = host_status_row(name, defaults, now_ts)
+        counts[row["state"]] = counts.get(row["state"], 0) + 1
+        total_size += row["size"] or 0
+
+        if row["last_success_at"]:
+            age = now_ts - iso_parse(row["last_success_at"]).timestamp()
+            if oldest[1] is None or age > oldest[1]:
+                oldest = (name, age)
+            if newest[1] is None or age < newest[1]:
+                newest = (name, age)
+
+    return {
+        "counts": counts,
+        "total_size": total_size,
+        "oldest": oldest,
+        "newest": newest,
+        "n": len(names),
+    }
+
+
 def pool_status_dict(pool: str = "backups-00") -> dict:
     """Reads via `zpool list -Hp` + `zpool status`. Returns shaped dict, never raises."""
     out: dict = {"pool": pool}
@@ -1453,6 +1486,28 @@ def print_status() -> int:
         print(f"  oldest sync: {r['oldest'][0]}  ({format_duration(r['oldest'][1])} ago)")
     if r["newest"][0]:
         print(f"  newest sync: {r['newest'][0]}  ({format_duration(r['newest'][1])} ago)")
+    print()
+
+    # --- Hosts ---
+    print("== Host backups (backups-00/hosts) ==")
+    print()
+    h = hosts_summary_dict()
+    if h["n"] == 0:
+        print("  (no hosts configured — drop a config in configs/hosts/<name>.toml)")
+    else:
+        hc = h["counts"]
+        parts = [
+            f"{hc['ok']} ok",
+            f"{hc['due']} due",
+            f"{hc['unreachable']} unreachable",
+            f"{hc['FAILED']} failed",
+            f"{hc['NEVER']} never",
+        ]
+        print(f"  {' | '.join(parts)}  |  {format_size(h['total_size'])} across {h['n']} host(s)")
+        if h["oldest"][0]:
+            print(f"  oldest sync: {h['oldest'][0]}  ({format_duration(h['oldest'][1])} ago)")
+        if h["newest"][0]:
+            print(f"  newest sync: {h['newest'][0]}  ({format_duration(h['newest'][1])} ago)")
     print()
 
     # --- Pool ---
