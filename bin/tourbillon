@@ -344,6 +344,27 @@ def format_duration(s: float) -> str:
     return f"{s/3600:.2f}h"
 
 
+def format_age(iso_ts: str | None, now_ts: float) -> str:
+    """'2026-05-25T18:36:28Z' -> '14.2h' (relative to now)."""
+    if not iso_ts:
+        return "—"
+    try:
+        age = now_ts - iso_parse(iso_ts).timestamp()
+    except ValueError:
+        return "?"
+    if age < 0:
+        return "future?"
+    if age < 60:
+        return f"{int(age)}s"
+    if age < 3600:
+        return f"{int(age/60)}m"
+    if age < 86400:
+        return f"{age/3600:.1f}h"
+    if age < 86400 * 30:
+        return f"{age/86400:.1f}d"
+    return f"{age/86400/30:.1f}mo"
+
+
 def state_path(slug: str) -> Path:
     return STATE_ROOT / f"{slug}.json"
 
@@ -596,6 +617,133 @@ def cmd_repos_discover(args: argparse.Namespace) -> int:
     return 1 if result.has_any_error else 0
 
 
+def repo_status_row(slug: str, config: dict, state: dict | None,
+                    interval_s: int, now_ts: float) -> dict:
+    """Categorize a repo into one of: ok / due / FAILED / NEVER.
+
+    'ok'     — last_success_at within interval, no error
+    'due'    — last success older than interval (cron will catch it next pass)
+    'FAILED' — state has last_error set
+    'NEVER'  — no state file (mirror has never been attempted)
+    """
+    if state is None:
+        return {
+            "slug": slug, "state": "NEVER",
+            "last_ok": None, "size": 0, "error": None,
+            "interval_s": interval_s,
+        }
+    last_error = state.get("last_error")
+    last_ok = state.get("last_success_at")
+    size = state.get("last_size_bytes", 0)
+    if last_error:
+        return {
+            "slug": slug, "state": "FAILED",
+            "last_ok": last_ok, "size": size, "error": last_error,
+            "interval_s": interval_s,
+        }
+    if not last_ok:
+        # state exists but no success yet (shouldn't normally happen)
+        return {
+            "slug": slug, "state": "NEVER",
+            "last_ok": None, "size": size, "error": None,
+            "interval_s": interval_s,
+        }
+    age = now_ts - iso_parse(last_ok).timestamp()
+    if age > interval_s:
+        return {
+            "slug": slug, "state": "due",
+            "last_ok": last_ok, "size": size, "error": None,
+            "interval_s": interval_s,
+        }
+    return {
+        "slug": slug, "state": "ok",
+        "last_ok": last_ok, "size": size, "error": None,
+        "interval_s": interval_s,
+    }
+
+
+def print_repo_status_table(rows: list[dict], now_ts: float) -> None:
+    """Print a tidy table sorted by slug. Summary line at the bottom."""
+    if not rows:
+        print("(no repos match)")
+        return
+    longest = max(len(r["slug"]) for r in rows)
+    longest = max(longest, len("REPO"))
+    print(f"  {'REPO':<{longest}}   {'STATE':<8}  {'LAST OK':<8}  {'SIZE':>9}  ERROR/INTERVAL")
+    print(f"  {'-'*longest}   {'-'*8}  {'-'*8}  {'-'*9}  {'-'*30}")
+    for r in sorted(rows, key=lambda r: r["slug"]):
+        size_str = format_size(r["size"]) if r["size"] else "—"
+        last = format_age(r["last_ok"], now_ts)
+        state = r["state"]
+        if r["error"]:
+            tail = (r["error"] or "")[:60]
+        else:
+            tail = f"interval {format_duration(r['interval_s'])}"
+        print(f"  {r['slug']:<{longest}}   {state:<8}  {last:<8}  {size_str:>9}  {tail}")
+
+    # Summary
+    counts = {"ok": 0, "due": 0, "FAILED": 0, "NEVER": 0}
+    total_size = 0
+    for r in rows:
+        counts[r["state"]] = counts.get(r["state"], 0) + 1
+        total_size += r["size"] or 0
+    print()
+    parts = [
+        f"{counts['ok']} ok",
+        f"{counts['due']} due",
+        f"{counts['FAILED']} failed",
+        f"{counts['NEVER']} never",
+    ]
+    print(f"  {' | '.join(parts)}  |  {format_size(total_size)} on disk")
+
+
+def cmd_repos_status(args: argparse.Namespace) -> int:
+    defaults = load_defaults_config()
+    slugs = known_slugs()
+    if args.provider:
+        slugs = [s for s in slugs if s.startswith(args.provider + "/")]
+    if args.name:
+        slugs = [s for s in slugs if s == args.name]
+
+    now_ts = time.time()
+    rows = []
+    for slug in slugs:
+        config = load_repo_config(slug, defaults)
+        interval_s = parse_interval(str(config.get("interval", "24h")))
+        state = load_state(slug)
+        rows.append(repo_status_row(slug, config, state, interval_s, now_ts))
+
+    print_repo_status_table(rows, now_ts)
+    return 0
+
+
+def cmd_repos_issues(args: argparse.Namespace) -> int:
+    """Filtered view: only rows that aren't 'ok'."""
+    defaults = load_defaults_config()
+    slugs = known_slugs()
+    if args.provider:
+        slugs = [s for s in slugs if s.startswith(args.provider + "/")]
+
+    now_ts = time.time()
+    rows = []
+    for slug in slugs:
+        config = load_repo_config(slug, defaults)
+        interval_s = parse_interval(str(config.get("interval", "24h")))
+        state = load_state(slug)
+        row = repo_status_row(slug, config, state, interval_s, now_ts)
+        if row["state"] != "ok":
+            rows.append(row)
+
+    if not rows:
+        # Cron-friendly: nothing wrong means no output.
+        if not args.quiet:
+            print("no issues — all repos ok within interval.")
+        return 0
+
+    print_repo_status_table(rows, now_ts)
+    return 1  # non-zero exit because there ARE issues
+
+
 def cmd_repos_sync(args: argparse.Namespace) -> int:
     if not TARGET_ROOT.exists():
         print(f"ERROR: target dataset not present: {TARGET_ROOT}", file=sys.stderr)
@@ -739,8 +887,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rp.set_defaults(func=cmd_repos_discover)
 
-    rp = rsubs.add_parser("status", help="show last-run state per repo (n.y.i.)")
-    rp.set_defaults(func=cmd_not_yet("repos status"))
+    rp = rsubs.add_parser("status", help="per-repo last-run state, age, size")
+    rp.add_argument("--name", metavar="SLUG", help="show one specific repo")
+    rp.add_argument("--provider", choices=("github", "bitbucket"),
+                    help="restrict to one provider")
+    rp.set_defaults(func=cmd_repos_status)
+
+    rp = rsubs.add_parser("issues", help="filtered status — only repos not in 'ok' state")
+    rp.add_argument("--provider", choices=("github", "bitbucket"),
+                    help="restrict to one provider")
+    rp.add_argument("--quiet", action="store_true",
+                    help="suppress 'no issues' line when everything is healthy (cron-friendly)")
+    rp.set_defaults(func=cmd_repos_issues)
 
     rp = rsubs.add_parser("sync", help="clone / remote-update due repos")
     rp.add_argument("--name", metavar="SLUG", help="sync only this repo (provider/owner/name)")
