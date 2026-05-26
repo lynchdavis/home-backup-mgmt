@@ -977,8 +977,10 @@ def ensure_host_dataset(dataset: str) -> tuple[Path, bool]:
         capture_output=True, text=True, check=True,
     )
     mp = Path(proc.stdout.strip())
-    # chown to ldavis so casual `ls` works without sudo (rsync runs as root via sudo).
-    subprocess.run(["sudo", "-n", "chown", "ldavis:ldavis", str(mp)], check=False)
+    # zfs create runs via sudo, so the new mountpoint is root-owned. Chown to
+    # the kodiak `tourbillon` service user (ADR-004) so the rest of this sync
+    # — and future syncs — can write into it without further sudo escalation.
+    subprocess.run(["sudo", "-n", "chown", "tourbillon:tourbillon", str(mp)], check=False)
     return mp, True
 
 

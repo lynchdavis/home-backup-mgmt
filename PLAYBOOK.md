@@ -101,15 +101,15 @@ per [ADR-004](doc/ADR-004-kodiak-side-service-user.md)), one parent
 dataset for host backups (also tourbillon-owned; per-host children get
 created at first-seed time).
 
-Prereq: the `tourbillon` system user must exist on kodiak. If not yet:
+Prereq: the `tourbillon` system user must exist on kodiak, plus its sudoers entry. One-shot setup script (idempotent) handles both:
 
 ```bash
-sudo useradd -r -m -d /var/lib/tourbillon -s /bin/bash \
-    -c 'kodiak A2 runtime (repos + host pulls)' tourbillon
-sudo passwd -l tourbillon   # locked; access via `sudo -u tourbillon`
+bash bin/bootstrap-kodiak-tourbillon.sh
 ```
 
-Then:
+That creates the user (locked password, `/var/lib/tourbillon` home), installs `/etc/sudoers.d/tourbillon` with the narrow NOPASSWD entries for `zfs create backups-00/hosts/*`, `chown tourbillon:tourbillon /kodiak00/backups-00/hosts/*`, and `rsync`, and flips ownership of any existing A2 dataset paths.
+
+Then create the datasets:
 
 ```bash
 # saratoga DR — canmount=noauto to sidestep Linux's mount-permission gate

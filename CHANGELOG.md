@@ -8,6 +8,32 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Hardened — bootstrap scripts capture every gap surfaced by arrow-iii's first seed
+
+While attempting to re-bootstrap arrow-iii under the ADR-004 model, hit four undocumented gotchas in a row. Captured each one into the setup scripts so a kodiak rebuild (or any subsequent host onboarding) doesn't repeat the dance:
+
+- **`bin/bootstrap-tourbillon-user.sh`** — major hardening:
+  - **Pre-flight checks** for required tools (openssl, visudo, useradd, usermod, passwd). If any is missing, fail with a clear message rather than hang halfway.
+  - **rsync auto-install** if missing. Minimal Debian installs don't ship rsync — without it the backup pulls just fail with cryptic "command not found" inside the rsync protocol stream. Now installed via apt-get (or dnf) before anything else proceeds.
+  - **Replaced `chpasswd` with `usermod -p` + openssl-precomputed sha512crypt hash.** chpasswd goes through PAM and hangs indefinitely on some Debian stacks (sssd, fingerprint helpers, etc.) — caught us twice during arrow-iii bootstrap, each time freezing the script after the "creating user" message. usermod writes /etc/shadow directly with no PAM detour. Sentinel "→ password set" log line makes the milestone visible.
+  - **Final summary** now prints sudoers path, rsync binary path + version, and the one-time password block — separate from the rest of the output so it's easy to copy.
+
+- **`bin/bootstrap-kodiak-tourbillon.sh`** (new) — one-shot kodiak-side setup. Idempotent. Captures everything that *was* done by hand during the ADR-004 migration session so a fresh kodiak can stand up A2 without reading the changelog archaeology:
+  - Creates the `tourbillon` system user (locked password).
+  - Installs `/etc/sudoers.d/tourbillon` with the three narrow NOPASSWD entries the runtime needs: `zfs create backups-00/hosts/*`, `chown tourbillon:tourbillon /kodiak00/backups-00/hosts/*`, `rsync`.
+  - `chown -R tourbillon:tourbillon` on `/kodiak00/backups-00/{repos,hosts}` if those datasets exist (PLAYBOOK section 3 creates them).
+  - Final summary lists what the script did NOT do (env file, crontab, per-host keys) so the operator can complete those steps.
+
+- **`bin/tourbillon`** (`ensure_host_dataset`) — fixed a latent bug: after `sudo zfs create` of a child dataset, the mountpoint was being chowned to `ldavis:ldavis`. Pre-ADR-004 that was correct; now it should be `tourbillon:tourbillon`. The chown command is in the sudoers added by `bootstrap-kodiak-tourbillon.sh`. The bug was latent because the host-sync code path had never actually been exercised end-to-end before — arrow-iii is the first host to actually first-seed.
+
+- **PLAYBOOK section 3** — now references `bin/bootstrap-kodiak-tourbillon.sh` as the one-shot prereq for the dataset creation steps. Removes the inline useradd / sudoers / chown commands (now lived in the script). Operator-readable; less drift potential.
+
+The four gotchas, in order of how we hit them on arrow-iii:
+1. Bootstrap script hangs at `chpasswd` after `useradd` — PAM-related, indistinguishable from a deadlock.
+2. Operator pastes a recovery chain into the wrong terminal (Mac instead of arrow-iii ssh) — chain's `usermod` silently fails on macOS but the rest of the chain runs, producing a misleading "PASSWORD: ..." output. (Not a script bug per se but documented as a cautionary tale.)
+3. rsync not installed on arrow-iii — Debian minimal install doesn't include it.
+4. `sudo: a password is required` for both `zfs create` and `rsync` on kodiak — tourbillon's sudoers on kodiak hadn't been provisioned (was implied but never installed as part of the migration).
+
 ### Refactor — kodiak-side service user (ADR-004): A2 stops running as `ldavis`
 
 Architectural drift correction surfaced during the bumpy arrow-iii bootstrap: A1 had an explicit "service user, not the operator" design (`tnreplicate`), but A2 implementation drifted into running as `ldavis` (cron entries, SSH keys, dataset ownership, token env all on the operator's interactive account). The operator caught it; this refactor brings A2 in line with A1.
