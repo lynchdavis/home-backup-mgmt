@@ -121,6 +121,35 @@ written via plain `git clone --mirror` / `git remote update`, which need a
 mounted filesystem and the script user (ldavis) to be able to write. No ZFS
 recv tricks involved.
 
+### 3a. Snapshot retention on `backups-00/repos` (sanoid)
+
+`backups-00/saratoga/*` snapshot retention is managed by TrueNAS's
+replication tasks (`retention_policy=SOURCE`). `backups-00/repos` isn't
+covered by that and needs its own retention. Sanoid handles it:
+
+```bash
+# Deploy the canonical config from the repo:
+sudo install -d -m 755 /etc/sanoid
+sudo install -m 644 configs/sanoid/sanoid.conf /etc/sanoid/sanoid.conf
+
+# The sanoid.timer is enabled by default by the package; verify:
+systemctl is-enabled sanoid.timer
+systemctl is-active  sanoid.timer
+
+# Take the first snapshot immediately (the timer would also fire within
+# 15 min; this just removes the wait):
+sudo sanoid --configdir=/etc/sanoid --cron
+```
+
+Policy (`configs/sanoid/sanoid.conf`): 30 days of daily snapshots on
+`backups-00/repos`, no hourly/monthly/yearly. Repos churn slowly; 30 daily
+deltas is generous without being expensive.
+
+**Gotcha:** sanoid's `--readonly` flag affects *pruning*, not snapshot
+*creation* — running `--readonly --cron` will still take a snapshot if
+one is due. If you want a true dry-run, just read the config and trust
+that the policy does what it says.
+
 ### 4. `tnreplicate` user + sudoers + ZFS delegation
 
 ```bash
