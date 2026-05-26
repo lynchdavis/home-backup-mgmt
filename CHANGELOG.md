@@ -8,6 +8,13 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — A2 host backups, slice 5b + 5c (sanoid policy + cron wiring)
+
+- **Sanoid policy for `backups-00/hosts`** — recursive snapshot retention (30 daily / no hourly/monthly), same template shape as `backups-00/repos`. Recursive so each per-host child dataset (created at first-seed time) gets its own snapshot timeline automatically. Config in `configs/sanoid/sanoid.conf` and deployed to `/etc/sanoid/sanoid.conf`.
+- **Cron entry on `ldavis`** at `5,35 * * * *` — `tourbillon hosts sync --quiet`. 5-minute offset from the repos sync (`*/30`) so they don't fire at the same minute. Silent on the normal "host offline / nothing due" case; one-line summary when work happens; failures to stderr → cron mail.
+
+The host-backup subsystem now runs autonomously the moment a host gets bootstrapped + first-seeded. Until arrow-iii is bootstrapped, the half-hour cron firings silently record "unreachable" and exit clean. Sanoid will start producing per-host snapshots automatically when each host's child dataset comes online.
+
 ### Added — A2 host backups, slice 4 (single-user mode + declarative defaults)
 
 - **`doc/ADR-003-host-backups-single-user-mode.md`** — captures the multi-user-vs-single-user architectural fork. One config knob (`sudo_required`) distinguishes the two modes. Includes Windows readiness checklist (OpenSSH Server + cwRsync) for the day a Windows target arrives.

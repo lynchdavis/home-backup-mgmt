@@ -121,11 +121,12 @@ written via plain `git clone --mirror` / `git remote update`, which need a
 mounted filesystem and the script user (ldavis) to be able to write. No ZFS
 recv tricks involved.
 
-### 3a. Snapshot retention on `backups-00/repos` (sanoid)
+### 3a. Snapshot retention on tourbillon datasets (sanoid)
 
 `backups-00/saratoga/*` snapshot retention is managed by TrueNAS's
-replication tasks (`retention_policy=SOURCE`). `backups-00/repos` isn't
-covered by that and needs its own retention. Sanoid handles it:
+replication tasks (`retention_policy=SOURCE`). The tourbillon-side
+datasets (`backups-00/repos`, `backups-00/hosts/*`) aren't covered by
+that and need their own retention. Sanoid handles them:
 
 ```bash
 # Deploy the canonical config from the repo:
@@ -141,8 +142,13 @@ systemctl is-active  sanoid.timer
 sudo sanoid --configdir=/etc/sanoid --cron
 ```
 
-Policy (`configs/sanoid/sanoid.conf`): 30 days of daily snapshots on
-`backups-00/repos`, no hourly/monthly/yearly. Repos churn slowly; 30 daily
+Policy (`configs/sanoid/sanoid.conf`):
+- `backups-00/repos` — 30 daily snapshots, non-recursive (one dataset).
+- `backups-00/hosts` — 30 daily snapshots, **recursive** (each per-host
+  child dataset gets its own snapshot timeline). New children added at
+  first-seed time are picked up automatically on the next sanoid tick.
+
+No hourly/monthly/yearly. Repo and host data churn slowly; 30 daily
 deltas is generous without being expensive.
 
 **Gotcha:** sanoid's `--readonly` flag affects *pruning*, not snapshot
