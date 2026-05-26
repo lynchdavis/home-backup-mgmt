@@ -943,6 +943,288 @@ def cmd_hosts_issues(args: argparse.Namespace) -> int:
     return 1
 
 
+# ---------- Host sync (rsync over SSH) ----------
+
+def dataset_used_bytes(dataset: str) -> int:
+    """`zfs list -p -o used` for the given dataset. 0 on any error."""
+    try:
+        proc = subprocess.run(
+            ["zfs", "list", "-H", "-p", "-o", "used", dataset],
+            capture_output=True, text=True,
+        )
+        if proc.returncode == 0:
+            return int(proc.stdout.strip())
+    except Exception:
+        pass
+    return 0
+
+
+def ensure_host_dataset(dataset: str) -> tuple[Path, bool]:
+    """Create the per-host ZFS dataset if missing. Returns (mountpoint, created_now)."""
+    proc = subprocess.run(
+        ["zfs", "list", "-H", "-o", "mountpoint", dataset],
+        capture_output=True, text=True,
+    )
+    if proc.returncode == 0:
+        return Path(proc.stdout.strip()), False
+
+    # Doesn't exist — create. Children inherit pool defaults (lz4, recordsize=128K, etc.)
+    subprocess.run(
+        ["sudo", "-n", "zfs", "create", dataset],
+        check=True, capture_output=True, text=True,
+    )
+    proc = subprocess.run(
+        ["zfs", "list", "-H", "-o", "mountpoint", dataset],
+        capture_output=True, text=True, check=True,
+    )
+    mp = Path(proc.stdout.strip())
+    # chown to ldavis so casual `ls` works without sudo (rsync runs as root via sudo).
+    subprocess.run(["sudo", "-n", "chown", "ldavis:ldavis", str(mp)], check=False)
+    return mp, True
+
+
+def _parse_rsync_bytes(stats_stdout: str) -> int:
+    """rsync --stats prints 'Total transferred file size: 12,345 bytes'."""
+    for line in stats_stdout.splitlines():
+        if line.startswith("Total transferred file size:"):
+            digits = "".join(c for c in line.split(":")[-1] if c.isdigit())
+            if digits:
+                return int(digits)
+            break
+    return 0
+
+
+def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
+    """rsync one source path on the target into <mountpoint>/<basename>/.
+
+    Returns {ok, path, duration_s, bytes_xfer, [reason], [warning]}.
+    rsync exit codes 23/24 are treated as soft warnings (partial transfer,
+    typically permission-on-one-file or file-vanished-during-walk), not
+    hard failures.
+    """
+    host = cfg["host"]
+    user = cfg.get("ssh_user", "tourbillon")
+    key = resolve_ssh_key(cfg)
+    excludes_rel = cfg.get("excludes_file", "configs/hosts/excludes/linux-user.txt")
+    excludes_path = REPO_ROOT / excludes_rel
+
+    basename = Path(src_path).name or "_root_"
+    src = f"{user}@{host}:{src_path.rstrip('/')}/"
+    dst_dir = mountpoint / basename
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = str(dst_dir) + "/"   # trailing slash so rsync writes INTO this dir
+
+    ssh_cmd = (
+        f"ssh -i {key} "
+        f"-o BatchMode=yes "
+        f"-o StrictHostKeyChecking=accept-new"
+    )
+
+    cmd = [
+        "sudo", "-n", "rsync",
+        "-avHAX",
+        "--delete",
+        "--numeric-ids",
+        "--partial",
+        "--stats",
+        f"--exclude-from={excludes_path}",
+        "-e", ssh_cmd,
+        "--rsync-path=sudo /usr/bin/rsync",
+        src,
+        dst,
+    ]
+
+    started = time.time()
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    duration = time.time() - started
+
+    if proc.returncode == 0 or proc.returncode in (23, 24):
+        bytes_xfer = _parse_rsync_bytes(proc.stdout or "")
+        warning = None
+        if proc.returncode in (23, 24):
+            tail = (proc.stderr or "").strip().splitlines()
+            warning = (tail[-1] if tail else f"rsync exit {proc.returncode} (partial)")[:200]
+        return {
+            "path": src_path, "ok": True,
+            "duration_s": duration, "bytes_xfer": bytes_xfer,
+            "warning": warning,
+        }
+
+    # Hard failure
+    tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+    return {
+        "path": src_path, "ok": False,
+        "duration_s": duration,
+        "reason": tail[-1] if tail else f"rsync exit {proc.returncode}",
+    }
+
+
+def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
+    """Probe + rsync each configured path. Never raises."""
+    started = time.time()
+
+    reachable, msg = ssh_probe(cfg)
+    if not reachable:
+        return {
+            "name": name, "ok": False, "reachable": False,
+            "action": "unreachable", "reason": msg,
+            "duration_s": time.time() - started,
+            "paths": [],
+        }
+
+    if dry_run:
+        return {
+            "name": name, "ok": True, "reachable": True,
+            "action": "would sync", "reason": "dry-run; host reachable",
+            "duration_s": time.time() - started,
+            "paths": [],
+        }
+
+    dataset = f"{cfg.get('target_dataset', 'backups-00/hosts')}/{name}"
+    try:
+        mountpoint, _created = ensure_host_dataset(dataset)
+    except subprocess.CalledProcessError as e:
+        return {
+            "name": name, "ok": False, "reachable": True,
+            "action": "FAILED",
+            "reason": f"ZFS create failed: {(e.stderr or '').strip()}",
+            "duration_s": time.time() - started,
+            "paths": [],
+        }
+
+    paths = cfg.get("paths", ["/home"])
+    path_results = [rsync_one_path(cfg, p, mountpoint) for p in paths]
+
+    all_ok = all(r["ok"] for r in path_results)
+    first_error = next((r["reason"] for r in path_results if not r["ok"]), None)
+    bytes_xfer = sum(r.get("bytes_xfer", 0) for r in path_results)
+    warnings = [r["warning"] for r in path_results if r.get("warning")]
+
+    return {
+        "name": name, "ok": all_ok, "reachable": True,
+        "action": "synced" if all_ok else "FAILED",
+        "reason": first_error,
+        "warnings": warnings,
+        "duration_s": time.time() - started,
+        "bytes_xfer": bytes_xfer,
+        "dataset_used": dataset_used_bytes(dataset),
+        "paths": path_results,
+    }
+
+
+def cmd_hosts_sync(args: argparse.Namespace) -> int:
+    defaults = load_hosts_defaults()
+    if not HOSTS_DEFAULTS_PATH.exists():
+        print(f"ERROR: {HOSTS_DEFAULTS_PATH} missing", file=sys.stderr)
+        return 1
+
+    names = known_host_names()
+    if args.name:
+        names = [n for n in names if n == args.name]
+    if not names:
+        if not args.quiet:
+            print("no hosts match the filter; nothing to do.")
+        return 0
+
+    now_ts = time.time()
+    quiet = bool(args.quiet)
+    target_root = defaults.get("target_dataset", "backups-00/hosts")
+    summary = {"ok": 0, "skipped": 0, "unreachable": 0, "failed": 0,
+               "total_bytes": 0, "total_seconds": 0.0}
+
+    if not quiet:
+        print(f"sync target: {target_root}/<host>")
+        print(f"candidates:  {len(names)} host(s)")
+        if args.dry_run:
+            print("(dry-run: probe only; no rsync; no state writes)")
+        print()
+
+    longest = max(len(n) for n in names)
+
+    for name in names:
+        cfg = load_host_config(name, defaults)
+        interval_s = parse_interval(str(cfg.get("schedule_when_up", "24h")))
+        state = load_host_state(name)
+        due, why = is_due(state, interval_s, now_ts)
+
+        if not (args.force or due):
+            summary["skipped"] += 1
+            if not quiet:
+                print(f"  {name:<{longest}}  skipped       ({why})")
+            continue
+
+        result = sync_one_host(name, cfg, dry_run=args.dry_run)
+
+        if args.dry_run:
+            if not quiet:
+                tag = result["action"]
+                print(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
+            continue
+
+        # Persist state
+        new_state = dict(state) if state else {"first_seen_at": iso_now()}
+        new_state["last_attempt_at"] = iso_now()
+        if result.get("reachable"):
+            new_state["last_reachable_at"] = iso_now()
+        else:
+            new_state["last_unreachable_at"] = iso_now()
+
+        if not result.get("reachable", True):
+            # Unreachable is a soft case — not an error
+            new_state["last_error"] = None
+            save_host_state(name, new_state)
+            summary["unreachable"] += 1
+            if not quiet:
+                print(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
+        elif result["ok"]:
+            new_state["last_success_at"] = iso_now()
+            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+            new_state["last_size_bytes"] = result.get("dataset_used", 0)
+            new_state["last_error"] = None
+            save_host_state(name, new_state)
+            summary["ok"] += 1
+            summary["total_bytes"] += result.get("bytes_xfer", 0)
+            summary["total_seconds"] += result.get("duration_s", 0)
+            if not quiet:
+                size_str = format_size(result.get("bytes_xfer", 0))
+                dur_str = format_duration(result.get("duration_s", 0))
+                w = result.get("warnings") or []
+                w_note = f"  (warnings: {len(w)})" if w else ""
+                print(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
+        else:
+            new_state["last_error"] = result.get("reason", "unknown")
+            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+            save_host_state(name, new_state)
+            summary["failed"] += 1
+            err = (result.get("reason") or "unknown")[:80]
+            print(f"  {name:<{longest}}  FAILED        {err}", file=sys.stderr)
+
+    if not quiet:
+        print()
+        if args.dry_run:
+            print(f"would process {summary['ok'] + summary['failed'] + summary['unreachable']} "
+                  f"host(s); {summary['skipped']} not due")
+        else:
+            print(f"summary: {summary['ok']} ok, {summary['failed']} failed, "
+                  f"{summary['unreachable']} unreachable, {summary['skipped']} skipped  |  "
+                  f"{format_size(summary['total_bytes'])} transferred, "
+                  f"{format_duration(summary['total_seconds'])} cumulative")
+    elif summary["ok"] or summary["failed"]:
+        # Quiet mode: only output if something happened (success or failure).
+        # Unreachable/skipped stay silent — cron sends no mail when normal.
+        stream = sys.stderr if summary["failed"] else sys.stdout
+        print(
+            f"tourbillon hosts sync: {summary['ok']} ok, "
+            f"{summary['failed']} failed, "
+            f"{summary['unreachable']} unreachable, "
+            f"{summary['skipped']} skipped  |  "
+            f"{format_size(summary['total_bytes'])} transferred",
+            file=stream,
+        )
+
+    return 0 if summary["failed"] == 0 else 1
+
+
 # ---------- Top-level status sources ----------
 
 def now_local_str() -> str:
@@ -1407,8 +1689,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="suppress 'no issues' line when everything is healthy (cron-friendly)")
     hp.set_defaults(func=cmd_hosts_issues)
 
-    hp = hsubs.add_parser("sync", help="clone or rsync-update due, reachable hosts (n.y.i.)")
-    hp.set_defaults(func=cmd_not_yet("hosts sync"))
+    hp = hsubs.add_parser("sync", help="clone or rsync-update due, reachable hosts")
+    hp.add_argument("--name", metavar="HOST", help="sync only this host")
+    hp.add_argument("--force", action="store_true",
+                    help="ignore interval; sync regardless of due-ness")
+    hp.add_argument("--dry-run", action="store_true",
+                    help="probe only; no rsync; no state writes")
+    hp.add_argument("--quiet", action="store_true",
+                    help="silent when nothing happened (cron-friendly)")
+    hp.set_defaults(func=cmd_hosts_sync)
     sp = subs.add_parser("perf", help="transfer-rate history (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("perf"))
 

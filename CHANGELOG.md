@@ -21,6 +21,21 @@ Slice 1 originally landed with a single shared SSH key (`~/.ssh/id_ed25519_backu
 - **Deleted the slice-1 `~/.ssh/id_ed25519_backup`** (had never been distributed) and removed `bin/bootstrap-backup-user.sh` from the repo.
 - **`doc/CREDENTIALS.md`** updated: per-host keypair model with the new bootstrap flow.
 
+### Added — A2 host backups, slice 3 (tourbillon hosts sync — real rsync)
+
+- **`tourbillon hosts sync`** — full implementation. SSH-probes each candidate host first; on reachable hosts, ensures the per-host ZFS dataset (`backups-00/hosts/<name>`) exists (auto-creates if missing, chowns to ldavis), then rsync-pulls each configured `paths` entry from the target.
+  - rsync flags: `-avHAX --delete --numeric-ids --partial --stats` with `--exclude-from=configs/hosts/excludes/linux-user.txt`.
+  - Target-side runs as root via `--rsync-path='sudo /usr/bin/rsync'` matching the narrow sudoers entry the bootstrap installs.
+  - Kodiak-side rsync runs via `sudo -n` so file ownership on the mirror reflects source uids/gids.
+  - Per-path subdir on kodiak: `/kodiak00/backups-00/hosts/<host>/<basename(path)>/` (e.g., `/home/` → `.../arrow-iii/home/`).
+  - Exit codes 23 (partial: permission-on-one-file) and 24 (file-vanished-during-walk) treated as soft warnings, not failures.
+  - Flags: `--name HOST` `--force` (skip interval check) `--dry-run` (probe only) `--quiet` (cron-friendly silence on no-op).
+  - State writes: `last_attempt_at` / `last_reachable_at` or `last_unreachable_at` / `last_success_at` / `last_size_bytes` (from `zfs list -p -o used`) / `last_duration_s` / `last_error`.
+
+### Note — bin/tourbillon at 1762 lines (refactor candidate)
+
+After slice 3 the single-file CLI is past the "consider splitting" threshold I'd flagged at ~1200. Still readable (well-sectioned with `# ----------` headers), but worth refactoring into `src/tourbillon/{repos,hosts,status,providers,...}.py` modules when the next big chunk lands. Not blocking; on-deck.
+
 ### Added — A2 host backups, slice 2 (tourbillon hosts CLI plumbing)
 
 - **`tourbillon hosts ping <host>`** — SSH-probe a configured host's reachability right now. Exits 0 if reachable, 1 otherwise. The probe uses `BatchMode=yes` + short ConnectTimeout so it can't hang.
