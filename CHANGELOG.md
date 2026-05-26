@@ -8,6 +8,28 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Refactor — kodiak-side service user (ADR-004): A2 stops running as `ldavis`
+
+Architectural drift correction surfaced during the bumpy arrow-iii bootstrap: A1 had an explicit "service user, not the operator" design (`tnreplicate`), but A2 implementation drifted into running as `ldavis` (cron entries, SSH keys, dataset ownership, token env all on the operator's interactive account). The operator caught it; this refactor brings A2 in line with A1.
+
+- **`doc/ADR-004-kodiak-side-service-user.md`** — captures the decision: dedicated `tourbillon` system user on kodiak owns all A2 runtime state. Same name as the CLI binary and the target-side service account (one concept, three manifestations). Pairs with `tnreplicate` for A1.
+- **Created `tourbillon` system user on kodiak** (uid 996, home `/var/lib/tourbillon`, password locked). Access via `sudo -u tourbillon` from ldavis; no interactive SSH login enabled.
+- **Migrated runtime state**: `~ldavis/.config/tourbillon/env` (github + bitbucket tokens) → `~tourbillon/.config/tourbillon/env`; `~ldavis/.local/state/tourbillon/` (42 state files: 40 repos + arrow-iii host) → `~tourbillon/.local/state/tourbillon/`. Verified env-readable + sample state-readable as the new user before deleting originals.
+- **Reassigned ZFS dataset ownership**: `/kodiak00/backups-00/repos` (40 repo mirrors, ~278 MB) and `/kodiak00/backups-00/hosts` are now owned by `tourbillon:tourbillon`. Repo data untouched in content; only ownership flipped.
+- **Migrated cron entries**: removed the A2 `*/30` repos-sync and `5,35` hosts-sync from ldavis's crontab; installed equivalents on `tourbillon`'s crontab (MAILTO=ldavis preserved so failure mails still reach the operator). The A1 monitoring entry (`0 8` `check-saratoga-replication.sh`) stays on ldavis — it's monitoring, not running backups.
+- **Refactored bootstrap scripts** (slice 6 in ADR-004) — both flows now accept an optional `<ip>` argument and auto-add `<ip> <hostname>` to kodiak's `/etc/hosts` if hostname doesn't resolve yet. Eliminates the manual "edit /etc/hosts first" step the operator hit during the arrow-iii session. Both scripts also pass `-o StrictHostKeyChecking=accept-new` to `ssh-copy-id` and every subsequent `ssh` call — auto-trusts the target's host key on first sight (TOFU done right), eliminating the manual `ssh-keyscan` dance. Keygen + ssh-copy-id + verify + lock all happen as the kodiak `tourbillon` user via `sudo -u tourbillon -H`.
+- **Discarded orphan**: `~ldavis/.ssh/id_ed25519_tourbillon_arrow-iii{,.pub}` — the target side had been cleaned via the new `bin/cleanup-tourbillon-host.sh`, making this kodiak-side keypair dead. Fresh keypair will be generated under `~tourbillon/.ssh/` when arrow-iii is re-bootstrapped.
+- **Docs updated**: CREDENTIALS.md (env + key paths now point at `~tourbillon/`), PLAYBOOK.md (dataset setup section now creates `tourbillon` user and chowns datasets to it), ADR-002 + ADR-003 (cross-references added pointing at ADR-004 since both ADRs were written assuming ldavis was the runtime user).
+- **New utility**: `bin/cleanup-tourbillon-host.sh` (committed earlier today, 85d5b87) — undoes everything `bootstrap-tourbillon-user.sh` installs on a target. Used to wipe arrow-iii so it can be re-bootstrapped cleanly under the new model.
+
+This refactor was triggered by the operator's question during the arrow-iii bootstrap:
+
+> we made a decision that ldavis is NOT the user of the backups, didn't we? i thought we created a user backups since backup was taken.
+
+They were right. The principle from A1 had never been carried over to A2.
+
+Smoke tests after migration: `sudo -u tourbillon bin/tourbillon repos sync --quiet` and `sudo -u tourbillon bin/tourbillon hosts sync --quiet` both exit 0. Cron crontab `-l -u tourbillon` shows expected entries. arrow-iii bootstrap under the new model still pending (clean target + refactored scripts ready).
+
 ### Added — A2 host backups, slice 5d (`tourbillon status` Hosts rollup)
 
 - **`bin/tourbillon`**: new `hosts_summary_dict()` parallel to `repos_summary_dict()`. One-pass walk over per-host configs + state. Returns counts (with `unreachable` as its own slot — powered-off ≠ failed), total mirror size, oldest/newest sync ages.

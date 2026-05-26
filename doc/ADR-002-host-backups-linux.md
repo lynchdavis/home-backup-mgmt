@@ -3,6 +3,7 @@
 **Status:** Proposed, 2026-05-26.
 **First target:** `arrow-iii` (192.168.1.65) — a minimal-use linux host, light enough to be a real but low-stakes proving ground.
 **Builds on:** ADR-001 (repo mirror) — same single-file `bin/tourbillon` extension, same `~/.config/{saratoga,tourbillon}/env` pattern, same `backups-00/` ZFS pool.
+**See also:** [ADR-004](ADR-004-kodiak-side-service-user.md) — kodiak-side runtime user. This ADR was written assuming A2 runs as `ldavis`; ADR-004 (retroactively) moves it to a dedicated `tourbillon` service user on kodiak. Per-host SSH keys live at `~tourbillon/.ssh/id_ed25519_tourbillon_<host>`.
 
 ---
 

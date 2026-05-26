@@ -3,6 +3,7 @@
 **Status:** Proposed, 2026-05-26.
 **Builds on:** ADR-002 (linux host backups, multi-user shape). Generalizes the design to handle Mac + Windows targets, which are essentially single-user systems where a dedicated service account is the wrong shape.
 **First targets it enables:** any single-user macOS host (LynchMBP), any Windows host once OpenSSH Server + cwRsync are installed.
+**See also:** [ADR-004](ADR-004-kodiak-side-service-user.md) — kodiak-side runtime user. The single-user bootstrap script (`bin/bootstrap-from-kodiak-single-user.sh`) generates per-host keys under the kodiak `tourbillon` user's home (`~tourbillon/.ssh/`), not under the operator's account.
 
 ---
 

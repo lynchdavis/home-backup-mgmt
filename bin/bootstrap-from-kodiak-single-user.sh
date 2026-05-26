@@ -7,8 +7,18 @@
 # account on the target. Backups run as the operator's existing user
 # account. See doc/ADR-003-host-backups-single-user-mode.md.
 #
+# Run on kodiak AS THE OPERATOR (ldavis). Per ADR-004 the per-host SSH key
+# lives under the kodiak-side `tourbillon` service user's home, not under
+# ldavis — this script uses `sudo` to put it there.
+#
 # Usage:
-#   bin/bootstrap-from-kodiak-single-user.sh <hostname-or-ip> <existing-user>
+#   bin/bootstrap-from-kodiak-single-user.sh <hostname> <existing-user> [<ip>]
+#
+#   <hostname>      short name (matches configs/hosts/<hostname>.toml)
+#   <existing-user> user account on the target whose home we'll back up
+#                   (no service account is created)
+#   <ip>            optional IPv4. If given and <hostname> doesn't resolve,
+#                   '<ip> <hostname>' is appended to kodiak's /etc/hosts.
 #
 # Pre-reqs on the target:
 #   - SSH server running and reachable from kodiak.
@@ -16,53 +26,98 @@
 #   - rsync installed (macOS: built-in; Windows: cwRsync or WSL2 rsync).
 #
 # What this script does:
-#   1. Generate a per-host ed25519 keypair on kodiak (no passphrase) at
-#      ~/.ssh/id_ed25519_tourbillon_<hostname>.
-#   2. ssh-copy-id pushes the public key to <user>@<host>. Interactive:
-#      prompts once for the user's existing password.
+#   0. Resolve <hostname>. If it doesn't resolve and <ip> was provided,
+#      add the mapping to kodiak's /etc/hosts.
+#   1. Generate a per-host ed25519 keypair under ~tourbillon/.ssh/
+#      (no passphrase). Owned by the kodiak `tourbillon` user.
+#   2. ssh-copy-id pushes the public key to <user>@<host>, auto-accepting
+#      the target's host key on first sight. Interactive — prompts once
+#      for the user's existing password.
 #   3. Verifies key-based auth works (BatchMode=yes).
-#   4. Prints a templated per-host config the operator should drop into
+#   4. Prints a templated per-host config to drop into
 #      configs/hosts/<hostname>.toml.
 #
-# Idempotent: re-running with an existing key reuses it. ssh-copy-id
-# dedupes the pubkey on the target.
+# Idempotent: re-running with an existing key reuses it; ssh-copy-id
+# dedupes the pubkey; /etc/hosts entry added only if missing.
 
 set -euo pipefail
 
 HOSTNAME="${1:-}"
 USER_ON_TARGET="${2:-}"
-if [ -z "$HOSTNAME" ] || [ -z "$USER_ON_TARGET" ]; then
-    cat >&2 <<EOF
-usage: $0 <hostname-or-ip> <existing-user>
+IP="${3:-}"
 
-  hostname-or-ip   target host (e.g. mac-mini.local, 192.168.1.42)
-  existing-user    user account on the target whose home we'll back up
+if [ -z "$HOSTNAME" ] || [ -z "$USER_ON_TARGET" ]; then
+    cat >&2 <<USAGE
+usage: $0 <hostname> <existing-user> [<ip>]
+
+  <hostname>       short name (matches configs/hosts/<hostname>.toml)
+  <existing-user>  user account on the target whose home we'll back up
                    (no service account is created)
-EOF
+  <ip>             IPv4 (optional). If given and <hostname> doesn't
+                   resolve, kodiak's /etc/hosts will be updated.
+
+Example:
+  $0 lynchmbp ldavis 192.168.1.42
+USAGE
     exit 2
 fi
 
-KEY="$HOME/.ssh/id_ed25519_tourbillon_${HOSTNAME}"
+KODIAK_SVC_USER="tourbillon"
+TB_HOME="/var/lib/tourbillon"
+KEY="${TB_HOME}/.ssh/id_ed25519_tourbillon_${HOSTNAME}"
+
+# accept-new = TOFU done right: auto-trust on first sight, reject on
+# change. Applied to every SSH this script issues.
+SSH_OPTS=( -o "StrictHostKeyChecking=accept-new" )
 
 echo "================ bootstrap-from-kodiak-single-user.sh — $(date) ================"
 echo "  target:  ${USER_ON_TARGET}@${HOSTNAME}"
 echo "  key:     ${KEY}"
+echo "  ip arg:  ${IP:-(none)}"
 echo
 
-# 1. Per-host keypair
-if [ -f "$KEY" ]; then
-    echo "key already exists; reusing"
+# 0. Resolve / /etc/hosts handling
+if getent hosts "$HOSTNAME" >/dev/null 2>&1; then
+    resolved=$(getent hosts "$HOSTNAME" | awk '{print $1; exit}')
+    echo "  ✓ $HOSTNAME already resolves to $resolved"
+    if [ -n "$IP" ] && [ "$IP" != "$resolved" ]; then
+        echo "  WARNING: <ip> argument ($IP) differs from current resolution ($resolved)." >&2
+        echo "  Using existing resolution. Edit /etc/hosts manually if you want $IP." >&2
+    fi
+elif [ -n "$IP" ]; then
+    echo "  $HOSTNAME does not resolve; adding '$IP $HOSTNAME' to /etc/hosts ..."
+    echo "$IP $HOSTNAME" | sudo tee -a /etc/hosts > /dev/null
+    if ! getent hosts "$HOSTNAME" >/dev/null 2>&1; then
+        echo "  ERROR: /etc/hosts updated but $HOSTNAME still doesn't resolve. Check NSS config (/etc/nsswitch.conf)." >&2
+        exit 1
+    fi
+    echo "  ✓ $HOSTNAME now resolves to $IP"
 else
-    echo "generating per-host keypair ..."
-    ssh-keygen -t ed25519 -f "$KEY" -N '' \
+    cat >&2 <<EOF
+  ERROR: $HOSTNAME does not resolve, and no <ip> argument was given.
+
+  Either supply the IP:    $0 $HOSTNAME $USER_ON_TARGET <ip>
+  Or add it manually:      echo '<ip> $HOSTNAME' | sudo tee -a /etc/hosts
+EOF
+    exit 1
+fi
+echo
+
+# 1. Per-host keypair under ~tourbillon/.ssh/
+sudo install -d -m 700 -o "$KODIAK_SVC_USER" -g "$KODIAK_SVC_USER" "${TB_HOME}/.ssh"
+if sudo test -f "$KEY"; then
+    echo "  key already exists; reusing"
+else
+    echo "  generating per-host keypair under ~${KODIAK_SVC_USER}/ ..."
+    sudo -u "$KODIAK_SVC_USER" ssh-keygen -t ed25519 -f "$KEY" -N '' \
         -C "kodiak -> ${HOSTNAME} single-user pull-key (no passphrase)"
 fi
-chmod 600 "$KEY"
+echo
 
 # 2. ssh-copy-id — interactive password prompt (operator's existing pw)
-echo
-echo "→ ssh-copy-id will prompt for ${USER_ON_TARGET}@${HOSTNAME}'s existing password."
-if ! ssh-copy-id -i "${KEY}.pub" "${USER_ON_TARGET}@${HOSTNAME}"; then
+echo "→ ssh-copy-id (will prompt for ${USER_ON_TARGET}@${HOSTNAME}'s existing password)"
+if ! sudo -u "$KODIAK_SVC_USER" -H ssh-copy-id "${SSH_OPTS[@]}" \
+        -i "${KEY}.pub" "${USER_ON_TARGET}@${HOSTNAME}"; then
     echo "ERROR: ssh-copy-id failed; key not deployed" >&2
     exit 1
 fi
@@ -70,16 +125,15 @@ fi
 # 3. Verify key-based auth
 echo
 echo "→ verifying key-based auth (BatchMode=yes) ..."
-if ! ssh -i "$KEY" \
+if ! sudo -u "$KODIAK_SVC_USER" -H ssh "${SSH_OPTS[@]}" -i "$KEY" \
         -o BatchMode=yes \
-        -o StrictHostKeyChecking=accept-new \
         "${USER_ON_TARGET}@${HOSTNAME}" 'true'; then
     cat >&2 <<EOF
 
 ERROR: key-based auth verification failed. The pubkey may not have landed
 correctly. Try manually:
 
-  ssh -i $KEY ${USER_ON_TARGET}@${HOSTNAME} true
+  sudo -u $KODIAK_SVC_USER ssh -i $KEY ${USER_ON_TARGET}@${HOSTNAME} true
 
 If that prompts for a password, check ~${USER_ON_TARGET}/.ssh/authorized_keys
 on the target — the pubkey should be there.
@@ -92,8 +146,8 @@ cat <<EOF
 
 ================ done ================
 
-Per-host key:  $KEY
-Verified:      ssh -i \$KEY ${USER_ON_TARGET}@${HOSTNAME} true (works)
+Per-host key:  $KEY  (owned by $KODIAK_SVC_USER)
+Verified:      sudo -u $KODIAK_SVC_USER ssh -i \$KEY ${USER_ON_TARGET}@${HOSTNAME} true (works)
 
 NEXT: drop a per-host config at configs/hosts/${HOSTNAME}.toml.
 Template (macOS, single-user):
@@ -110,8 +164,9 @@ For Windows targets, swap paths to:
 And excludes_file to configs/hosts/excludes/windows-user.txt.
 
 Then from kodiak:
-  bin/tourbillon hosts ping ${HOSTNAME}
-  bin/tourbillon hosts sync --force --name ${HOSTNAME}    # first seed
+
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts ping ${HOSTNAME}
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts sync --force --name ${HOSTNAME}
 
 Note: this host's password is the operator's own — NOT locked, NOT
 disturbed. Unlike the multi-user flow there's no service-account

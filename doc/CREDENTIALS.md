@@ -14,11 +14,11 @@ None of these tokens or keys are stored in git. The repo only references their *
 
 | Credential | Where | Created | Expires | Last rotated |
 |---|---|---|---|---|
-| Bitbucket / Atlassian API token (`kodiak-tourbillon-mirror`) | `~/.config/tourbillon/env` → `BITBUCKET_TOKEN` | 2026-05-25 | **2027-05-24** | — |
-| GitHub PAT (`kodiak-tourbillon-mirror`) | `~/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-05-25 | none (until revoked) | — |
+| Bitbucket / Atlassian API token (`kodiak-tourbillon-mirror`) | `~tourbillon/.config/tourbillon/env` → `BITBUCKET_TOKEN` | 2026-05-25 | **2027-05-24** | — |
+| GitHub PAT (`kodiak-tourbillon-mirror`) | `~tourbillon/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-05-25 | none (until revoked) | — |
 | TrueNAS API token (`kodiak-dump`) | `~/.config/saratoga/env` → `TRUENAS_API_TOKEN` | 2026-05-24 | none (until revoked) | — |
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
-| SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
+| SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
 
 ---
 
@@ -33,7 +33,7 @@ Auth shape: BASIC `${ATLASSIAN_EMAIL}:${BITBUCKET_TOKEN}` against `api.bitbucket
 
 **Regenerate** at `id.atlassian.com` → Account settings → Security → API tokens.
 - Use "Create API token with scopes," pick **Bitbucket** as the app, check the same nine read-only scopes as above (or just `read:workspace:bitbucket` + `read:repository:bitbucket` + `read:account` if the use case stays narrow).
-- Paste the new value into `~/.config/tourbillon/env` replacing the existing `BITBUCKET_TOKEN`.
+- Paste the new value into `~tourbillon/.config/tourbillon/env` (e.g. `sudo -u tourbillon vim ~tourbillon/.config/tourbillon/env`) replacing the existing `BITBUCKET_TOKEN`.
 - **Don't forget the rotation reminder** in CHANGELOG.md.
 
 Atlassian app passwords are deprecated (full removal 2026-07-28). Don't go back to those.
@@ -50,7 +50,7 @@ Auth shape: `Authorization: Bearer ${GITHUB_TOKEN}` for the API; `https://x-acce
 **Regenerate** at GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic):
 - Generate new (classic), name `kodiak-tourbillon-mirror-vN` (so we can tell old vs new during rotation).
 - **The top-level `repo` checkbox** is the one that matters. Don't pick sub-scopes individually — you'll lose private-repo access.
-- Replace the value in `~/.config/tourbillon/env`. Revoke the old one once new is verified.
+- Replace the value in `~tourbillon/.config/tourbillon/env` (via `sudo -u tourbillon vim …`). Revoke the old one once new is verified.
 
 ### TrueNAS API token
 
@@ -86,7 +86,7 @@ Used for: kodiak's pull-side rsync from each backed-up host.
 Type: ed25519, no passphrase.
 **One keypair per target host.** Compromise of one host's key opens only that one host's backup pathway.
 
-- Private keys: `~/.ssh/id_ed25519_tourbillon_<hostname>` on kodiak, mode 600.
+- Private keys: `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` on kodiak, mode 600, owned by the kodiak `tourbillon` service user (see ADR-004).
 - Public keys: in `authorized_keys` on the target — location depends on the host's mode (see below).
 
 There are **two bootstrap flows** depending on whether the target is a multi-user host or a single-user host (Mac, Windows, single-user linux). See `doc/ADR-003-host-backups-single-user-mode.md` for the architectural fork.
@@ -100,22 +100,23 @@ Public key lives in `~tourbillon/.ssh/authorized_keys` on the target (a dedicate
    and drops the sudoers entry (`NOPASSWD: /usr/bin/rsync --server *`).
    The password is printed at the end.
 
-2. **On kodiak**, run `bin/bootstrap-from-kodiak.sh <hostname>`. It:
-   - Generates `~/.ssh/id_ed25519_tourbillon_<hostname>`
-   - Runs `ssh-copy-id` (interactive — paste the password from step 1 once)
+2. **On kodiak**, run `bin/bootstrap-from-kodiak.sh <hostname> [<ip>]`. It:
+   - Auto-adds `<ip> <hostname>` to `/etc/hosts` if hostname doesn't resolve yet (only when `<ip>` arg given)
+   - Generates `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` (owned by the kodiak `tourbillon` user)
+   - Runs `ssh-copy-id` with `StrictHostKeyChecking=accept-new` (auto-trusts target host key on first sight; no manual `ssh-keyscan` needed). Interactive — paste the password from step 1 once.
    - Verifies key-based auth works
    - Locks the target's tourbillon password (key-only thereafter)
 
 After both: the target's tourbillon user has no usable password; ongoing operation is key-based only.
 
-**Rotation** (per host): re-run `bin/bootstrap-tourbillon-user.sh` on the target to unlock + reset password, delete the old key on kodiak, re-run `bin/bootstrap-from-kodiak.sh`. The bootstrap path is idempotent.
+**Rotation** (per host): re-run `bin/bootstrap-tourbillon-user.sh` on the target to unlock + reset password, delete the old key on kodiak (`sudo rm ~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>{,.pub}`), re-run `bin/bootstrap-from-kodiak.sh`. The bootstrap path is idempotent.
 
 #### Single-user hosts (Mac, Windows, single-user linux)
 
 Public key lives in the operator's EXISTING user's `~/.ssh/authorized_keys` — no service account is created. One-script bootstrap on kodiak:
 
 ```bash
-bin/bootstrap-from-kodiak-single-user.sh <hostname> <existing-user>
+bin/bootstrap-from-kodiak-single-user.sh <hostname> <existing-user> [<ip>]
 ```
 
 It generates the per-host keypair, runs `ssh-copy-id` (interactive: prompts for the user's existing password once), verifies key-auth, and prints the template for the per-host config. The user's password is NOT locked — it's the operator's own to keep using interactively.
@@ -141,7 +142,7 @@ Per-host keys are deliberate (vs a single-key approach briefly held during slice
 ## Things that explicitly are NOT credentials in this system
 
 - The `ldavis` ssh key on kodiak (`~/.ssh/id_ed25519` etc.) — a personal-use key, predates this project, used for the operator's interactive sessions only. Not consumed by any tourbillon code.
-- `~/.config/saratoga/env` and `~/.config/tourbillon/env` themselves — those *contain* credentials, but the files are not credentials. Mode 600, not in git.
+- `~/.config/saratoga/env` (operator-owned) and `~tourbillon/.config/tourbillon/env` (kodiak service-user-owned, per ADR-004) themselves — those *contain* credentials, but the files are not credentials. Mode 600, not in git.
 - The `tnreplicate` user account on kodiak — a system user with no password and a single use case. Compromised only if root on kodiak is compromised, at which point the credential model is the least of our problems.
 
 ---

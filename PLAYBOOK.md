@@ -41,7 +41,8 @@ What this design gives up:
   - `backups-00/saratoga` — parent container for saratoga DR (`canmount=noauto`)
   - `backups-00/saratoga/tank` — receives saratoga's `tank` tree (`canmount=noauto`)
   - `backups-00/saratoga/media` — receives saratoga's `media` tree (`canmount=noauto`)
-  - `backups-00/repos` — bare-repo mirrors from GitHub + Bitbucket (`canmount=on`, `recordsize=128K`, owned by `ldavis`). Managed by `bin/tourbillon repos sync`.
+  - `backups-00/repos` — bare-repo mirrors from GitHub + Bitbucket (`canmount=on`, `recordsize=128K`, owned by `tourbillon` per [ADR-004](doc/ADR-004-kodiak-side-service-user.md)). Managed by `bin/tourbillon repos sync` running as the kodiak `tourbillon` user.
+  - `backups-00/hosts` — rsync mirrors of each backed-up host (one child dataset per host; owned by `tourbillon`). Managed by `bin/tourbillon hosts sync`.
 - **User `tnreplicate`** (uid 997, home `/var/lib/tnreplicate`, shell bash).
   - `~/.ssh/authorized_keys` contains TrueNAS's replication pubkey.
   - `/etc/sudoers.d/tnreplicate` grants passwordless sudo for `/usr/sbin/zfs` and `/usr/sbin/zpool` (and `/sbin/` versions).
@@ -94,8 +95,21 @@ sudo zpool create \
 
 ### 3. Pre-create destination datasets
 
-Two distinct datasets with different settings — one for saratoga (must stay
-unmounted), one for repo mirrors (mounted, ldavis-writable).
+Three distinct datasets — one for saratoga (must stay unmounted), one
+for repo mirrors (mounted, owned by the kodiak `tourbillon` service user
+per [ADR-004](doc/ADR-004-kodiak-side-service-user.md)), one parent
+dataset for host backups (also tourbillon-owned; per-host children get
+created at first-seed time).
+
+Prereq: the `tourbillon` system user must exist on kodiak. If not yet:
+
+```bash
+sudo useradd -r -m -d /var/lib/tourbillon -s /bin/bash \
+    -c 'kodiak A2 runtime (repos + host pulls)' tourbillon
+sudo passwd -l tourbillon   # locked; access via `sudo -u tourbillon`
+```
+
+Then:
 
 ```bash
 # saratoga DR — canmount=noauto to sidestep Linux's mount-permission gate
@@ -103,11 +117,17 @@ sudo zfs create -o canmount=noauto backups-00/saratoga
 sudo zfs create -o canmount=noauto backups-00/saratoga/tank
 sudo zfs create -o canmount=noauto backups-00/saratoga/media
 
-# repo mirrors — small files, mounted, owned by the script user
+# repo mirrors — small files, mounted, owned by the tourbillon service user
 sudo zfs create -o canmount=on -o compression=lz4 -o atime=off \
                 -o recordsize=128K -o xattr=sa -o acltype=posixacl \
                 backups-00/repos
-sudo chown ldavis:ldavis /kodiak00/backups-00/repos
+sudo chown tourbillon:tourbillon /kodiak00/backups-00/repos
+
+# host backups — parent dataset only; per-host children at first-seed time
+sudo zfs create -o canmount=on -o compression=lz4 -o atime=off \
+                -o xattr=sa -o acltype=posixacl \
+                backups-00/hosts
+sudo chown tourbillon:tourbillon /kodiak00/backups-00/hosts
 ```
 
 **Why `canmount=noauto` on the saratoga side:** OpenZFS on Linux gates the
@@ -116,10 +136,10 @@ If destination datasets are mounted, `zfs recv -F` tries to unmount them and
 fails with `permission denied`. `canmount=noauto` keeps them unmounted; recv
 has nothing to unmount.
 
-**Why `canmount=on` + chown on the repos side:** bare-repo mirrors are
-written via plain `git clone --mirror` / `git remote update`, which need a
-mounted filesystem and the script user (ldavis) to be able to write. No ZFS
-recv tricks involved.
+**Why `canmount=on` + chown on the A2 side:** bare-repo mirrors and rsync
+host backups are plain filesystem writes (`git clone --mirror`, `rsync`),
+which need a mounted filesystem and the script user (`tourbillon`) to be
+able to write. No ZFS recv tricks involved.
 
 ### 3a. Snapshot retention on tourbillon datasets (sanoid)
 
