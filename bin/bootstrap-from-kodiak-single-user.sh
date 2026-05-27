@@ -76,6 +76,75 @@ echo "  key:     ${KEY}"
 echo "  ip arg:  ${IP:-(none)}"
 echo
 
+# Repo root — used by preflight to find configs/hosts/<host>.toml
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ---- preflight ---------------------------------------------------------------
+# Verify every precondition BEFORE we touch the system or the target.
+preflight() {
+    local failed=0
+    echo "→ preflight checks..."
+
+    # 1. Per-host config exists in the repo
+    if [ -f "$REPO_ROOT/configs/hosts/$HOSTNAME.toml" ]; then
+        echo "  ✓ configs/hosts/$HOSTNAME.toml present"
+    else
+        echo "  ⚠ configs/hosts/$HOSTNAME.toml not present yet — will print template at end" >&2
+        # not a hard fail in single-user mode; the script prints a starter config
+    fi
+
+    # 2. Kodiak-side tourbillon user exists (script needs to sudo -u as it)
+    if id "$KODIAK_SVC_USER" >/dev/null 2>&1; then
+        echo "  ✓ kodiak '$KODIAK_SVC_USER' service user exists"
+    else
+        echo "  ✗ kodiak '$KODIAK_SVC_USER' service user MISSING — run bin/bootstrap-kodiak-tourbillon.sh first." >&2
+        failed=$((failed+1))
+    fi
+
+    # 3. Hostname resolves OR can be added given the <ip> arg
+    if getent hosts "$HOSTNAME" >/dev/null 2>&1; then
+        local resolved
+        resolved=$(getent hosts "$HOSTNAME" | awk '{print $1; exit}')
+        echo "  ✓ $HOSTNAME resolves to $resolved"
+        if [ -n "$IP" ] && [ "$IP" != "$resolved" ]; then
+            echo "  ⚠ <ip> arg ($IP) differs from current resolution ($resolved). Existing resolution wins." >&2
+        fi
+    elif [ -n "$IP" ]; then
+        echo "  ⚠ $HOSTNAME does not resolve yet; /etc/hosts entry will be added (step 0)"
+    else
+        echo "  ✗ $HOSTNAME does not resolve and no <ip> arg given." >&2
+        echo "    Either supply the IP:  $0 $HOSTNAME $USER_ON_TARGET <ip>" >&2
+        echo "    Or add manually first: echo '<ip> $HOSTNAME' | sudo tee -a /etc/hosts" >&2
+        failed=$((failed+1))
+    fi
+
+    # 4. Target reachable on port 22 (use IP if hostname not resolving yet)
+    local probe_host="$HOSTNAME"
+    if ! getent hosts "$HOSTNAME" >/dev/null 2>&1 && [ -n "$IP" ]; then
+        probe_host="$IP"
+    fi
+    if timeout 5 bash -c "echo > /dev/tcp/$probe_host/22" 2>/dev/null; then
+        echo "  ✓ $probe_host port 22 reachable (sshd is up)"
+    else
+        echo "  ✗ $probe_host port 22 UNREACHABLE — is sshd running on the target?" >&2
+        echo "    On macOS: System Settings → General → Sharing → Remote Login = ON" >&2
+        echo "    On Windows: install + start the OpenSSH Server feature" >&2
+        echo "    On linux:   sudo systemctl status ssh  /  sudo systemctl start ssh" >&2
+        failed=$((failed+1))
+    fi
+
+    if [ "$failed" -gt 0 ]; then
+        echo "" >&2
+        echo "  $failed preflight check(s) failed; not proceeding." >&2
+        exit 1
+    fi
+    echo "  ✓ all preflight checks passed"
+    echo
+}
+
+preflight
+
 # 0. Resolve / /etc/hosts handling
 if getent hosts "$HOSTNAME" >/dev/null 2>&1; then
     resolved=$(getent hosts "$HOSTNAME" | awk '{print $1; exit}')
