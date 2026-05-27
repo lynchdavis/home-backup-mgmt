@@ -56,26 +56,22 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 
 ---
 
-### 1.3 No restore drill has ever been done
+### 1.3 No restore drill has ever been done ~~(open)~~ → addressed for hosts, still TODO for saratoga
 
-`SARATOGA_RESTORE.md` has a `zfs send | zfs recv` test command. `HOSTS_RESTORE.md` documents an "annual sha256 confidence-builder." Both exist as instructions only — no evidence anyone has executed them.
+**Update 2026-05-27:** host-side restore drill is now a script + cron job.
 
-> "A backup you've never restored from is theoretical."
+- **`bin/restore-drill.sh <host> [<file>]`** — does the three checks (mirror hash, source hash, reverse-rsync-back hash) and exits non-zero on any mismatch. Refuses symlinks (they cross-path; the backup is scoped). Silent on success; cron-mail-friendly. `--verbose` shows all three hashes.
+- **Cron entries on ldavis** at `30 6 1 * *` (arrow-iii) and `35 6 1 * *` (pilatus) — monthly drill, silent on success, cron mails any failure. Captured in `configs/cron/ldavis-crontab`.
+- **First-ever drill executed 2026-05-27** against arrow-iii (`/etc/hostname`) and pilatus (`/etc/hostname`) — both passed with three matching hashes.
 
-**Severity:** doesn't lose data, but doesn't *confirm* the data is recoverable either. The first time we discover the pipeline doesn't work shouldn't be when we actually need it.
+**Still open for saratoga side:** `SARATOGA_RESTORE.md` has the `zfs send | zfs recv` test command, but it hasn't been executed and isn't on a cron. Different shape — ZFS-native, not rsync. Worth scripting similarly:
 
-**Fix:** 5-minute exercise.
+1. `sudo zfs create backups-00/restore-test`
+2. `sudo zfs send backups-00/saratoga/tank/<small-dataset>@<snapshot> | sudo zfs recv backups-00/restore-test/<dataset>`
+3. Spot-check a file via `zfs list -r` + sha256
+4. `sudo zfs destroy -r backups-00/restore-test`
 
-1. Pick a stable file from a host mirror (e.g., a photo that doesn't change daily).
-2. sha256 the mirror copy on kodiak.
-3. ssh to the source host, sha256 the live copy.
-4. Compare.
-
-That validates: ZFS readability, file integrity, restore-direction rsync flag profile, sudoers entries.
-
-For the saratoga side: spin up `backups-00/restore-test/scratch`, `zfs send | zfs recv` a tiny snapshot into it, `zfs list` it, destroy. Five minutes.
-
-**Queued?** Should be done today or this week. Adding to PLAYBOOK as a recurring task is also worth doing.
+**Queued?** Saratoga drill: yes, follow-up. Tracked here.
 
 ---
 
@@ -201,11 +197,12 @@ The whole observability story leans on `MAILTO=ldavis` in both crontabs. If `mai
 
 ## Recommended next moves, in priority order
 
-1. **Today / this week — restore drill** (§1.3). Five minutes, validates the most important thing nobody's validated.
-2. **Today / this week — confirm cron mail works** (§4.3). Same five minutes' worth; otherwise everything else is theoretical.
-3. **Next opportunity (~$100, ~half a day) — mirror the pool** (§1.1). Single biggest reduction in catastrophic-loss probability.
-4. **While the scripts are warm — bootstrap LynchMBP** (§2.1).
-5. **Separate ADR — off-site tier** (§1.2). Most-irreplaceable subset first.
+1. ~~**Restore drill (host side)** (§1.3).~~ ✓ done 2026-05-27 — scripted + wired to monthly cron.
+2. **Today / this week — confirm cron mail works** (§4.3). The restore-drill cron will silently swallow failures if mail doesn't actually deliver. Verify before relying on it.
+3. **This week — saratoga restore drill** (§1.3 follow-up). `zfs send | zfs recv` into a `restore-test` dataset; sha256 a file; destroy. Same five minutes.
+4. **Next opportunity (~$100, ~half a day) — mirror the pool** (§1.1). Single biggest reduction in catastrophic-loss probability.
+5. **While the scripts are warm — bootstrap LynchMBP** (§2.1).
+6. **Separate ADR — off-site tier** (§1.2). Most-irreplaceable subset first.
 
 Everything else can wait until something forces it.
 

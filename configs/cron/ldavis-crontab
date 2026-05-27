@@ -9,3 +9,10 @@ MAILTO=ldavis
 # Daily 08:00 — alert if saratoga's ZFS replication hasn't landed a fresh
 # snapshot in the last 26h. Silent on success.
 0 8 * * * /home/ldavis/development/server-backups/bin/check-saratoga-replication.sh
+
+# Monthly restore-drill — verifies backup integrity for each host
+# end-to-end (mirror hash == source hash == reverse-rsync'd hash).
+# Silent on success; cron mails any FAILED check via MAILTO=ldavis.
+# Add one line per host as the fleet grows.
+30 6 1 * * /home/ldavis/development/server-backups/bin/restore-drill.sh arrow-iii
+35 6 1 * * /home/ldavis/development/server-backups/bin/restore-drill.sh pilatus

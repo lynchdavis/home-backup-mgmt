@@ -8,6 +8,19 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — `bin/restore-drill.sh` + monthly cron (closes GAPS.md §1.3 for hosts)
+
+GAPS.md §1.3 flagged that no actual restore drill had ever been performed — the docs described it but nobody ran it. Fixed: scripted the drill end-to-end and wired it to cron so it runs without anyone remembering.
+
+- **`bin/restore-drill.sh <host> [<file>]`** — three checks anchored on sha256:
+  1. Mirror copy on kodiak hashes to X.
+  2. Live source on the target hashes to X (mirror == source as of last sync).
+  3. Reverse-rsync the mirror to /tmp on the target → hashes to X (the restore-direction pipeline works).
+  Refuses symlinks (they can cross-path outside the backed-up subtree — found this the hard way during the first manual drill against `/etc/os-release` → `../usr/lib/os-release`, where `/usr` isn't in the backup). Silent on success (cron-friendly); `--verbose` shows all three hashes.
+- **`configs/cron/ldavis-crontab`** — new monthly entries: `30 6 1 * *` (arrow-iii) and `35 6 1 * *` (pilatus). Silent on success; cron mails any failure via `MAILTO=ldavis`.
+- **First drills executed 2026-05-27** against both hosts — both passed with matching three-way hashes.
+- **GAPS.md** updated to reflect §1.3 closed for hosts; saratoga-side drill (zfs send|recv test) still open as a follow-up.
+
 ### Fixed — `tourbillon status` works for the operator without sudo
 
 After the ADR-004 migration, `tourbillon status` as the operator (ldavis) reported "40 never / 2 never" for everything because the CLI was reading state from `$HOME/.local/state/tourbillon` — i.e., ldavis's empty home, not tourbillon's where state actually lives. Running as tourbillon got correct A2 state but missed the saratoga env (still in ldavis's home, used by A1). Neither user produced a complete view in one invocation.
