@@ -46,6 +46,21 @@ else
     echo "  ✓ user created (uid $(id -u $USER_NAME)), password locked"
 fi
 
+# Open traversal on the home dir + pre-create the state subtree at 755 so
+# the operator (ldavis) can read tourbillon's state files for read-only
+# CLI commands (`tourbillon status`, `tourbillon hosts status`, etc.)
+# without escalating. Secret subdirs (.ssh/, .config/tourbillon/) get
+# created at 700 by bootstrap-from-kodiak.sh and the operator respectively.
+echo "→ opening read-traversal on $HOME_DIR for state-subtree visibility ..."
+sudo chmod 755 "$HOME_DIR"
+sudo install -d -m 755 -o "$USER_NAME" -g "$USER_NAME" \
+    "$HOME_DIR/.local" \
+    "$HOME_DIR/.local/state" \
+    "$HOME_DIR/.local/state/tourbillon" \
+    "$HOME_DIR/.local/state/tourbillon/repos" \
+    "$HOME_DIR/.local/state/tourbillon/hosts"
+echo "  ✓ $HOME_DIR mode 755 (secrets in .ssh/ and .config/ stay 700)"
+
 # ---- 2. Install sudoers drop-in ---------------------------------------------
 echo "→ installing $SUDOERS_FILE ..."
 SUDOERS_TMP="$(mktemp)"

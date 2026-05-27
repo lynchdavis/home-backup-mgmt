@@ -8,6 +8,20 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Fixed — `tourbillon status` works for the operator without sudo
+
+After the ADR-004 migration, `tourbillon status` as the operator (ldavis) reported "40 never / 2 never" for everything because the CLI was reading state from `$HOME/.local/state/tourbillon` — i.e., ldavis's empty home, not tourbillon's where state actually lives. Running as tourbillon got correct A2 state but missed the saratoga env (still in ldavis's home, used by A1). Neither user produced a complete view in one invocation.
+
+- **`bin/tourbillon`**: state path no longer derived from `Path.home()`. New constant `TOURBILLON_STATE_DIR` defaults to `/var/lib/tourbillon/.local/state/tourbillon` regardless of which user is running the CLI (env var override available for testing). Read-only commands (`status`, `*_issues`, etc.) now work for any user with read access to the state subtree.
+- **Filesystem perms**: `/var/lib/tourbillon` opened from `700` to `755`; the state subtree pre-created at `755`. Secrets (`~tourbillon/.ssh/` at `700`, `~tourbillon/.config/tourbillon/env` at `600`) stay tight. State files contain timestamps + sizes + repo names — no secrets, safe to be operator-readable.
+- **`bin/bootstrap-kodiak-tourbillon.sh`**: now does the perm-opening + pre-creates the state subtree at the right modes, so a kodiak rebuild gets this for free.
+
+Operator can now run a full status check as themselves with one command:
+```
+source ~/.config/saratoga/env && bin/tourbillon status
+```
+Shows saratoga DR, repos, hosts, pool, and drive in one screen.
+
 ### Added — `pilatus` (linux, 192.168.1.59) bootstrapped + first-seeded; preflight checks in bootstrap-from-kodiak scripts
 
 Second host onboarded under the post-ADR-004 model, and the validation of the hardening work from earlier today. Where arrow-iii's bootstrap took ~an hour of debugging (chpasswd hang, missing rsync, missing kodiak sudoers, stale chown), pilatus's took ~5 minutes including the 18 GB first seed.

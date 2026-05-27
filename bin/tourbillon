@@ -41,13 +41,22 @@ DEFAULTS_PATH = CONFIGS_REPOS / "defaults.toml"
 # Host-backups paths
 CONFIGS_HOSTS = REPO_ROOT / "configs" / "hosts"
 HOSTS_DEFAULTS_PATH = CONFIGS_HOSTS / "defaults.toml"
-STATE_HOSTS = Path.home() / ".local" / "state" / "tourbillon" / "hosts"
+
+# Mutable state directory. Hardcoded to tourbillon's home (per ADR-004)
+# regardless of which user is running the CLI — so the operator can do
+# read-only invocations (`status`, `*_issues`) as themselves without
+# losing the per-host / per-repo state that lives only under
+# /var/lib/tourbillon/.local/state/tourbillon. Override via env var for
+# testing or alternate deployments.
+TOURBILLON_STATE_DIR = Path(os.environ.get(
+    "TOURBILLON_STATE_DIR",
+    "/var/lib/tourbillon/.local/state/tourbillon",
+))
+STATE_HOSTS = TOURBILLON_STATE_DIR / "hosts"
+STATE_ROOT = TOURBILLON_STATE_DIR / "repos"
 
 # Where bare repo mirrors actually live (the ZFS dataset).
 TARGET_ROOT = Path("/kodiak00/backups-00/repos")
-
-# Mutable per-host state, NOT git-tracked.
-STATE_ROOT = Path.home() / ".local" / "state" / "tourbillon" / "repos"
 
 DEFAULTS_BODY = """\
 # Tourbillon repo-mirror defaults. Per-repo files in this directory
