@@ -8,7 +8,7 @@
 # Exit 2 = ZFS or pool error.
 #
 # Wire as a cron entry on kodiak for periodic heartbeat:
-#   0 8 * * * /home/ldavis/development/server-backups/bin/check-saratoga-replication.sh
+#   0 8 * * * /home/ldavis/development/server-backups/tests/check-saratoga-replication.sh
 #   (cron mails any output / non-zero exit to MAILTO)
 
 set -uo pipefail

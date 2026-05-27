@@ -16,7 +16,7 @@
 # only on failure, by default).
 #
 # Usage:
-#   bin/restore-drill.sh <hostname> [<file-path>]
+#   tests/restore-drill.sh <hostname> [<file-path>]
 #
 # Defaults:
 #   <file-path> = /etc/hostname

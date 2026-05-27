@@ -26,7 +26,7 @@ After four diagnosed dead-ends with concrete blast-radius (one broke sshd), we p
 
 What this design gives up:
 - **Config not in repo (natively)** — recovered by `bin/dump-saratoga-config.sh` pulling the live state into JSON.
-- **Saratoga owns "did it happen?"** — recovered by `bin/check-saratoga-replication.sh` on kodiak: passive "did a fresh snapshot land in the last 26h?" check.
+- **Saratoga owns "did it happen?"** — recovered by `tests/check-saratoga-replication.sh` on kodiak: passive "did a fresh snapshot land in the last 26h?" check.
 
 ---
 
@@ -379,7 +379,7 @@ The snapshot tasks fire at 02:00. Each replication task with `auto: true` runs i
 ### Weekly-ish
 
 ```bash
-bin/check-saratoga-replication.sh    # "did backup happen?"
+tests/check-saratoga-replication.sh    # "did backup happen?"
 ```
 Logs to stderr if no fresh snapshot landed in the last 26h. Wire as cron mail if you want a heartbeat.
 

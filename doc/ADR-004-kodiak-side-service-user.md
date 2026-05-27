@@ -64,7 +64,7 @@ Considered and rejected:
 | Item | Why |
 |---|---|
 | The git repo (`~/development/server-backups/`) | The operator edits, commits, and pushes from here. tourbillon reads/executes via standard `755`-traverse perms; no need to relocate code. |
-| Saratoga env (`~/.config/saratoga/env`) | TrueNAS API token. Used by `bin/check-saratoga-replication.sh`, which is *monitoring* (alerts the operator if A1 stalls), not running backups. |
+| Saratoga env (`~/.config/saratoga/env`) | TrueNAS API token. Used by `tests/check-saratoga-replication.sh`, which is *monitoring* (alerts the operator if A1 stalls), not running backups. |
 | `0 8 * * * check-saratoga-replication.sh` cron entry | Same: it's a monitoring job whose output mails the operator. Operator gets the mail; operator's crontab. |
 
 A1's `tnreplicate` user is unaffected: it terminates ZFS replication streams; this ADR has nothing to do with it.

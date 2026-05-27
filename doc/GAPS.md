@@ -60,7 +60,7 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 
 **Update 2026-05-27:** host-side restore drill is now a script + cron job.
 
-- **`bin/restore-drill.sh <host> [<file>]`** — does the three checks (mirror hash, source hash, reverse-rsync-back hash) and exits non-zero on any mismatch. Refuses symlinks (they cross-path; the backup is scoped). Silent on success; cron-mail-friendly. `--verbose` shows all three hashes.
+- **`tests/restore-drill.sh <host> [<file>]`** — does the three checks (mirror hash, source hash, reverse-rsync-back hash) and exits non-zero on any mismatch. Refuses symlinks (they cross-path; the backup is scoped). Silent on success; cron-mail-friendly. `--verbose` shows all three hashes.
 - **Cron entries on ldavis** at `30 6 1 * *` (arrow-iii) and `35 6 1 * *` (pilatus) — monthly drill, silent on success, cron mails any failure. Captured in `configs/cron/ldavis-crontab`.
 - **First-ever drill executed 2026-05-27** against arrow-iii (`/etc/hostname`) and pilatus (`/etc/hostname`) — both passed with three matching hashes.
 

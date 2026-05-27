@@ -8,6 +8,19 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Reorganized — verification scripts moved to `tests/`
+
+Verification scripts (the ones that run on a schedule and produce yes/no health verdicts) were sharing `bin/` with operator-facing CLI / setup / teardown / apply scripts. Two different categories living in one place; now split.
+
+- **`tests/`** (new directory): scripts that *verify* the backup system is healthy. Silent on success, alarms on failure. Cron-friendly.
+- **`bin/`** (unchanged in role): scripts the operator runs to *do* something — invoke the CLI, bootstrap a host, apply config.
+- **Moved**:
+  - `bin/check-saratoga-replication.sh` → `tests/check-saratoga-replication.sh`
+  - `bin/restore-drill.sh` → `tests/restore-drill.sh`
+- **Added — `tests/test-restore-drill.sh`** — self-test of the restore drill. Runs the drill in four shapes (happy verbose, happy silent, nonexistent host, symlink file) and confirms each behaves correctly. Captures the four ad-hoc test cases that surfaced during the original drill development. Not on cron (hits live hosts); run manually after changing the drill script.
+- **Added — `tests/README.md`** — table of what's in tests/, exit-code contracts, conventions (silent on success, `--verbose` flag, `set -uo pipefail`, no side effects).
+- **Crontab** (ldavis) updated to point at the new paths; `configs/cron/ldavis-crontab` likewise. PLAYBOOK + GAPS + ADR-004 references updated.
+
 ### Added — `bin/restore-drill.sh` + monthly cron (closes GAPS.md §1.3 for hosts)
 
 GAPS.md §1.3 flagged that no actual restore drill had ever been performed — the docs described it but nobody ran it. Fixed: scripted the drill end-to-end and wired it to cron so it runs without anyone remembering.
