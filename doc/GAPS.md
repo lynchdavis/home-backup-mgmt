@@ -187,11 +187,20 @@ For a locked house, single-user threat model: usually fine. But irrecoverable to
 
 ---
 
-### 4.3 Cron mail delivery is unconfirmed
+### 4.3 Cron mail delivery — partially confirmed (2026-05-27)
 
-The whole observability story leans on `MAILTO=ldavis` in both crontabs. If `mail` on kodiak isn't actually delivering anywhere readable (forwarding to gmail? local spool that nobody reads?), failure alerts go nowhere.
+Tested today. Findings:
 
-**Fix:** 30-second test — `crontab -l | head -5; mail` on kodiak; or force a failure and see if it lands.
+- **Local delivery works.** Round-trip `echo … | mail -s … ldavis` landed in `/var/mail/ldavis` within seconds. Cron output and sudo-rejection events from earlier in the session were also captured (the latter from the arrow-iii bootstrap, where sudoers wasn't yet provisioned — system correctly alarmed on the failure, we fixed it).
+- **No external forwarding.** `exim4` is in `dc_eximconfig_configtype='local'` mode and `~ldavis/.forward` doesn't exist. Mail piles up at `/var/mail/ldavis`; ldavis has to `ssh kodiak; mail` to read it.
+
+So the **alerting chain itself works** — the issue is whether the operator habitually reads kodiak mail. Two paths:
+
+**A. Accept "I check kodiak mail occasionally."** Free, no setup. Risk: kodiak silently accumulates failures while you don't notice. Acceptable if you're on kodiak regularly anyway.
+
+**B. Forward to an external inbox.** Minimal setup is `msmtp` (or `exim4` reconfigured) → Gmail SMTP relay using an app password. Then `~ldavis/.forward → your-personal@gmail.com`. ~20 minutes of setup; alerts hit your phone via gmail's normal notifications.
+
+**Queued?** No active queue. Worth deciding which path before relying on `MAILTO=ldavis` for the restore-drill cron we just wired.
 
 ---
 
