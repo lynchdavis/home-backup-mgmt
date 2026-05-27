@@ -8,6 +8,24 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — `pilatus` (linux, 192.168.1.59) bootstrapped + first-seeded; preflight checks in bootstrap-from-kodiak scripts
+
+Second host onboarded under the post-ADR-004 model, and the validation of the hardening work from earlier today. Where arrow-iii's bootstrap took ~an hour of debugging (chpasswd hang, missing rsync, missing kodiak sudoers, stale chown), pilatus's took ~5 minutes including the 18 GB first seed.
+
+- **`configs/hosts/pilatus.toml`** — `host = "192.168.1.59"`, `paths = ["/home", "/etc"]` (same shape as arrow-iii; everything else inherited from `defaults.toml`).
+- **`/etc/hosts`** on kodiak updated: `pilatus` now points at the LAN IP `192.168.1.59`. The previous `192.168.7.50 pilatus tbm930` line was split — pilatus moved to the LAN IP; `tbm930` kept at `192.168.7.50` (different host, same VPN/subnet).
+- **First seed**: 18.0 GB transferred in 2.7 minutes (~110 MB/s, gigabit saturated). 83,376 files under `/home` (three user homes: ldavis, cyfirdev, stephen — numeric uids preserved), 1,269 under `/etc`. ZFS dataset auto-created and chowned to tourbillon via the sudoers entries from earlier today.
+- **`bin/bootstrap-from-kodiak.sh` + `-single-user.sh`** — added a `preflight()` function that runs before any state-changing step. Checks: (a) per-host `configs/hosts/<host>.toml` present, (b) kodiak `tourbillon` service user exists, (c) hostname resolves OR `<ip>` arg given, (d) target port 22 reachable. All checks run; failures accumulate; script bails with the full list (no fix-one-retry-fix-next dance). Surfaced by the operator during pilatus setup: "shouldn't all of these tests, pre-flight be scripted?" — yes, fixed.
+
+Host backup fleet now:
+```
+HOST        STATE   SIZE       NOTE
+arrow-iii   ok      628.0 MB   minimal-use linux
+pilatus     ok      14.5 GB    /home with 3 users
+```
+
+Cron will sync each at their `5,35`-of-an-hour window once their 24h interval elapses; both currently fresh.
+
 ### Added — canonical crontabs checked in under `configs/cron/`
 
 Following the ADR-004 refactor and arrow-iii first-seed, the two live crontabs (ldavis's saratoga monitoring entry; tourbillon's A2 sync entries) only existed in the running cron daemon — not in the repo. A kodiak rebuild would have meant retyping them from CHANGELOG archaeology.
