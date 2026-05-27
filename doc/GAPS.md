@@ -36,7 +36,11 @@ SMART says zero errors and ~20,000 power-on hours. Reliable today; mechanical dr
 
 ---
 
-### 1.2 Zero off-site copy
+### 1.2 Zero off-site copy ~~(open)~~ → design committed 2026-05-27 via [ADR-005](ADR-005-off-site-tier-idrive.md); execution pending
+
+**Update 2026-05-27**: design + transition plan now exist as ADR-005 (off-site tier via iDrive Personal on kodiak). `bin/install-idrive-on-kodiak.sh` written as a helper (download + extract + hand-off to interactive iDrive install). Still gap-open until execution completes: initial sync (~24-72h upload) + restore drill from iDrive + workstation device decommissioned.
+
+
 
 Acknowledged in `ADR-001` and `PLAYBOOK.md` ("next architectural layer when motivated"). Today the entire data set lives in one physical location.
 

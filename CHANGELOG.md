@@ -8,6 +8,36 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — ADR-005 + install helper for off-site tier (iDrive Personal on kodiak)
+
+Captures the design + transition plan for closing GAPS.md §1.2 (zero off-site copy). Execution is queued — this commit is documentation + helper script only.
+
+- **`doc/ADR-005-off-site-tier-idrive.md`** — full architecture:
+  - Why iDrive Personal vs e2 / Glacier / B2 (already-paid 5 TB; free retrieval; competitive total cost for this volume).
+  - Why kodiak-only push (not also saratoga): kodiak already has full A1 replica; TrueNAS doesn't speak iDrive Personal natively.
+  - Backup-set scope: photography (1.61 TB) + non-photo archive (~10 GB) + active (~520 MB) + hosts (~17 GB). ~1.65 TB total — fits in 5 TB plan with 3 TB headroom.
+  - Mount strategy for the canmount=noauto saratoga datasets, with snapshot-clone fallback documented.
+  - Transition plan: keep workstation device alive on iDrive during kodiak's initial sync, decommission after; avoids the "no off-site during cutover" failure mode.
+  - Alternatives + future scope (e2 migration, multi-cloud, freshness drill).
+- **`bin/install-idrive-on-kodiak.sh`** — helper:
+  - Pre-flight (curl/gzip/perl present, /opt has space, ZFS mount status of saratoga subtree printed).
+  - Downloads iDrive Linux client.
+  - Extracts + chmods.
+  - Hands off to iDrive's interactive installer.
+  - Prints the post-install configuration template (backup sets, manual first-push command, cron entry shape, what's NOT yet done).
+  - Explicitly NOT scripting iDrive's interactive prompts — those will change, and we'd rather type them than guess wrong.
+- **`doc/GAPS.md` §1.2** updated to reflect "design committed, execution pending."
+
+Implementation slices still to do (per ADR-005):
+1. Mount saratoga archive subtree (`zfs set canmount=on` + `zfs mount`).
+2. Run interactive installer; configure backup sets.
+3. First manual push (~24-72h).
+4. Restore drill from iDrive.
+5. Daily cron entry.
+6. Decommission workstation device on iDrive.
+7. Reclaim `/kodiak00/data-00/` redundant subtrees (~2.1 TB) per `data-organizer/MIGRATION-CHECKLIST.md`.
+8. CREDENTIALS.md update for iDrive account + private encryption key.
+
 ### Added — msmtp + gmail forwarder for cron mail (closes GAPS.md §4.3)
 
 Cron mail now reaches the operator's external inbox instead of piling up at `/var/mail/ldavis` for nobody to read.
