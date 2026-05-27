@@ -8,6 +8,17 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — msmtp + gmail forwarder for cron mail (closes GAPS.md §4.3)
+
+Cron mail now reaches the operator's external inbox instead of piling up at `/var/mail/ldavis` for nobody to read.
+
+- **`msmtp` + `msmtp-mta`** installed. `/usr/sbin/sendmail` symlink now points at `/usr/bin/msmtp`. exim4 stopped + disabled (still installed for quick rollback).
+- **`~ldavis/.msmtprc` + `~tourbillon/.msmtprc`** — per-user msmtp configs (mode 600). Per-user keeps the gmail app password's exposure narrow (each user reads only their own .msmtprc). Configured for `smtp.gmail.com:587` with TLS + auth.
+- **Gmail app password** (16-char, generated at https://myaccount.google.com/apppasswords, labeled "kodiak msmtp"). Documented in `doc/CREDENTIALS.md` with rotation path.
+- **Crontabs updated**: `MAILTO=lynchdavis0@gmail.com` in both `configs/cron/ldavis-crontab` and `configs/cron/tourbillon-crontab`. Cron hands the message directly to msmtp with an external recipient — no `.forward` or alias-resolution needed.
+- **Verified**: three test sends (ldavis manual, tourbillon manual, tourbillon cron-style) all accepted by gmail with `250 2.0.0 OK`; both operator-side emails arrived.
+- **New failure mode flagged in GAPS.md**: if the app password is revoked, msmtp logs a 535 auth error and the cron mail is lost (no queue/retry). Future-improvement: a check that greps `~/.msmtp.log` for recent auth failures.
+
 ### Reorganized — verification scripts moved to `tests/`
 
 Verification scripts (the ones that run on a schedule and produce yes/no health verdicts) were sharing `bin/` with operator-facing CLI / setup / teardown / apply scripts. Two different categories living in one place; now split.

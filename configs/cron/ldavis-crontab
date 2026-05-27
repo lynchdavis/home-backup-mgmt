@@ -2,9 +2,10 @@
 #
 # After ADR-004 (kodiak-side service user), the A2 cron entries (repos sync,
 # hosts sync) moved to the tourbillon user's crontab. What's left on ldavis
-# is monitoring — saratoga DR replication freshness checks. The operator
-# (ldavis) reads the resulting failure mail.
-MAILTO=ldavis
+# is monitoring — saratoga DR replication freshness checks + monthly host
+# restore drills. Cron failure mail forwards to the operator's external
+# gmail via msmtp (see ~ldavis/.msmtprc; CREDENTIALS.md for rotation).
+MAILTO=lynchdavis0@gmail.com
 
 # Daily 08:00 — alert if saratoga's ZFS replication hasn't landed a fresh
 # snapshot in the last 26h. Silent on success.

@@ -1,14 +1,16 @@
 # tourbillon A2 runtime crontab (kodiak-side, per ADR-004).
 #
 # Repos + host pulls run as the dedicated `tourbillon` service user
-# (not `ldavis`). Failures mail to ldavis — the operator — via
-# MAILTO=ldavis so the human reads them.
+# (not `ldavis`). Failures mail directly to the operator's external
+# gmail via msmtp (see ~tourbillon/.msmtprc; CREDENTIALS.md for rotation).
+# Cron's MAILTO is set to the external address so cron hands the message
+# straight to msmtp without local-delivery / alias-resolution stops.
 #
 # The binary, configs, and exclude files live in the repo at
 # /home/ldavis/development/server-backups/ (operator-owned, tourbillon
 # reads via standard 755-traverse). State and env live under tourbillon's
 # own home (/var/lib/tourbillon/).
-MAILTO=ldavis
+MAILTO=lynchdavis0@gmail.com
 
 # Every 30 min — sync any due repo mirrors. Per-repo interval (default 24h).
 # Silent when nothing's due; one-line summary when work happens; failures

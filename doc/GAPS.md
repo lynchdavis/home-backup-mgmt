@@ -187,20 +187,16 @@ For a locked house, single-user threat model: usually fine. But irrecoverable to
 
 ---
 
-### 4.3 Cron mail delivery — partially confirmed (2026-05-27)
+### 4.3 Cron mail delivery — ~~unconfirmed~~ → closed (2026-05-27): msmtp → gmail
 
-Tested today. Findings:
+Closed today. msmtp + gmail SMTP forwarder set up; tested end-to-end from both ldavis and tourbillon; both messages landed in the operator's gmail inbox.
 
-- **Local delivery works.** Round-trip `echo … | mail -s … ldavis` landed in `/var/mail/ldavis` within seconds. Cron output and sudo-rejection events from earlier in the session were also captured (the latter from the arrow-iii bootstrap, where sudoers wasn't yet provisioned — system correctly alarmed on the failure, we fixed it).
-- **No external forwarding.** `exim4` is in `dc_eximconfig_configtype='local'` mode and `~ldavis/.forward` doesn't exist. Mail piles up at `/var/mail/ldavis`; ldavis has to `ssh kodiak; mail` to read it.
+- `msmtp` + `msmtp-mta` installed. `/usr/sbin/sendmail` now → `/usr/bin/msmtp`. exim4 stopped + disabled (still installed for quick rollback if needed).
+- `~ldavis/.msmtprc` and `~tourbillon/.msmtprc` written (mode 600, gmail app password embedded). See `doc/CREDENTIALS.md` → "Gmail app password (`kodiak msmtp`)" for rotation path.
+- `MAILTO=lynchdavis0@gmail.com` in both crontabs (was `MAILTO=ldavis`). Cron now hands the message directly to msmtp with an external recipient — no local-delivery / alias-resolution stops along the way.
+- Verified: three test sends (ldavis manual, tourbillon manual, tourbillon cron-style) — all three accepted by gmail with `250 2.0.0 OK`; both emails confirmed received by the operator.
 
-So the **alerting chain itself works** — the issue is whether the operator habitually reads kodiak mail. Two paths:
-
-**A. Accept "I check kodiak mail occasionally."** Free, no setup. Risk: kodiak silently accumulates failures while you don't notice. Acceptable if you're on kodiak regularly anyway.
-
-**B. Forward to an external inbox.** Minimal setup is `msmtp` (or `exim4` reconfigured) → Gmail SMTP relay using an app password. Then `~ldavis/.forward → your-personal@gmail.com`. ~20 minutes of setup; alerts hit your phone via gmail's normal notifications.
-
-**Queued?** No active queue. Worth deciding which path before relying on `MAILTO=ldavis` for the restore-drill cron we just wired.
+**New failure mode to be aware of**: if the gmail app password gets revoked or the gmail account password changes, msmtp will fail to send and the cron mail is **lost** (msmtp doesn't queue or retry). Visible in `~/.msmtp.log` as a `535-5.7.8` auth error. Future improvement: wire a tiny check that greps the log for recent auth failures, alerts via some other path.
 
 ---
 

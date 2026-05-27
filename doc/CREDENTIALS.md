@@ -19,6 +19,7 @@ None of these tokens or keys are stored in git. The repo only references their *
 | TrueNAS API token (`kodiak-dump`) | `~/.config/saratoga/env` → `TRUENAS_API_TOKEN` | 2026-05-24 | none (until revoked) | — |
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
 | SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
+| Gmail app password (`kodiak msmtp`) | `~ldavis/.msmtprc` AND `~tourbillon/.msmtprc` → `password` line. Two copies; both mode 600. | 2026-05-27 | none (until revoked, or gmail account password changes) | — |
 
 ---
 
@@ -136,6 +137,36 @@ excludes_file = "configs/hosts/excludes/mac-user.txt"
 **No expiration.** Replace when the kodiak-side private key leaks or when you're rotating routinely.
 
 Per-host keys are deliberate (vs a single-key approach briefly held during slice 1's design phase): if any one host's key leaks, only that one host's backup pathway is exposed; other hosts are unaffected. Each key's blast radius is itself.
+
+---
+
+### Gmail app password (`kodiak msmtp`)
+
+Used for: forwarding kodiak's cron mail (sync failures, restore-drill failures, saratoga monitoring alerts) to the operator's external gmail inbox via `msmtp`. Without this, cron mail piles up at `/var/mail/ldavis` and nobody reads it.
+Type: 16-char Google App Password (alphanumeric, no spaces). Bound to `lynchdavis0@gmail.com`. 2FA-protected; app passwords require 2-Step Verification to be enabled on the Google account.
+
+**Two copies** — one in each user's home, both mode 600:
+- `~ldavis/.msmtprc` — ldavis's crontab uses this (saratoga monitor + monthly restore drills)
+- `~tourbillon/.msmtprc` — tourbillon's crontab uses this (repos sync + hosts sync)
+
+Same credential in both files. Per-user files keep the password to mode 600 in each home, which is tighter than a system-wide `/etc/msmtprc` would have to be.
+
+**Regenerate** at https://myaccount.google.com/apppasswords:
+1. Revoke the old `kodiak msmtp` entry (Sign In → Security → 2-Step Verification → App passwords → trash icon next to the entry).
+2. Create a fresh one, label it `kodiak msmtp`.
+3. Copy the 16-character output ONCE (Google doesn't show it again).
+4. Update both `.msmtprc` files:
+   - `vim ~/.msmtprc` (the `password` line)
+   - `sudo -u tourbillon -H vim ~tourbillon/.msmtprc` (same line, same value)
+5. Test from both users: `echo "Subject: test" | msmtp lynchdavis0@gmail.com` (exit 0 = accepted by gmail).
+
+If you change the gmail account password, all app passwords are auto-revoked — you'll need to regenerate.
+
+**Failure mode**: if the app password becomes invalid, cron mail fails to send (visible in `~/.msmtp.log` as a `535-5.7.8` auth error). The cron mail is then **lost** — msmtp doesn't queue or retry. So a stale app password = silent monitoring outage. Watching `~/.msmtp.log` (or wiring a check) is the only signal until something forces it.
+
+### SMTP relay choice (`smtp.gmail.com`)
+
+Not a credential per se, but worth noting: we chose Gmail's SMTP because the operator already has a Gmail account. Alternatives if Gmail becomes untenable: SendGrid (free tier, deliverability-focused), Mailgun (similar), or self-host with a relay. The `.msmtprc` shape stays the same — just `host`, `port`, `user`, `password` fields change.
 
 ---
 
