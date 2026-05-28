@@ -106,6 +106,16 @@ def status_badge(state: str) -> str:
     return badge(state, color)
 
 
+def labeled_pill(count: Any, label: str, color: str) -> str:
+    """Pill showing 'N label' (e.g. '40 ok') for compact count-+-meaning."""
+    return (
+        f'<span style="display:inline-block;padding:2px 9px;border-radius:12px;'
+        f'background:{color}1a;color:{color};font-size:12px;font-weight:600;'
+        f'font-family:ui-monospace,monospace;letter-spacing:.02em;margin-right:4px;">'
+        f'{h(count)} {h(label)}</span>'
+    )
+
+
 def table_open(headers: list[str]) -> str:
     head_cells = "".join(
         f'<th style="text-align:left;padding:8px 12px;border-bottom:1px solid {COLOR_BORDER};'
@@ -240,11 +250,11 @@ def render_repos(data: dict) -> str:
     parts = []
     parts.append(section_heading(f"Repo mirrors — {r.get('n', 0)} configured"))
     parts.append(kv_table([
-        ("ok / due / failed / never",
-            f'{badge(counts.get("ok",0), COLOR_OK)} '
-            f'{badge(counts.get("due",0), COLOR_WARN if counts.get("due",0) else COLOR_DIM)} '
-            f'{badge(counts.get("FAILED",0), COLOR_FAIL if counts.get("FAILED",0) else COLOR_DIM)} '
-            f'{badge(counts.get("NEVER",0), COLOR_FAIL if counts.get("NEVER",0) else COLOR_DIM)}'),
+        ("counts",
+            f'{labeled_pill(counts.get("ok",0), "ok", COLOR_OK)}'
+            f'{labeled_pill(counts.get("due",0), "due", COLOR_WARN if counts.get("due",0) else COLOR_DIM)}'
+            f'{labeled_pill(counts.get("FAILED",0), "failed", COLOR_FAIL if counts.get("FAILED",0) else COLOR_DIM)}'
+            f'{labeled_pill(counts.get("NEVER",0), "never", COLOR_FAIL if counts.get("NEVER",0) else COLOR_DIM)}'),
         ("total size", h(fmt_size(r.get("total_size", 0)))),
         ("by provider", f"{by_prov.get('github', 0)} github · {by_prov.get('bitbucket', 0)} bitbucket"),
         ("oldest sync", _format_age_tuple(r.get("oldest"))),
