@@ -1,0 +1,175 @@
+# tourbillon excludes for LynchMBP (the operator's daily-driver mac).
+#
+# Starts from mac-user.txt (generic single-user macOS excludes) and adds
+# LynchMBP-specific paths that the May 2026 data-organizer migration
+# identified as byte-identical with content already on saratoga (and so
+# replicated to kodiak via A1). Excluding here avoids:
+#   - duplicate bytes on kodiak's hosts mirror
+#   - duplicate bytes pushed off-site to iDrive (per ADR-005)
+# See LYNCHMBP-SPECIFIC EXTRAS at the bottom of this file.
+#
+# Patterns are matched anywhere in the source tree unless explicitly
+# anchored with a leading '/'.
+#
+# When a second mac joins the fleet: copy mac-user.txt for it, OR
+# refactor tourbillon to support multiple --exclude-from files
+# (cleaner long-term — would let lynchmbp-extras.txt chain off mac-user.txt
+# instead of duplicating the whole base file).
+
+# ──────────────────────────────────────────────────────────────────────
+# Trash policy
+# ──────────────────────────────────────────────────────────────────────
+# Note: the user-level ~/.Trash/ is INTENTIONALLY INCLUDED here (not
+# excluded). Per the safety-nets-for-scratch policy, the sanoid daily
+# snapshot retention on backups-00/hosts/* gives ~30 days of
+# "wait, I shouldn't have deleted that" recovery. Postit notes sometimes
+# have something important on the back; trash is the same.
+
+# ──────────────────────────────────────────────────────────────────────
+# OS metadata — never useful, omnipresent
+# ──────────────────────────────────────────────────────────────────────
+.DS_Store
+._.*
+.localized
+Icon?
+.Spotlight-V100/
+.fseventsd/
+.TemporaryItems/
+.Trashes/                                # external-volume trash; user ~/.Trash/ NOT excluded
+
+# ──────────────────────────────────────────────────────────────────────
+# Language toolchain caches & build artifacts
+# ──────────────────────────────────────────────────────────────────────
+.cache/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.tox/
+**/*.egg-info/
+**/node_modules/
+.npm/_cacache/
+.yarn/cache/
+**/target/                               # Rust build output
+.cargo/registry/
+.cargo/git/
+go/pkg/mod/
+go/pkg/cache/
+.gradle/caches/
+.m2/repository/
+**/dist/
+**/build/
+**/out/
+**/.next/
+**/.nuxt/
+**/.turbo/
+**/*.dSYM/
+
+# ──────────────────────────────────────────────────────────────────────
+# Editor / IDE
+# ──────────────────────────────────────────────────────────────────────
+.vscode/extensions/
+.idea/caches/
+.idea/shelf/
+**/*.swp
+**/*.swo
+
+# ──────────────────────────────────────────────────────────────────────
+# macOS ~/Library — the 100G+ problem
+# ──────────────────────────────────────────────────────────────────────
+# ~/Library/ is mostly cache + app-data. Cut the heavy cache subdirs
+# and things reproducible from elsewhere; keep what's likely user data
+# (Mail/Notes/Stickies/Safari bookmarks/keychain backups live here too).
+Library/Caches/
+Library/Logs/
+Library/Application Support/CrashReporter/
+Library/Application Support/MobileSync/   # iOS device backups, often huge
+Library/Application Support/*/Cache*/
+Library/Application Support/*/cache*/
+Library/Containers/*/Data/Library/Caches/
+Library/Group Containers/*/Library/Caches/
+Library/Developer/Xcode/DerivedData/
+Library/Developer/Xcode/Archives/
+Library/Developer/CoreSimulator/
+
+# Browser caches (sometimes live under Application Support not Caches/)
+Library/Application Support/Google/Chrome/*/Cache*/
+Library/Application Support/Google/Chrome/*/Code Cache/
+Library/Application Support/Google/Chrome/*/GPUCache/
+Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage/
+Library/Application Support/Firefox/Profiles/*/cache2/
+Library/Application Support/Firefox/Profiles/*/storage/
+Library/Application Support/BraveSoftware/Brave-Browser/*/Cache*/
+Library/Application Support/BraveSoftware/Brave-Browser/*/Code Cache/
+Library/Application Support/BraveSoftware/Brave-Browser/*/GPUCache/
+
+# ──────────────────────────────────────────────────────────────────────
+# iCloud mirrors  [JUDGMENT]
+# ──────────────────────────────────────────────────────────────────────
+# Local caches of iCloud Drive content. Backing them up duplicates
+# what's already in iCloud. If you want an offline safety net,
+# override per-host (drop these lines in a host-extras file).
+Library/CloudStorage/
+Library/Mobile Documents/
+
+# ──────────────────────────────────────────────────────────────────────
+# VM disks  [JUDGMENT]
+# ──────────────────────────────────────────────────────────────────────
+# Disk images are huge and often regenerable. Keep config + snapshot
+# metadata; skip the .vdi / .vmdk / .pvm/.hds. If a VM holds real
+# one-off state, override per-host.
+VirtualBox VMs/*/*.vdi
+VirtualBox VMs/*/*.vmdk
+VirtualBox VMs/*/*.vhd
+VirtualBox VMs/*/*.vhdx
+Parallels/*.pvm/Snapshots/
+Parallels/*.pvm/*.hds
+
+# ──────────────────────────────────────────────────────────────────────
+# Partial downloads
+# ──────────────────────────────────────────────────────────────────────
+Downloads/.localized
+*.crdownload
+*.partial
+
+# ──────────────────────────────────────────────────────────────────────
+# What is NOT excluded (i.e. WILL be backed up):
+#   - ~/Documents/
+#   - ~/Music/  (Apple Music + library db)
+#   - ~/Pictures/
+#   - ~/Downloads/  (minus the .partial junk above)
+#   - ~/Desktop/    (usually has working files; per-host override if
+#                    a particular Desktop subdir is huge/regenerable)
+#   - ~/Library/  minus Caches/Logs/MobileSync (Notes, Stickies,
+#                 Safari bookmarks, Mail if Full Disk Access is
+#                 granted to sshd)
+#   - ~/development/, ~/go/, ~/bin/, etc.  (minus build caches)
+#   - ~/.Trash/   (INCLUDED — see Trash policy at top)
+# ──────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────
+# LYNCHMBP-SPECIFIC EXTRAS — saratoga-redundant content
+# ──────────────────────────────────────────────────────────────────────
+# Each of these was identified during the May 2026 migration as
+# byte-identical with content already on saratoga (replicated to
+# kodiak via A1). Excluding them avoids:
+#   - duplicate bytes on kodiak's hosts mirror
+#   - duplicate bytes pushed off-site to iDrive (per ADR-005)
+#
+# Sizes are approximate (migration-era inventory). If LynchMBP grows
+# new content under these paths post-migration, that NEW content
+# won't be backed up — periodic re-evaluation worth doing.
+
+# ~70G of Nikon RAW (.nef) Desktop photo dumps — already on
+# saratoga's tank/archive/photography. Per migration manifests.
+Desktop/Paddy Pics/
+Desktop/pic folder/
+Desktop/Pictures -Old/
+
+# ~46G byte-identical FLAC mirror of saratoga's media/music/flac
+# (SHA-256 spot-checked during 2026-05-21 reconcile).
+flac/

@@ -1,0 +1,33 @@
+# LynchMBP — operator's daily-driver mac, single-user host.
+#
+# Bootstrap (one-time per host):
+#   bin/bootstrap-from-kodiak-single-user.sh lynchmbp ldavis 192.168.1.216
+#
+# Preflight will: add `192.168.1.216 lynchmbp` to kodiak's /etc/hosts,
+# accept-new the mac's SSH host key on first sight, run ssh-copy-id
+# (interactive — operator pastes their Mac account password once),
+# verify key-based auth.  No password lock (single-user mode — the
+# operator's own password stays the operator's own).
+#
+# Note: lynchmbp's LAN IP is dynamic (DHCP). 192.168.1.216 is the
+# value at bootstrap time. If the IP changes, update this file's
+# `host =` line AND kodiak's /etc/hosts entry. Reserving a DHCP lease
+# in the router is a future improvement worth doing once.
+
+host = "192.168.1.216"
+
+# Single-user mode: rsync runs as the operator's own user; no sudo
+# wrapper on the target. Mac is structurally single-user (see ADR-003).
+ssh_user = "ldavis"
+sudo_required = false
+
+# Mac home-dir path — what gets backed up.
+paths = ["/Users/ldavis"]
+
+# Per-host excludes file — extends mac-user.txt with saratoga-redundant
+# paths (Nikon RAW Desktop dumps, ~/flac/ mirror) identified during the
+# May 2026 data-organizer migration. See file for the full list.
+excludes_file = "configs/hosts/excludes/lynchmbp.txt"
+
+# schedule_when_up, target_dataset, ssh_key inherited from defaults.toml.
+# ssh_key template substitutes to: ~tourbillon/.ssh/id_ed25519_tourbillon_lynchmbp.
