@@ -2,9 +2,13 @@
 
 What this backup system doesn't (yet) do, and why each gap matters. Living doc — review periodically (suggested cadence: once after each major change, plus a forced look every ~6 months).
 
-**Last reviewed:** 2026-05-27.
+**Last reviewed:** 2026-05-28.
 **Reviewer:** ldavis (with [[Claude]]).
 **State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), 2.43 TB used of 3.5 TB raw.
+
+**Adjacent storage on kodiak** (informational, not part of the backup system):
+
+- `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-05-28, 1.4 TB used / 2.5 TB free** (was 3.5 TB used / 331 GB free before reclamation). The reclaim removed `host-backups/saratoga/photography` (1.5 TB, verified redundant per migration checklist) and `data-00/photography` staging (625 GB, same provenance). What's left is ~50 GB of irreplaceable old-machine backups (Alex/Leigh/2018/FP-mbp/saratoga-pre-migration) plus ~1 TB of bulk content (videos, ISOs, virtualbox images, applications). None of `data-00` is backed up anywhere — see §2.4 below.
 
 The point of this doc is to be honest about what could go wrong, not to chase zero risk. Personal infra; pragmatic tradeoffs are the goal. For each gap: what it is, what it costs, whether a fix is queued.
 
@@ -130,7 +134,23 @@ Kodiak's *system* is rebuildable from PLAYBOOK. Anything *uncommitted* in `~ldav
 
 ---
 
-## Tier 3 — operational hygiene
+### 2.4 `/kodiak00/data-00/` historical bulk storage isn't backed up
+
+Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 TB of LVM-ext4 on `sdc` (`/kodiak00/data-00` + `/kodiak00/media-00`). As of the 2026-05-28 reclamation, `data-00` holds ~1.4 TB:
+
+- **~50 GB irreplaceable**: `data-00/backups/{Alex Backup, Leigh Backup 2015-08-16, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state, logs}`. Old-machine backups; those machines are gone. **Single copy on a single disk.**
+- **~1 TB replaceable bulk**: `data-00/{applications, archive, iso, videos, virtualbox}` + leftover `data-00/backups/host-backups/`. Re-downloadable / re-buildable, mostly.
+
+The irreplaceable ~50 GB is the real concern: if sdc dies, those bytes are gone permanently and the original machines no longer exist to reconstitute them.
+
+**Severity:** medium. Low probability (drive failure) × catastrophic outcome (irrecoverable) × small subset (50 GB).
+
+**Fix options:**
+
+- **Move the irreplaceable subset into `backups-00/historical/`** — a new ZFS dataset under the managed pool. 50 GB doesn't move the needle on `backups-00` capacity, and it brings the bytes under sanoid snapshots + (eventually) iDrive off-site. Cheapest, biggest reduction in loss-probability.
+- **Accept as-is** — recognize that those 50 GB live on one disk and will be gone if it dies.
+
+**Queued?** Not started. Worth doing alongside the next operational pass.
 
 ### 3.1 No capacity-trending alarm
 

@@ -21,6 +21,25 @@ Two related quality-of-life upgrades for the mail notification stack:
 
 The on-failure cron mails still fire immediately. The weekly heartbeat still arrives Sunday morning. Difference is that everything now lands with a Subject line the reader can act on without opening the message.
 
+### Reclaimed — 2.1 TB on `/kodiak00/data-00/` (migration-staging photography)
+
+Cleaned up the two photography subtrees that the `data-organizer` migration checklist had marked verified-redundant since 2026-05-22 but never deleted:
+
+- `/kodiak00/data-00/backups/host-backups/saratoga/photography/` — 1.5 TB, 108,051 files. Pre-migration working copy. 99.97% hash-verified redundant per checklist; the 1 truly-unique file (`2019 Stephen Davis school.png`) was rescued into the canonical `PhotoArchive` during the original verification.
+- `/kodiak00/data-00/photography/` — 625 GB, 12,592 files. Staging tree from the same migration; verified fully redundant.
+
+Pre-reclamation safety checks (in addition to the original 2026-05-22 hash verification):
+
+- Confirmed A1 replica `backups-00/saratoga/tank/archive/photography` has 1.61 TB live (untouched).
+- Confirmed the rescued unique file is present at the reorganized A1 path.
+- Sample staging file sha256-matches its byte-identical copy in A1 under reorganized path structure (`2002/.../DSC00083_edited-2.JPG` → `PhotoArchive_0000_2009/2002/.../same`).
+
+Results: data-00 went from 92% full (331 GB free) to 36% full (2.5 TB free). A1 photo replica untouched. Both `MIGRATION-CHECKLIST.md` items marked complete.
+
+`doc/GAPS.md` updated:
+- "State at review" notes the new data-00 layout
+- New §2.4 captures the remaining `data-00/` exposure — ~50 GB of irreplaceable old-machine backups (Alex/Leigh/2018/FP-mbp/saratoga-pre-migration) still live on a single unbacked-up disk. Worth migrating into `backups-00/historical/` to fold under the same snapshot + future-iDrive coverage as the rest.
+
 ### Polished — cron mail subjects + HTML-tabular weekly summary
 
 Two related quality-of-life upgrades to the notification stack.
