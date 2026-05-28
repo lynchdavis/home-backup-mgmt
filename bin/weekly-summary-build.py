@@ -27,12 +27,14 @@ from typing import Any
 COLOR_OK = "#0a7d20"
 COLOR_WARN = "#b8860b"     # amber — "due" / advisory
 COLOR_FAIL = "#c01818"
-COLOR_TEXT = "#222"
-COLOR_DIM = "#666"
-COLOR_FAINT = "#888"
+COLOR_TEXT = "#222222"
+COLOR_DIM = "#666666"
+COLOR_FAINT = "#888888"
 COLOR_BORDER = "#e5e5e5"
 COLOR_HEAD_BG = "#f3f3f3"
 COLOR_ROW_BG = "#fafafa"
+# NB: keep all colors as full 6-char hex. badge() appends "1a" (alpha)
+# to produce an 8-char rgba — only valid if the base color is 6-char.
 
 STATUS_BADGE_COLOR = {
     "ok": COLOR_OK,
@@ -210,7 +212,7 @@ def assess_overall(data: dict) -> tuple[str, str, str]:
 def render_saratoga(data: dict) -> str:
     sara = data.get("saratoga", {})
     if not sara.get("ok"):
-        return section_heading("Saratoga DR (A1)") + (
+        return section_heading("Saratoga DR") + (
             f'<p style="color:{COLOR_FAIL};">unavailable: {h(sara.get("error", "?"))}</p>'
         )
     rows = []
@@ -228,7 +230,7 @@ def render_saratoga(data: dict) -> str:
         + "".join(rows)
         + table_close()
     )
-    return section_heading("Saratoga DR (A1)") + body
+    return section_heading("Saratoga DR") + body
 
 
 def render_repos(data: dict) -> str:
@@ -236,7 +238,7 @@ def render_repos(data: dict) -> str:
     counts = r.get("counts", {})
     by_prov = r.get("by_provider", {})
     parts = []
-    parts.append(section_heading(f"Repo mirrors (A2) — {r.get('n', 0)} configured"))
+    parts.append(section_heading(f"Repo mirrors — {r.get('n', 0)} configured"))
     parts.append(kv_table([
         ("ok / due / failed / never",
             f'{badge(counts.get("ok",0), COLOR_OK)} '
@@ -261,7 +263,7 @@ def _format_age_tuple(t: list | None) -> str:
 def render_hosts(data: dict) -> str:
     rows_data = data.get("host_rows", [])
     now_ts = time.time()
-    parts = [section_heading(f"Host backups (A2) — {len(rows_data)} configured")]
+    parts = [section_heading(f"Host backups — {len(rows_data)} configured")]
     if not rows_data:
         parts.append(f'<p style="color:{COLOR_DIM};">(no hosts configured)</p>')
         return "".join(parts)
@@ -354,7 +356,7 @@ def render_text(data: dict, badge_text: str) -> str:
     lines.append("")
 
     # saratoga
-    lines.append("── Saratoga DR (A1) ──")
+    lines.append("── Saratoga DR ──")
     sara = data.get("saratoga", {})
     if not sara.get("ok"):
         lines.append(f"  unavailable: {sara.get('error','?')}")
@@ -369,7 +371,7 @@ def render_text(data: dict, badge_text: str) -> str:
     r = data.get("repos", {})
     counts = r.get("counts", {})
     by_prov = r.get("by_provider", {})
-    lines.append(f"── Repo mirrors (A2) — {r.get('n',0)} configured ──")
+    lines.append(f"── Repo mirrors — {r.get('n',0)} configured ──")
     lines.append(f"  {counts.get('ok',0)} ok | {counts.get('due',0)} due | "
                  f"{counts.get('FAILED',0)} failed | {counts.get('NEVER',0)} never")
     lines.append(f"  {fmt_size(r.get('total_size',0))} across "
@@ -382,7 +384,7 @@ def render_text(data: dict, badge_text: str) -> str:
 
     # hosts
     rows_data = data.get("host_rows", [])
-    lines.append(f"── Host backups (A2) — {len(rows_data)} configured ──")
+    lines.append(f"── Host backups — {len(rows_data)} configured ──")
     if not rows_data:
         lines.append("  (no hosts configured)")
     else:
