@@ -17,3 +17,10 @@ MAILTO=lynchdavis0@gmail.com
 # Add one line per host as the fleet grows.
 30 6 1 * * /home/ldavis/development/server-backups/tests/restore-drill.sh arrow-iii
 35 6 1 * * /home/ldavis/development/server-backups/tests/restore-drill.sh pilatus
+
+# Weekly summary — Sunday 08:00. Self-mails via msmtp with a useful
+# Subject line ("kodiak weekly backup summary YYYY-MM-DD"), so cron's
+# default "Cron <ldavis@kodiak> ..." subject isn't what lands in gmail.
+# Acts as a heartbeat: if no email arrives some Sunday, monitoring
+# itself is broken (different failure mode from "everything's fine").
+0 8 * * 0 /home/ldavis/development/server-backups/bin/weekly-summary.sh

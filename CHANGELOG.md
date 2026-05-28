@@ -8,6 +8,15 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — `bin/weekly-summary.sh` Sunday-morning heartbeat email
+
+The on-failure cron mails tell you "something just broke." Missing from that pattern: a positive heartbeat that confirms the alerting chain itself is still functioning. Without it, "I haven't heard anything in 3 weeks" is ambiguous — everything's fine, or cron/msmtp died.
+
+- **`bin/weekly-summary.sh`** — self-mails via msmtp to lynchdavis0@gmail.com with subject `kodiak weekly backup summary YYYY-MM-DD`. Body = `tourbillon status` + `hosts issues` + `repos issues` + msmtp log tail (so the digest itself is evidence of msmtp's continued health).
+- **`configs/cron/ldavis-crontab`** — new entry `0 8 * * 0` (Sundays 08:00). Self-mailing means cron's awkward "Cron <ldavis@kodiak> ..." subject doesn't land in gmail; useful Subject does.
+- **Verified** with a manual run today — `msmtp` accepted with `250 OK`, summary email delivered.
+- Existing on-failure cron mails (sync errors, restore-drill failures, saratoga staleness) are unchanged — those still fire immediately. The weekly summary is purely additive.
+
 ### Added — ADR-005 + install helper for off-site tier (iDrive Personal on kodiak)
 
 Captures the design + transition plan for closing GAPS.md §1.2 (zero off-site copy). Execution is queued — this commit is documentation + helper script only.
