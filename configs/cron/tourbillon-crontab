@@ -3,21 +3,28 @@
 # Repos + host pulls run as the dedicated `tourbillon` service user
 # (not `ldavis`). Failures mail directly to the operator's external
 # gmail via msmtp (see ~tourbillon/.msmtprc; CREDENTIALS.md for rotation).
-# Cron's MAILTO is set to the external address so cron hands the message
-# straight to msmtp without local-delivery / alias-resolution stops.
+#
+# Each entry runs through bin/mail-on-output.sh — gives each cron email
+# a meaningful Subject ("kodiak: repos sync FAILED (exit 1)") instead of
+# cron's default "Cron <tourbillon@kodiak> ..." which is unreadable.
+# The wrapper is silent on no-op + exit 0, mails on any output or
+# non-zero exit.
 #
 # The binary, configs, and exclude files live in the repo at
 # /home/ldavis/development/server-backups/ (operator-owned, tourbillon
 # reads via standard 755-traverse). State and env live under tourbillon's
 # own home (/var/lib/tourbillon/).
+#
+# MAILTO is belt-and-suspenders: if a cron entry somehow bypasses the
+# wrapper and produces output, cron's own mail still fires.
 MAILTO=lynchdavis0@gmail.com
 
 # Every 30 min — sync any due repo mirrors. Per-repo interval (default 24h).
 # Silent when nothing's due; one-line summary when work happens; failures
-# to stderr (cron mails non-empty output).
-*/30 * * * * . $HOME/.config/tourbillon/env && /home/ldavis/development/server-backups/bin/tourbillon repos sync --quiet
+# to stderr.
+*/30 * * * * . $HOME/.config/tourbillon/env && /home/ldavis/development/server-backups/bin/mail-on-output.sh "repos sync" /home/ldavis/development/server-backups/bin/tourbillon repos sync --quiet
 
 # Every 30 min, offset 5 — sync any due host backups. Per-host schedule_when_up
 # (default 24h). Silent on no-op AND on host-offline (unreachable is normal
-# for laptops/desktops, not a failure). Failures to stderr (cron mails).
-5,35 * * * * /home/ldavis/development/server-backups/bin/tourbillon hosts sync --quiet
+# for laptops/desktops, not a failure). Failures to stderr.
+5,35 * * * * /home/ldavis/development/server-backups/bin/mail-on-output.sh "hosts sync" /home/ldavis/development/server-backups/bin/tourbillon hosts sync --quiet

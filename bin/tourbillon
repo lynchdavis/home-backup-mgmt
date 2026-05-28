@@ -1565,7 +1565,38 @@ def print_status() -> int:
     return 0
 
 
+def gather_status_data() -> dict:
+    """Collect everything print_status() would render, as structured data.
+
+    Extends the per-subsystem summary dicts with per-host detail rows
+    (so downstream renderers — like weekly-summary — can produce real
+    tables instead of pre-formatted text).
+    """
+    # Per-host detail rows (one entry per configured host)
+    host_defaults = load_hosts_defaults()
+    now_ts = time.time()
+    host_rows = [
+        host_status_row(name, host_defaults, now_ts)
+        for name in known_host_names()
+    ]
+
+    return {
+        "timestamp": now_local_str(),
+        "saratoga": saratoga_replication_summary(),
+        "repos": repos_summary_dict(),
+        "hosts": hosts_summary_dict(),
+        "host_rows": host_rows,
+        "pool": pool_status_dict(),
+        "next_scrub": next_scrub_dict(),
+        "drive": smart_attrs_dict("/dev/sdb"),
+    }
+
+
 def cmd_status(args: argparse.Namespace) -> int:
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(gather_status_data(), indent=2, default=str))
+        return 0
     return print_status()
 
 
@@ -1737,6 +1768,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Top-level
     sp = subs.add_parser("status", help="one-screen rollup of saratoga + repos + pool + drive")
+    sp.add_argument("--json", action="store_true", help="emit structured JSON instead of formatted text (for scripts / weekly-summary)")
     sp.set_defaults(func=cmd_status)
     sp = subs.add_parser("health", help="disk + pool health (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("health"))

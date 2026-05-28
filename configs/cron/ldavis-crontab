@@ -3,24 +3,33 @@
 # After ADR-004 (kodiak-side service user), the A2 cron entries (repos sync,
 # hosts sync) moved to the tourbillon user's crontab. What's left on ldavis
 # is monitoring — saratoga DR replication freshness checks + monthly host
-# restore drills. Cron failure mail forwards to the operator's external
-# gmail via msmtp (see ~ldavis/.msmtprc; CREDENTIALS.md for rotation).
+# restore drills + the weekly summary heartbeat.
+#
+# Every entry except weekly-summary.sh runs through bin/mail-on-output.sh,
+# which gives the email a meaningful Subject line (e.g. "kodiak: saratoga
+# check FAILED (exit 1)") instead of cron's default "Cron <ldavis@kodiak>
+# <script-path> ..." which is unreadable next to the weekly-summary subject.
+#
+# weekly-summary.sh self-mails (it's an unconditional weekly send, not
+# triggered by output), so it's NOT wrapped — would double-send.
+#
+# MAILTO is left set for belt-and-suspenders: if a cron entry somehow
+# bypasses mail-on-output.sh and produces output, cron's own mail still
+# fires. The wrapper handles the common path.
 MAILTO=lynchdavis0@gmail.com
 
 # Daily 08:00 — alert if saratoga's ZFS replication hasn't landed a fresh
 # snapshot in the last 26h. Silent on success.
-0 8 * * * /home/ldavis/development/server-backups/tests/check-saratoga-replication.sh
+0 8 * * * /home/ldavis/development/server-backups/bin/mail-on-output.sh "saratoga check" /home/ldavis/development/server-backups/tests/check-saratoga-replication.sh
 
 # Monthly restore-drill — verifies backup integrity for each host
 # end-to-end (mirror hash == source hash == reverse-rsync'd hash).
-# Silent on success; cron mails any FAILED check via MAILTO=ldavis.
-# Add one line per host as the fleet grows.
-30 6 1 * * /home/ldavis/development/server-backups/tests/restore-drill.sh arrow-iii
-35 6 1 * * /home/ldavis/development/server-backups/tests/restore-drill.sh pilatus
+# Silent on success. Add one line per host as the fleet grows.
+30 6 1 * * /home/ldavis/development/server-backups/bin/mail-on-output.sh "restore drill arrow-iii" /home/ldavis/development/server-backups/tests/restore-drill.sh arrow-iii
+35 6 1 * * /home/ldavis/development/server-backups/bin/mail-on-output.sh "restore drill pilatus" /home/ldavis/development/server-backups/tests/restore-drill.sh pilatus
 
 # Weekly summary — Sunday 08:00. Self-mails via msmtp with a useful
-# Subject line ("kodiak weekly backup summary YYYY-MM-DD"), so cron's
-# default "Cron <ldavis@kodiak> ..." subject isn't what lands in gmail.
-# Acts as a heartbeat: if no email arrives some Sunday, monitoring
-# itself is broken (different failure mode from "everything's fine").
+# Subject line ("kodiak weekly backup summary YYYY-MM-DD"). NOT wrapped
+# (would double-send). Acts as a heartbeat: if no email arrives some
+# Sunday, monitoring itself is broken.
 0 8 * * 0 /home/ldavis/development/server-backups/bin/weekly-summary.sh

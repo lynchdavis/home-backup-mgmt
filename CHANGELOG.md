@@ -8,6 +8,40 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Polished — cron-mail subject lines + HTML weekly summary
+
+Two related quality-of-life upgrades for the mail notification stack:
+
+- **`bin/mail-on-output.sh`** — generic wrapper for cron entries. Runs the wrapped command, silently exits if there's no output AND exit code is 0 (cron-friendly), otherwise self-mails via msmtp with a meaningful subject:
+  - `kodiak: <tag> FAILED (exit N)` on non-zero exit
+  - `kodiak: <tag> — output captured (exit 0)` when the command produces output but succeeds (e.g., `tourbillon repos sync --quiet` reporting that a repo actually got synced)
+  Preserves the wrapped command's exit code so `set -e` callers see the real result. Tested across all three cases (silent, success-with-output, failure).
+- **Both crontabs updated** to invoke their existing commands via `mail-on-output.sh`. Cron's default `Cron <user@host> command_text...` subject no longer ends up in gmail — every alert now has a useful Subject line scannable at-a-glance.
+- **`bin/weekly-summary.sh` rewritten as multipart/alternative** (text/plain + text/html). Gmail and modern clients render the HTML version (status badge with green/red color cue, formatted blocks for the status rollup and issues section, footer noting "heartbeat — absence is itself a signal"). Text-only readers (mutt, plain SMTP, etc.) see a cleaned-up ASCII version that mirrors the same structure with less visual clutter than the previous all-ASCII version. The Subject line gains a "— ATTENTION" suffix when any subsystem reports issues (visible at-a-glance in the inbox list).
+
+The on-failure cron mails still fire immediately. The weekly heartbeat still arrives Sunday morning. Difference is that everything now lands with a Subject line the reader can act on without opening the message.
+
+### Polished — cron mail subjects + HTML-tabular weekly summary
+
+Two related quality-of-life upgrades to the notification stack.
+
+**Subject lines (mail-on-output wrapper):**
+- **`bin/mail-on-output.sh`** — generic wrapper for cron entries. Captures stdout+stderr, silently exits if there's no output AND rc=0 (cron-friendly). Otherwise self-mails via msmtp with a meaningful subject:
+  - `kodiak: <tag> FAILED (exit N)` on non-zero exit
+  - `kodiak: <tag> — output captured (exit 0)` on success-with-output
+  Preserves the wrapped command's exit code.
+- Both crontabs updated to wrap every entry: `saratoga check`, `restore drill arrow-iii`, `restore drill pilatus` (ldavis); `repos sync`, `hosts sync` (tourbillon). `weekly-summary.sh` stays self-mailing (would double-send otherwise).
+- Tested across silent / success-with-output / failure paths.
+
+**Weekly summary now uses real HTML tables (not pre-formatted text):**
+- **`tourbillon status --json`** — new flag on the existing status command. Emits the same data as the text version but as structured JSON (saratoga tasks, repo counts, **per-host rows**, pool, drive). Internal `gather_status_data()` helper assembles the dict; both `--json` and the formatted-text path call the same underlying summary functions, so output never drifts.
+- **`bin/weekly-summary-build.py`** (new) — reads JSON on stdin, emits a complete multipart/alternative MIME envelope on stdout. The HTML side uses real `<table>` elements with inline styles (Gmail-safe), color-coded status badges (green/amber/red pills), proper section headings, key-value cards for pool + drive. The text/plain side mirrors the same structure with monospace-friendly layout for terminal-only readers.
+- **`bin/weekly-summary.sh`** rewritten as a three-stage pipeline: `tourbillon status --json | weekly-summary-build.py | msmtp`. Each stage independently testable.
+- Subject modulates by health: default suffix for `OK`, `— caveats` for `WARN` (e.g., a host's interval has elapsed but cron will catch it next firing), `— ATTENTION` for `FAIL` (real errors).
+- Verified: 16 KB MIME message accepted by Gmail (vs ~5 KB of the previous all-`<pre>` version) — extra bytes are the table markup, not bloat.
+
+The on-failure cron mails still fire immediately. The weekly heartbeat still arrives Sunday morning. Difference: every alert now has a Subject line you can act on without opening the email, and the heartbeat itself is readable at a glance instead of dumped as a 1990-line-printer scroll.
+
 ### Added — `bin/weekly-summary.sh` Sunday-morning heartbeat email
 
 The on-failure cron mails tell you "something just broke." Missing from that pattern: a positive heartbeat that confirms the alerting chain itself is still functioning. Without it, "I haven't heard anything in 3 weeks" is ambiguous — everything's fine, or cron/msmtp died.
