@@ -1031,10 +1031,12 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
     )
 
     sudo_required = cfg.get("sudo_required", True)
+    archive_flags = cfg.get("rsync_archive_flags", "-avHAX")
+    rsync_path = (cfg.get("rsync_path") or "").strip()
 
     cmd = [
         "sudo", "-n", "rsync",
-        "-avHAX",
+        archive_flags,
         "--delete",
         "--numeric-ids",
         "--partial",
@@ -1042,12 +1044,19 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
         f"--exclude-from={excludes_path}",
         "-e", ssh_cmd,
     ]
+    # --rsync-path covers two orthogonal needs:
+    #   - sudo_required=true: wrap target rsync in sudo (multi-user model)
+    #   - rsync_path set:     point at a non-default rsync binary (e.g. macOS
+    #                         brew rsync, since /usr/bin/rsync on macOS is
+    #                         `openrsync` which can't speak the --server
+    #                         protocol GNU rsync uses)
+    # Combine both when both apply.
     if sudo_required:
-        # Multi-user mode: target-side rsync must run as root to read /home/*.
-        # Matches the sudoers entry that bootstrap-tourbillon-user.sh installs.
-        cmd.append("--rsync-path=sudo /usr/bin/rsync")
-    # else: single-user mode — rsync runs as the operator's user with direct
-    # access to their own home; no sudo wrapper needed.
+        target_rsync = rsync_path or "/usr/bin/rsync"
+        cmd.append(f"--rsync-path=sudo {target_rsync}")
+    elif rsync_path:
+        cmd.append(f"--rsync-path={rsync_path}")
+    # else: single-user mode w/ PATH-resolved rsync — no --rsync-path flag.
     cmd += [src, dst]
 
     started = time.time()

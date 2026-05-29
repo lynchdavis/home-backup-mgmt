@@ -29,5 +29,16 @@ paths = ["/Users/ldavis"]
 # May 2026 data-organizer migration. See file for the full list.
 excludes_file = "configs/hosts/excludes/lynchmbp.txt"
 
+# Target-side rsync binary. macOS ships `/usr/bin/rsync` as openrsync
+# (Apple fork, doesn't speak GNU rsync's --server protocol). Brew installs
+# GNU rsync at /opt/homebrew/bin/rsync on Apple Silicon (or
+# /usr/local/bin/rsync on Intel). Mac prereq: `brew install rsync`.
+rsync_path = "/opt/homebrew/bin/rsync"
+
+# macOS uses NFSv4-style ACLs that GNU rsync can't represent (causes
+# "recv_acl_access: value out of range" → protocol error). Drop -A.
+# Keep -X for extended attributes (xattrs work fine across both sides).
+rsync_archive_flags = "-avHX"
+
 # schedule_when_up, target_dataset, ssh_key inherited from defaults.toml.
 # ssh_key template substitutes to: ~tourbillon/.ssh/id_ed25519_tourbillon_lynchmbp.

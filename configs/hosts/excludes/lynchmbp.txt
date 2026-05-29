@@ -173,3 +173,59 @@ Desktop/Pictures -Old/
 # ~46G byte-identical FLAC mirror of saratoga's media/music/flac
 # (SHA-256 spot-checked during 2026-05-21 reconcile).
 flac/
+
+# ──────────────────────────────────────────────────────────────────────
+# Round 2 extras — based on 2026-05-28 dry-run inventory
+# ──────────────────────────────────────────────────────────────────────
+
+# Photos Library: skip the originals subdir (38G of photo bytes also
+# on saratoga's tank/archive/photography/iphone). Keep the rest of the
+# bundle — database, resources, scopes — for Photos.app organization
+# (albums, faces, edits, keywords) which is irreplaceable user work.
+Pictures/Photos Library.photoslibrary/originals/
+
+# Apple Music library — per migration, the AAC content (~46G) is
+# regenerable from saratoga's media/music/flac.
+Music/
+
+# Photos.app cache + thumbnails (the library bundle itself is preserved
+# above; this is just the regenerable derivatives).
+Library/Photos/
+
+# Docker Desktop data — dev-only per operator, regenerable.
+Library/Containers/com.docker.docker/
+
+# iDrive Mac client — being decommissioned as part of ADR-005 cutover.
+Library/Application Support/IDriveforMac/
+
+# macOS Sequoia ships large wallpaper bundles via Application Support.
+# System asset cache, not user data.
+Library/Application Support/com.apple.wallpaper/
+
+# Round 3 extras — additional app data confirmed regenerable / synced elsewhere
+# (operator triage 2026-05-28).
+
+# UTM — Mac VM emulator. VM disk images regenerable. (67 GB)
+Library/Containers/com.utmapp.UTM/
+
+# JetBrains IDEs — caches, indices, project metadata. Regenerable on first
+# project re-open. (18 GB)
+Library/Application Support/JetBrains/
+
+# Google — Chrome cache + Drive sync. Sync'd with Google account; restore
+# via re-login. (6.9 GB)
+Library/Application Support/Google/
+
+# ACDSee photo manager — catalogs/edits. Operator confirmed exclude. (5.3 GB)
+Library/Application Support/ACD Systems/
+
+# Blurb photo book app — just the app; the finished books are on saratoga's
+# tank/archive/photography/photobooks/. (4.1 GB)
+Library/Application Support/Blurb/
+
+# Microsoft Office — app caches + metadata. Operator confirmed exclude. (2.8 GB)
+Library/Application Support/Microsoft/
+
+# VirtualBox VMs — .vdi/.vmdk already excluded by mac-user.txt's VM disks
+# block; operator's directive is to skip the whole tree. (~72 GB nominal)
+VirtualBox VMs/
