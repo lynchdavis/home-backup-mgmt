@@ -50,6 +50,24 @@ paths = ["/home"]
 #   windows-user.txt  : Windows single-user (when one onboards)
 excludes_file = "configs/hosts/excludes/linux-user.txt"
 
+# Target-side rsync binary path. Default empty = PATH-resolved on target
+# (works on Linux: rsync is at /usr/bin/rsync and first in PATH).
+# Override per-host when the target needs a non-default rsync:
+#   macOS:  "/opt/homebrew/bin/rsync"  (Apple Silicon brew rsync — needed
+#           because /usr/bin/rsync on macOS is `openrsync`, an Apple fork
+#           incompatible with GNU rsync's --server protocol)
+#   Win:    "/cygdrive/c/Program Files/cwRsync/bin/rsync"  (typical cwRsync)
+#
+# When sudo_required=true, this is wrapped: "sudo <rsync_path>".
+# When sudo_required=false, it's passed as-is. Empty + sudo_required=true
+# falls back to /usr/bin/rsync for backwards compatibility.
+rsync_path = ""
+
+# rsync archive flags. Default -avHAX preserves ACLs (-A) and xattrs (-X)
+# which works fine on Linux. macOS uses NFSv4-style ACLs that GNU rsync
+# can't represent, so mac hosts should drop -A.
+rsync_archive_flags = "-avHAX"
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Schedule + reachability
