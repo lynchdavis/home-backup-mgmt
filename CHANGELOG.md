@@ -8,6 +8,21 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Incident — A1 saratoga replication broke (2026-05-31 02:00), recovered
+
+The "just mount the saratoga datasets so iDrive can scan them" approach from ADR-005 finally bit. Replication worked for ~3 days after we mounted them (kodiak-side, in prep for iDrive setup), then today's 02:00 run hit `zfs recv -F` trying to unmount the destinations and failing (tnreplicate isn't root; can't unmount on Linux). Both tank + media replication tasks went to ERROR state in TrueNAS.
+
+Recovery:
+- Recursively unmounted every saratoga dataset on kodiak (deepest-first; ZFS-on-Linux has no `unmount -R`, so iterated `zfs list | tac | xargs zfs unmount`).
+- Set `canmount=noauto` on all saratoga children (was only on the parent before). Prevents accidental future remount via `zfs mount -a` or boot.
+- A1 will run normally at tonight's 02:00; TrueNAS state will reset to FINISHED.
+
+Lessons:
+- PLAYBOOK §3's "canmount=noauto everywhere on saratoga" rule is load-bearing. The "exception for iDrive" in ADR-005's mount strategy was wrong.
+- iDrive integration when resumed must use the snapshot-clone fallback (clone a sanoid autosnap → mount the clone → iDrive reads from clone → rotate). Documented in ADR-005's mount section.
+
+**iDrive setup itself is on pause** for a different reason: the `.deb`-installed iDrive 1.7.0 is an Electron GUI app and rejects headless invocation ("No graphical display detected"). The older `.bin.gz` installer with `idevsutil_dedup` CLI that ADR-005 was designed around appears deprecated. Web search for current iDrive headless support is the next step. If no good answer, ADR-005 may need to pivot to iDrive e2 + rclone (or Backblaze B2 + restic).
+
 ### Polished — cron-mail subject lines + HTML weekly summary
 
 Two related quality-of-life upgrades for the mail notification stack:

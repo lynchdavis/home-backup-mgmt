@@ -89,6 +89,14 @@ This matters for iDrive: the client scans files via the filesystem, not via `zfs
 - Mount them: `sudo zfs mount backups-00/saratoga/tank/archive` (recursive). Persistent across reboots due to `canmount=on`.
 - **Watch for A1 replication failures** for the next few cycles. If TrueNAS reports a `zfs recv` failure citing the unmount issue, fall back to a snapshot-clone approach (clone a recent autosnap, mount the clone, iDrive reads from the clone; rotate clones daily).
 
+### Update 2026-05-31 — the simple approach DID break A1, after a few days of working
+
+The simple "just mount the datasets" approach above worked for several days, then A1 replication failed at the 2026-05-31 02:00 run with both tank and media in ERROR state. Recovery: `zfs unmount` every saratoga dataset (deepest-first; ZFS-on-Linux has no recursive `-R` flag), set `canmount=noauto` on all the children (not just the parent), and the next 02:00 replication succeeded normally.
+
+**Confirmed lesson**: mounted saratoga datasets + `zfs recv -F` are incompatible when the recv runs as the non-root `tnreplicate` user. The PLAYBOOK §3 rationale (`canmount=noauto` everywhere under `backups-00/saratoga`) is correct and load-bearing; the iDrive integration must not break this invariant.
+
+**Decision**: the snapshot-clone fallback below is the right approach. When iDrive setup resumes, do NOT mount the live saratoga datasets. Clone a recent sanoid autosnap, mount the clone, point iDrive at the clone; rotate the clone after each daily replication+sanoid cycle so iDrive always sees roughly day-old-or-fresher data without conflicting with live replication.
+
 **Snapshot-clone fallback (kept in our back pocket, not used unless needed):**
 
 ```bash
