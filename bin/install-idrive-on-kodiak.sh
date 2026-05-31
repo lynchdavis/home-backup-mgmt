@@ -1,186 +1,182 @@
 #!/usr/bin/env bash
-# install-idrive-on-kodiak.sh — set up the iDrive Personal Linux client
-# on kodiak as the off-site relay (per ADR-005).
+# install-idrive-on-kodiak.sh — verify the iDrive Linux toolkit is in
+# place + hand off to the headless setup CLI. Per ADR-005 (updated
+# 2026-05-31 after the research dive).
 #
-# This is a HELPER, not a fully automated install. iDrive's installer is
-# interactive (asks for account email, password, encryption-key choice,
-# backup set definitions). The script handles what can be safely
-# scripted — download, extract, prereq checks, post-install template —
-# and hands off to iDrive's installer for the rest.
+# The IDriveForLinux .deb package (1.7.0 today) installs both:
+#   - An Electron GUI app at /usr/local/bin/idriveforlinux (requires
+#     X11/Wayland — refuses to run headless; not what we want)
+#   - The legacy Perl-script CLI toolkit at /opt/IDriveForLinux/
+#     {bin/idrive, idriveIt/*.pl} (headless-capable; this is what
+#     we use for kodiak)
+#   - The Perl scheduler daemon idrivecron.service (runs the
+#     configured backup schedule once we set one up)
 #
-# Run as the operator (ldavis). Uses sudo where it needs to (install
-# location is /opt/idrive/, credentials end up under ~root/.).
+# This script's job:
+#   1. Confirm the .deb was installed (dpkg -l idriveforlinux).
+#   2. Confirm the scripts toolkit exists at /opt/IDriveForLinux/.
+#   3. Print the runbook for the interactive setup that comes next
+#      (login → encryption key → backup sets → schedule → enable scheduler).
 #
-# Usage:
-#   bash bin/install-idrive-on-kodiak.sh
+# Run as the operator (ldavis). No sudo needed for the verify steps;
+# the runbook tells you when sudo is required.
+#
+# Pre-req: download IDriveForLinux.deb from
+#   https://www.idrive.com/online-backup-linux
+# and install it: sudo apt install ./IDriveForLinux.deb
 
-set -euo pipefail
-
-IDRIVE_DOWNLOAD_URL="https://www.idrive.com/downloads/linux/download/idriveforlinux.bin.gz"
-INSTALL_DIR="/opt/idrive"
-DOWNLOAD_DIR="/tmp/idrive-install-$(date +%Y%m%d)"
+set -uo pipefail
 
 echo "================ install-idrive-on-kodiak.sh — $(date) ================"
 echo
-echo "Per ADR-005. This script handles the wrapper steps; you'll be"
-echo "prompted by iDrive's installer for the interactive parts (account"
-echo "email, password, encryption-key choice)."
+echo "Per ADR-005 (2026-05-31 update). This helper VERIFIES the iDrive"
+echo "Linux toolkit is installed and prints the runbook for the headless"
+echo "setup CLI. It does NOT install the .deb itself — that's an apt"
+echo "step the operator runs once."
 echo
 
-# ---- 0. Pre-flight ----------------------------------------------------------
-echo "→ pre-flight checks..."
+# ---- 1. Package installed? --------------------------------------------------
+echo "→ checking idriveforlinux package..."
+if dpkg -l idriveforlinux >/dev/null 2>&1; then
+    VERSION=$(dpkg -l idriveforlinux 2>/dev/null | awk '/^ii/ {print $3}')
+    echo "  ✓ idriveforlinux $VERSION installed"
+else
+    cat >&2 <<EOF
+  ✗ idriveforlinux package not installed.
 
-# Required tools for the install/wrapper
-for cmd in curl gzip perl; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "  ERROR: required tool '$cmd' not in PATH" >&2
-        exit 1
+  Install it first:
+    1. Download from https://www.idrive.com/online-backup-linux
+       (Linux Backup → Debian/Ubuntu → IDriveForLinux.deb)
+    2. sudo apt install ./IDriveForLinux.deb
+       (Brings in 25 dependencies including redis-server, python3-dev, etc.)
+    3. Re-run this script.
+EOF
+    exit 1
+fi
+
+# ---- 2. Scripts toolkit present? --------------------------------------------
+echo "→ checking the CLI toolkit (the headless entry point)..."
+MISSING=()
+for path in \
+    /opt/IDriveForLinux/bin/idrive \
+    /opt/IDriveForLinux/idriveIt/idevsutil \
+    /opt/IDriveForLinux/idriveIt/idevsutil_dedup \
+; do
+    if [ ! -x "$path" ]; then
+        MISSING+=("$path")
     fi
 done
-echo "  ✓ curl, gzip, perl available"
 
-# Storage check — installer wants a few hundred MB
-AVAIL_OPT=$(df -BM /opt | awk 'NR==2 {gsub(/M/,"",$4); print $4}')
-if [ "$AVAIL_OPT" -lt 500 ]; then
-    echo "  ERROR: /opt only has ${AVAIL_OPT}M free; iDrive needs more" >&2
+if [ ${#MISSING[@]} -gt 0 ]; then
+    cat >&2 <<EOF
+  ✗ CLI toolkit incomplete — these executables are missing:
+$(printf '      %s\n' "${MISSING[@]}")
+
+  This usually means the .deb didn't fully unpack. Try:
+    sudo dpkg-reconfigure idriveforlinux
+  Or reinstall the .deb.
+EOF
     exit 1
 fi
-echo "  ✓ /opt has ${AVAIL_OPT}M free"
+echo "  ✓ /opt/IDriveForLinux/bin/idrive (the menu CLI — 18 MB binary)"
+echo "  ✓ /opt/IDriveForLinux/idriveIt/idevsutil_dedup (the worker — script target)"
 
-# Mount check — must be able to read what we'll be backing up
-echo "  ZFS mount status of saratoga subtree (iDrive needs these mounted):"
-zfs get -H mounted backups-00/saratoga/tank/archive 2>/dev/null \
-    | awk '{ printf "    %-50s %s\n", $1, $3 }'
-echo
-echo "    If 'mounted' is 'no' here, run (BEFORE the iDrive install):"
-echo "      sudo zfs set canmount=on backups-00/saratoga/tank/archive"
-echo "      sudo zfs mount -a"
-echo "    Watch the next A1 replication cycle — if it fails citing"
-echo "    'cannot unmount', fall back to the snapshot-clone approach"
-echo "    documented in ADR-005."
-echo
-
-# Confirm with the operator before proceeding (this step takes a while)
-read -r -p "Continue with download + extract? (yes/no): " GO
-if [ "$GO" != "yes" ]; then
-    echo "aborted by operator." >&2
-    exit 1
-fi
-
-# ---- 1. Download ------------------------------------------------------------
-mkdir -p "$DOWNLOAD_DIR"
-cd "$DOWNLOAD_DIR"
-
-echo
-echo "→ downloading iDrive Linux client to $DOWNLOAD_DIR ..."
-if [ -f idriveforlinux.bin.gz ]; then
-    echo "  (download already present; reusing)"
+# Permissions audit (the .deb is loose by default)
+echo "→ checking permissions on iDrive's config tree (the .deb is loose by default)..."
+LOOSE=()
+for p in /opt/IDriveForLinux/idriveIt /opt/IDriveForLinux/idriveIt/user_profile; do
+    if [ -d "$p" ]; then
+        MODE=$(stat -c '%a' "$p")
+        if [ "$MODE" != "700" ] && [ "$MODE" != "755" ]; then
+            LOOSE+=("$p  mode=$MODE")
+        fi
+    fi
+done
+if [ ${#LOOSE[@]} -gt 0 ]; then
+    echo "  ⚠ loose permissions found (world-writable or worse):"
+    printf '    %s\n' "${LOOSE[@]}"
+    echo "    Tighten AFTER first interactive setup completes (account creds end up here):"
+    echo "      sudo chmod -R go-rwx /opt/IDriveForLinux/idriveIt"
+    echo "      sudo chown -R root:root /opt/IDriveForLinux/idriveIt"
 else
-    curl -fLO "$IDRIVE_DOWNLOAD_URL"
-fi
-ls -lah idriveforlinux.bin.gz
-
-# ---- 2. Extract -------------------------------------------------------------
-echo
-echo "→ extracting installer ..."
-gunzip -k -f idriveforlinux.bin.gz
-chmod +x idriveforlinux.bin
-ls -lah idriveforlinux.bin
-
-# ---- 3. Run iDrive's installer (INTERACTIVE — hands off control) -----------
-echo
-echo "================ HANDING OFF TO IDRIVE'S INSTALLER ================"
-echo
-echo "iDrive's installer is interactive. It will ask for:"
-echo "  • Account email (lynchdavis0@gmail.com)"
-echo "  • Account password"
-echo "  • Private encryption key — CHOOSE 'PRIVATE KEY' OPTION."
-echo "    The default 'Default key' lets iDrive read your data on their"
-echo "    servers; private key keeps the data encrypted to a key only"
-echo "    you have. **THIS KEY IS NOT RECOVERABLE** — store a copy in"
-echo "    1Password (or equivalent) before completing the install."
-echo "  • Install location — accept default ($INSTALL_DIR) or override."
-echo
-echo "After install, this script will print the post-install template"
-echo "(backup sets to define + the cron-entry shape)."
-echo
-
-read -r -p "Ready to launch iDrive installer? (yes/no): " GO
-if [ "$GO" != "yes" ]; then
-    echo "aborted at installer step. Re-run the script to resume." >&2
-    exit 1
+    echo "  ✓ idriveIt/ perms look reasonable"
 fi
 
-sudo ./idriveforlinux.bin
+# ---- 3. Scheduler service? --------------------------------------------------
+echo "→ checking idrivecron.service (scheduler daemon)..."
+if systemctl list-unit-files idrivecron.service >/dev/null 2>&1; then
+    STATUS=$(systemctl is-enabled idrivecron.service 2>/dev/null || echo "disabled")
+    ACTIVE=$(systemctl is-active idrivecron.service 2>/dev/null || echo "inactive")
+    echo "  ✓ idrivecron.service: $STATUS, $ACTIVE"
+    if [ "$STATUS" = "disabled" ]; then
+        echo "    (will be enabled after interactive setup configures backup sets)"
+    fi
+else
+    echo "  ⚠ idrivecron.service not visible to systemd — may need a daemon-reload"
+    echo "    sudo systemctl daemon-reload"
+fi
 
-# ---- 4. Post-install template ----------------------------------------------
-cat <<EOF
+cat <<'EOF'
 
-================ post-install configuration template ================
+================ verification complete — toolkit is ready ================
 
-iDrive's installer should have created the daemon under /opt/idrive
-(or wherever you accepted). Verify with:
+NEXT — interactive setup via the menu CLI:
 
-    /opt/idrive/IDrive --version
-    /opt/idrive/idevsutil_dedup --help   # the CLI we'll script against
+  sudo /opt/IDriveForLinux/bin/idrive
 
-CONFIGURE BACKUP SETS (per ADR-005):
+Walk through the menu prompts:
+  1. Login → enter iDrive account email (lynchdavis0@gmail.com) and
+     the IDRIVE account password (not the gmail app password).
+  2. Encryption → CHOOSE "Private Encryption Key" (NOT Default).
+     Copy the generated key into 1Password immediately as
+     "kodiak iDrive private key". Unrecoverable if lost.
+  3. Backup sets — define four per ADR-005:
+       photos     → /kodiak00/backups-00/idrive-staging/photography
+       documents  → /kodiak00/backups-00/idrive-staging/archive
+                    (with each non-photography subdir included)
+       active     → /kodiak00/backups-00/idrive-staging/active
+       hosts      → /kodiak00/backups-00/hosts
+                    (this one doesn't need the staging clone — hosts/*
+                     datasets are normally mounted, no recv conflict)
+     NB: the saratoga subset paths are inside backups-00/idrive-staging/,
+     which is the snapshot-clone target (NOT the live A1 replica). The
+     live datasets stay unmounted to keep TrueNAS push replication
+     working. The clones get refreshed daily by bin/idrive-refresh-clones.sh
+     (TBD, future commit).
+  4. Schedule → daily, sometime after sanoid autosnaps land (post-02:30 is fine).
 
-    Set 1: "photos"
-      Source: /kodiak00/backups-00/saratoga/tank/archive/photography/
-      Approx: 1.61 TB
+AFTER SETUP:
 
-    Set 2: "documents"
-      Sources (one set or one each — your call):
-        /kodiak00/backups-00/saratoga/tank/archive/books/
-        /kodiak00/backups-00/saratoga/tank/archive/employers/
-        /kodiak00/backups-00/saratoga/tank/archive/finance/
-        /kodiak00/backups-00/saratoga/tank/archive/legal/
-        /kodiak00/backups-00/saratoga/tank/archive/medical/
-        /kodiak00/backups-00/saratoga/tank/archive/personal/
-        /kodiak00/backups-00/saratoga/tank/archive/writing/
-        /kodiak00/backups-00/saratoga/tank/archive/software/
-      Approx: ~10 GB combined
+  # Tighten config perms (the package leaves some files chmod 666 — bad)
+  sudo find /etc/idrive*.json -exec chmod 600 {} \;
+  sudo chmod 700 /root/.IDrive 2>/dev/null
+  sudo chown -R root:root /root/.IDrive 2>/dev/null
 
-    Set 3: "active"
-      Source: /kodiak00/backups-00/saratoga/tank/active/
-      Approx: ~520 MB
-
-    Set 4: "hosts"
-      Source: /kodiak00/backups-00/hosts/
-      Approx: ~17 GB (growing as we onboard hosts)
-
-    INTENTIONALLY OMITTED (re-buyable, not worth quota):
-      /kodiak00/backups-00/saratoga/media/   (music + audiobooks)
-      /kodiak00/backups-00/saratoga/tank/scratch/
-      /kodiak00/backups-00/repos/   (already on github + bitbucket)
+  # Enable + start the scheduler
+  sudo systemctl enable --now idrivecron.service
+  sudo systemctl status idrivecron.service
 
 FIRST PUSH (manual, ~24-72h on residential upload):
 
-    sudo /opt/idrive/idevsutil_dedup --backup --setname "photos"
-    # ... repeat per set, or run them all if iDrive supports a batch flag
+  # The scheduler will fire it on its next cycle, but you can also kick
+  # it manually right after setup. Two options — use whichever the
+  # interactive menu shows you:
+  #
+  # via the menu CLI (recommended — same prompts you used for setup):
+  sudo /opt/IDriveForLinux/bin/idrive
+  #   (pick "Backup" → "Backup now" → choose the set)
+  #
+  # via direct worker invocation (scriptable; the schedule daemon uses this):
+  sudo /opt/IDriveForLinux/idriveIt/idevsutil_dedup --backup --setname photos
+  # ... repeat per set
+  # Run --help on idevsutil_dedup to see the actual flag list for v1.7.0.
 
-ADD CRON (after first push completes successfully):
+CRITICAL — back up the encryption key NOW:
+  Whatever path iDrive saved it to (typically under /root/.IDrive/),
+  copy the key content into 1Password. The Private Key option means
+  iDrive cannot decrypt your data — including for restore. Lose this
+  key = lose access to the backup. Belt-and-suspenders: save in
+  1Password AND a printed copy somewhere physical.
 
-    Add to ldavis's crontab (configs/cron/ldavis-crontab):
-      # Daily 03:00 — iDrive off-site push (kodiak)
-      0 3 * * * /home/ldavis/development/server-backups/bin/idrive-push.sh
-
-    Then: crontab configs/cron/ldavis-crontab
-
-NEXT IMPLEMENTATION SLICES (still to do):
-
-    - bin/idrive-push.sh                # wraps idevsutil_dedup, handles
-                                        # all configured sets, cron-safe
-    - tests/idrive-freshness.sh         # restore-drill equivalent
-    - doc/CREDENTIALS.md update         # iDrive account + encryption key
-    - GAPS.md §1.2 marked closed        # after first restore drill passes
-    - Decommission workstation device   # via iDrive web UI
-
-CRITICAL — back up your encryption key NOW:
-  The private key is NOT RECOVERABLE if lost. Whatever location iDrive
-  saved it to, also copy it into 1Password or equivalent. Without the
-  key, your backed-up data is unrecoverable.
-
-================ done — see ADR-005 for the full plan ================
+================ done — see ADR-005 for the full architecture ================
 EOF

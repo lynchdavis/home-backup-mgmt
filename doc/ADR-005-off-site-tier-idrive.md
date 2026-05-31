@@ -111,34 +111,65 @@ sudo zfs clone "$LATEST" backups-00/idrive-staging/photography
 
 ## Mechanics
 
+### Update 2026-05-31 — iDrive client architecture (post-research)
+
+The `IDriveForLinux.deb` package (v1.7.0 today) installs TWO things:
+
+1. **An Electron GUI app** at `/usr/local/bin/idriveforlinux` — requires X11/Wayland; refuses to run headless. Not what we want.
+2. **The CLI toolkit** at `/opt/IDriveForLinux/bin/idrive` (interactive menu CLI, 18 MB binary) + `/opt/IDriveForLinux/idriveIt/idevsutil*` (the underlying worker binaries: `idevsutil`, `idevsutil_dedup`, plus `_sync` variants). Same `idevsutil_dedup` ADR-005 originally targeted via the older `.bin.gz` installer; in 1.7.0 it's bundled rather than free-standing. **This is the headless path.** (Earlier package versions shipped Perl scripts as the orchestration layer; 1.7.0 replaced them with the compiled menu CLI binary — same overall interface.)
+3. **A scheduler daemon**: `systemd` unit `idrivecron.service` that runs a Perl scheduler every ~2 min, reads `/etc/idrivecrontab.json` + `idriveIt/user_profiles/`, fires due backups. Zero GUI involvement once configured.
+
+Works with iDrive Personal accounts; no Business/360 subscription required.
+
+References:
+- https://www.idrive.com/online-backup-linux-scripts (official CLI docs)
+- https://www.idrive.com/linux-package-getting-started (install workflow)
+- https://www.idrive.com/faq_linux_scripts (scripts FAQ)
+- https://github.com/meyertime/linux-all-the-things/blob/master/docs/idrive.md (community headless writeup with perm-tightening recipe)
+- https://linux.zanegodden.com/posts/idrive-service-customisation/ (2023, dissects `idrivecron.service`)
+
 ### Initial install (one-time on kodiak)
 
-`bin/install-idrive-on-kodiak.sh` (a helper, not a fully automated install — iDrive's setup is interactive). It will:
+The `.deb` already installs everything we need. `bin/install-idrive-on-kodiak.sh` (rewritten) now serves as a verification + handoff helper:
 
-1. Download the iDrive Linux client from `https://www.idrive.com/online-backup-linux` (current versioned tarball).
-2. Extract to `/opt/idrive/`.
-3. Run the iDrive installer (interactive — prompts for account email + password + private encryption key).
-4. Print the post-install configuration template — which backup sets to add, what cadence.
+1. Confirm `idriveforlinux` package is installed (`dpkg -l idriveforlinux`).
+2. Confirm the scripts toolkit is present at `/opt/IDriveForLinux/bin/idrive` and `/opt/IDriveForLinux/idriveIt/`.
+3. Print the post-install runbook: how to launch the interactive setup CLI, which backup sets to define, perm-tightening, scheduler enable.
 
-The script doesn't try to script through iDrive's installer prompts; those prompts will change, and getting them wrong costs more than typing them. The script's job is the wrapper (download, extract, post-install template).
+The first-time **interactive setup** is then:
+
+```bash
+sudo /opt/IDriveForLinux/bin/idrive
+# Menu walks through: login → account email + password → encryption key
+# (CHOOSE "Private Key" — never Default; save to 1Password immediately)
+# → backup sets → schedule → done
+```
 
 ### Daily backup invocation
 
-Once configured, daily backup is one command:
+Two layers:
 
-```bash
-/opt/idrive/idevsutil_dedup --backup --enc-key ~/idrive.key <backup-set-name>
-```
-
-Wrapped in a small `tests/`-style script that:
-- Sources the env (account/key path)
-- Invokes the client
-- Reports a one-line success or stderr on failure (cron-mail-friendly)
+1. **`idrivecron.service`** — Perl-based scheduler shipped with the package. Once enabled (`sudo systemctl enable --now idrivecron`), runs the configured schedule from `/etc/idrivecrontab.json`. Replaces ADR-005's original "add a cron entry" plan.
+2. **Manual run** (for first push or ad-hoc): `sudo /opt/IDriveForLinux/idriveIt/Backup_Script.pl <setname>` or via the menu CLI. The wrapper for our cron-style mailing isn't needed — `idrivecron.service` handles scheduling natively, and its logs go to systemd journal.
 
 ### Credential storage
 
-- iDrive account email + password: stored at `~root/.idrive/auth` (mode 600). Owned by root because iDrive's client wants root for the install. Documented in `doc/CREDENTIALS.md`.
-- Private encryption key: stored at `~root/idrive.key` (mode 600). **CRITICAL**: lose this key = lose access to all encrypted data on iDrive. Documented in CREDENTIALS.md as the one file that absolutely needs to be in 1Password / external password manager too.
+- iDrive account email + password: stored under `/etc/idrive*.json` and `~root/.IDrive/` (managed by the install). Default perms are loose (some files chmod 666); **tighten to root-only mode 600** after first setup (per the Arch writeup). Documented in `doc/CREDENTIALS.md`.
+- Private encryption key: written into the same `~root/.IDrive/` config tree during the menu CLI's encryption step. **CRITICAL**: lose this key = lose access to all encrypted data on iDrive. Copy into 1Password immediately. Documented in CREDENTIALS.md as the one file that absolutely needs an external backup.
+
+### Mount strategy (snapshot-clone, post-2026-05-31)
+
+The "just mount the saratoga datasets" approach is dead (confirmed by the 2026-05-31 A1 incident). The snapshot-clone fallback above is the replacement:
+
+```bash
+# Daily, before iDrive's scheduler fires:
+LATEST=$(zfs list -H -o name -t snapshot backups-00/saratoga/tank/archive/photography | tail -1)
+sudo zfs destroy -r backups-00/idrive-staging/photography 2>/dev/null
+sudo zfs clone "$LATEST" backups-00/idrive-staging/photography
+# iDrive's backup set points at /kodiak00/backups-00/idrive-staging/photography
+```
+
+A small wrapper script (TBD: `bin/idrive-refresh-clones.sh`) runs daily ~30 min before `idrivecron.service` fires; it destroys the old clones and recreates from the latest sanoid autosnap. Saratoga DR replication continues working normally because the live datasets stay unmounted.
 
 ---
 
