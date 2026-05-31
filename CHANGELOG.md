@@ -8,6 +8,26 @@ Most-recent first.
 
 ## 2026-05-26
 
+### Added — `bin/idrive-refresh-clones.sh` (snapshot-clone mount strategy)
+
+The script that lets iDrive scan saratoga data without breaking A1 replication. Per the 2026-05-31 incident: live `backups-00/saratoga/*` datasets MUST stay unmounted, but iDrive needs files on a filesystem. Solution: clone the latest sanoid autosnap of each saratoga child dataset, mount the clones under `backups-00/idrive-staging/*`, point iDrive at the clones. Refresh daily.
+
+- **`bin/idrive-refresh-clones.sh`**:
+  - Source list of saratoga children to clone (photography + 8 archive subdirs + 4 active subdirs).
+  - For each: destroy yesterday's clone (best-effort unmount first), clone the latest snapshot to `backups-00/idrive-staging/tank-archive-photography` (etc.), mount at `/kodiak00/backups-00/idrive-staging/tank-archive-photography`.
+  - `--dry-run` flag prints all the zfs operations without doing them. `--verbose` reports per-dataset progress. Default is cron-friendly silent on full success.
+  - Designed for daily cron at ~02:30 (after A1 lands fresh snapshots at 02:00, before `idrivecron.service` fires).
+  - Exit non-zero if any dataset failed (cron mail will surface via mail-on-output wrapper).
+  - Tested with `--dry-run` against current state — found expected snapshots, planned correct clone + mount commands. Real first run waits for the live iDrive setup.
+
+The cron entry to add (when iDrive is ready):
+
+```
+30 2 * * *  /home/ldavis/development/server-backups/bin/idrive-refresh-clones.sh
+```
+
+(Runs as root since zfs ops need it. Either /etc/cron.d/ entry or root's crontab.)
+
 ### Incident — A1 saratoga replication broke (2026-05-31 02:00), recovered
 
 The "just mount the saratoga datasets so iDrive can scan them" approach from ADR-005 finally bit. Replication worked for ~3 days after we mounted them (kodiak-side, in prep for iDrive setup), then today's 02:00 run hit `zfs recv -F` trying to unmount the destinations and failing (tnreplicate isn't root; can't unmount on Linux). Both tank + media replication tasks went to ERROR state in TrueNAS.
