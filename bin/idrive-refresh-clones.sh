@@ -144,7 +144,10 @@ for SRC in "${SOURCES[@]}"; do
     fi
 
     # Create fresh clone with explicit mountpoint (override the source's
-    # mountpoint, which points at the live unmounted dataset)
+    # mountpoint, which points at the live unmounted dataset).
+    # canmount=on means ZFS will auto-mount the clone immediately on
+    # creation — we don't need to call `zfs mount` afterwards (it would
+    # fail with "filesystem already mounted").
     log "    cloning into $CLONE_TARGET (mountpoint=$CLONE_MOUNT)"
     if ! DO zfs clone \
         -o mountpoint="$CLONE_MOUNT" \
@@ -155,11 +158,19 @@ for SRC in "${SOURCES[@]}"; do
         continue
     fi
 
-    # Mount (canmount=on + explicit mountpoint = clean mount)
-    if ! DO zfs mount "$CLONE_TARGET"; then
-        echo "ERROR: zfs mount failed for $CLONE_TARGET" >&2
-        FAIL_COUNT=$((FAIL_COUNT+1))
-        continue
+    # Verify the clone is mounted (zfs clone with canmount=on should have
+    # auto-mounted; only call `zfs mount` if for some reason it didn't).
+    if [ "$DRY_RUN" -eq 0 ]; then
+        if [ "$(zfs get -H -o value mounted "$CLONE_TARGET")" != "yes" ]; then
+            log "    (clone didn't auto-mount; calling zfs mount explicitly)"
+            if ! DO zfs mount "$CLONE_TARGET"; then
+                echo "ERROR: zfs mount failed for $CLONE_TARGET" >&2
+                FAIL_COUNT=$((FAIL_COUNT+1))
+                continue
+            fi
+        else
+            log "    auto-mounted (canmount=on)"
+        fi
     fi
 
     OK_COUNT=$((OK_COUNT+1))
