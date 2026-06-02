@@ -1,0 +1,34 @@
+# root crontab on kodiak — system-level scheduled work.
+#
+# Two categories of entries:
+#   1. iDrive's auto-installed entries (idrive's .deb adds these on install
+#      to keep idrivecron.service alive — auto-restart if it dies). Leaving
+#      them alone; if a future re-run of bin/install-idrive-on-kodiak.sh
+#      reinstalls iDrive, these will be re-added by their installer.
+#   2. ADR-005 snapshot-clone refresh — daily at 02:30, between A1's 02:00
+#      replication landing fresh snapshots and idrivecron's 03:30 backup
+#      kicking off. Without this, iDrive would keep backing up the same
+#      day-frozen clones forever, ignoring new saratoga data.
+#
+# Install:
+#   sudo crontab -u root configs/cron/root-crontab
+#
+# Notes:
+#   - No MAILTO set — root on kodiak has no msmtprc, so cron mail wouldn't
+#     deliver anyway. The refresh-clones script is silent on success;
+#     downstream coverage is iDrive's own per-run report email (which catches
+#     any case where iDrive's scan fails because clones aren't in place).
+#   - If we ever want immediate failure visibility, options:
+#       a) drop /root/.msmtprc (mirroring ~ldavis/.msmtprc) and wrap entries
+#          via bin/mail-on-output.sh;
+#       b) add a NOPASSWD sudoers entry for ldavis on idrive-refresh-clones.sh
+#          and move the entry to ldavis's crontab (uses existing msmtp setup).
+
+# iDrive scheduler keep-alive (installed by the iDrive .deb postinst)
+@reboot sleep 10; systemctl start idrivecron
+*/10 * * * * systemctl start idrivecron
+
+# ADR-005 — refresh ZFS clones from latest saratoga snapshots before
+# idrivecron's daily backup fires (03:30). 02:30 gives 30-minute headroom
+# after A1 replication completes at 02:00.
+30 2 * * * /home/ldavis/development/server-backups/bin/idrive-refresh-clones.sh
