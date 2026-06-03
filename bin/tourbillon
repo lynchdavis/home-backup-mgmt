@@ -1157,6 +1157,15 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
     summary = {"ok": 0, "skipped": 0, "unreachable": 0, "failed": 0,
                "total_bytes": 0, "total_seconds": 0.0}
 
+    # Buffer per-host rows so the failure email (quiet mode + at least one
+    # failure) can show the full roster, not just the FAILED line. In
+    # non-quiet mode we ALSO print live so the operator sees progress.
+    rows: list[tuple[str, object]] = []
+    def emit(line: str, stream=sys.stdout) -> None:
+        rows.append((line, stream))
+        if not quiet:
+            print(line, file=stream)
+
     if not quiet:
         print(f"sync target: {target_root}/<host>")
         print(f"candidates:  {len(names)} host(s)")
@@ -1174,16 +1183,14 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
 
         if not (args.force or due):
             summary["skipped"] += 1
-            if not quiet:
-                print(f"  {name:<{longest}}  skipped       ({why})")
+            emit(f"  {name:<{longest}}  skipped       ({why})")
             continue
 
         result = sync_one_host(name, cfg, dry_run=args.dry_run)
 
         if args.dry_run:
-            if not quiet:
-                tag = result["action"]
-                print(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
+            tag = result["action"]
+            emit(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
             continue
 
         # Persist state
@@ -1199,8 +1206,7 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
             new_state["last_error"] = None
             save_host_state(name, new_state)
             summary["unreachable"] += 1
-            if not quiet:
-                print(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
+            emit(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
         elif result["ok"]:
             new_state["last_success_at"] = iso_now()
             new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
@@ -1210,19 +1216,18 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
             summary["ok"] += 1
             summary["total_bytes"] += result.get("bytes_xfer", 0)
             summary["total_seconds"] += result.get("duration_s", 0)
-            if not quiet:
-                size_str = format_size(result.get("bytes_xfer", 0))
-                dur_str = format_duration(result.get("duration_s", 0))
-                w = result.get("warnings") or []
-                w_note = f"  (warnings: {len(w)})" if w else ""
-                print(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
+            size_str = format_size(result.get("bytes_xfer", 0))
+            dur_str = format_duration(result.get("duration_s", 0))
+            w = result.get("warnings") or []
+            w_note = f"  (warnings: {len(w)})" if w else ""
+            emit(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
         else:
             new_state["last_error"] = result.get("reason", "unknown")
             new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
             save_host_state(name, new_state)
             summary["failed"] += 1
             err = (result.get("reason") or "unknown")[:80]
-            print(f"  {name:<{longest}}  FAILED        {err}", file=sys.stderr)
+            emit(f"  {name:<{longest}}  FAILED        {err}", stream=sys.stderr)
 
     if not quiet:
         print()
@@ -1234,18 +1239,34 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
                   f"{summary['unreachable']} unreachable, {summary['skipped']} skipped  |  "
                   f"{format_size(summary['total_bytes'])} transferred, "
                   f"{format_duration(summary['total_seconds'])} cumulative")
-    elif summary["ok"] or summary["failed"]:
-        # Quiet mode: only output if something happened (success or failure).
-        # Unreachable/skipped stay silent — cron sends no mail when normal.
-        stream = sys.stderr if summary["failed"] else sys.stdout
+    elif summary["failed"]:
+        # Quiet mode + at least one failure: dump the full roster so the
+        # failure email shows every host's state, not just the FAILED line.
+        total = len(names)
+        print(
+            f"tourbillon hosts sync FAILED ({summary['failed']} of {total}):",
+            file=sys.stderr,
+        )
+        for line, stream in rows:
+            print(line, file=stream)
+        print(
+            f"summary: {summary['ok']} ok, {summary['failed']} failed, "
+            f"{summary['unreachable']} unreachable, {summary['skipped']} skipped  |  "
+            f"{format_size(summary['total_bytes'])} transferred",
+            file=sys.stderr,
+        )
+    elif summary["ok"]:
+        # Quiet mode, no failures, real work happened — one-line summary
+        # to stdout. With --mail-on-output this surfaces as a confirming
+        # email; without it (the default cron path), it's silent.
         print(
             f"tourbillon hosts sync: {summary['ok']} ok, "
             f"{summary['failed']} failed, "
             f"{summary['unreachable']} unreachable, "
             f"{summary['skipped']} skipped  |  "
             f"{format_size(summary['total_bytes'])} transferred",
-            file=stream,
         )
+    # else: quiet + only skipped/unreachable → silent (current behavior).
 
     return 0 if summary["failed"] == 0 else 1
 
