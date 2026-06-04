@@ -370,6 +370,65 @@ The collision exists between any pair where one task's recursive scope contains 
 
 ---
 
+## Onboarding a new host (A2)
+
+Adds a host to tourbillon's `hosts sync` fleet. Different shape than A1 — rsync-over-SSH pull, not ZFS push.
+
+### Linux — multi-user (per ADR-002, the common case)
+
+Target gets a dedicated `tourbillon` service user; kodiak holds a per-host SSH key.
+
+**Prereqs on the target:**
+- OpenSSH server reachable from kodiak.
+- Sudo on the target for the bootstrap step.
+- Stable LAN address. If DHCP, pin a router reservation — host configs assume the IP doesn't drift.
+- Stays awake during the backup window. Desktops: `sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`. Laptops with lids: also `HandleLidSwitch=ignore` in `/etc/systemd/logind.conf`.
+
+**Steps:**
+
+1. **On the target, as root** — copy `bin/bootstrap-tourbillon-user.sh` over and run:
+   ```bash
+   sudo bash bootstrap-tourbillon-user.sh
+   ```
+   Creates the `tourbillon` service user, installs the sudoers drop-in for narrow rsync access, prints a one-time password. **Save it — step 2 needs it.**
+
+2. **On kodiak, as ldavis** — push the key, verify auth, lock the password:
+   ```bash
+   bin/bootstrap-from-kodiak.sh <hostname> [<ip>]
+   ```
+   Generates the per-host ed25519 key under `~tourbillon/.ssh/`, ssh-copy-ids it (paste step 1's password when prompted), verifies key-only auth, then locks the target's tourbillon password. Pass `<ip>` if `<hostname>` doesn't resolve via DNS — the script appends a line to kodiak's `/etc/hosts`.
+
+3. **Create `configs/hosts/<hostname>.toml`** — most fields inherit from `defaults.toml`:
+   ```toml
+   host = "<ip-or-hostname>"
+   # Override paths / excludes_file / schedule_when_up only when defaults don't fit.
+   ```
+
+4. **First sync, forced** to skip the schedule-window check:
+   ```bash
+   sudo -u tourbillon bin/tourbillon hosts sync --force --name <hostname>
+   ```
+   Auto-creates `backups-00/hosts/<hostname>` dataset, runs the first rsync, persists state. The every-30-min cron picks it up from then on per `schedule_when_up` (default 24h).
+
+5. **Verify** — `bin/tourbillon hosts status` shows last-success time. `sudo -u tourbillon bin/tourbillon hosts ping <hostname>` retests connectivity.
+
+Both scripts are idempotent — safe to re-run if something failed mid-flow.
+
+### macOS / Windows — single-user (per ADR-003)
+
+No `tourbillon` service user on the target; rsync runs as the operator's existing account. Single command from kodiak:
+
+```bash
+bin/bootstrap-from-kodiak-single-user.sh <hostname> <existing-user> [<ip>]
+```
+
+Then per-host config sets `ssh_user = "<user>"`, `sudo_required = false`, plus platform-specific overrides:
+
+- **macOS** — `rsync_path = "/opt/homebrew/bin/rsync"` (brew GNU rsync; `/usr/bin/rsync` on macOS is `openrsync`, incompatible with the `--server` protocol). `rsync_archive_flags = "-avHX"` (drop `-A` — macOS NFSv4 ACLs can't round-trip through GNU rsync). `excludes_file = "configs/hosts/excludes/mac-user.txt"`. See `configs/hosts/lynchmbp.toml` for a working reference.
+- **Windows** — `rsync_path = "/cygdrive/c/Program Files/cwRsync/bin/rsync"` (cwRsync) or WSL rsync path. Excludes file TBD when the first windows host onboards.
+
+---
+
 ## Operational
 
 ### Daily

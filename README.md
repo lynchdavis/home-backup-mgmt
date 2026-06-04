@@ -4,6 +4,8 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 
 **This is not a generic tool.** It is a targeted playbook for one specific home infrastructure: a single TrueNAS source, a single Debian backup host, a small known fleet of client machines. Configuration-as-code via TrueNAS API; UI is the operational view.
 
+> **Adding a new linux / mac / windows host?** → [PLAYBOOK § Onboarding a new host](PLAYBOOK.md#onboarding-a-new-host-a2)
+
 ## Files
 
 - **[PLAYBOOK.md](PLAYBOOK.md)** — the operational playbook: what runs where, how to recreate from scratch, what to do when things change, gotchas captured the hard way.
@@ -19,4 +21,4 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 ## Status
 
 - **A1 — saratoga → kodiak DR backup**: operational. Daily replication via TrueNAS Replication Tasks (push), receiving on `backups-00/saratoga` ZFS pool on kodiak.
-- **A2 — client-host backups**: not yet built. Different problem (rsync-over-SSH from heterogeneous OSes); separate playbook when it lands.
+- **A2 — client-host backups**: operational. rsync-over-SSH pull from arrow-iii + pilatus (linux, multi-user per ADR-002) and lynchmbp (mac, single-user per ADR-003). Every-30-min cron with per-host `schedule_when_up` (default 24h). See [PLAYBOOK § Onboarding a new host](PLAYBOOK.md#onboarding-a-new-host-a2) to add another.
