@@ -79,7 +79,9 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 3. Spot-check a file via `zfs list -r` + sha256
 4. `sudo zfs destroy -r backups-00/restore-test`
 
-**Queued?** Saratoga drill: yes, follow-up. Tracked here.
+**Still open for iDrive (off-site tier) side:** ADR-005 wires the off-site backup but no restore has been exercised. The eventual shape: an automated CLI-driven test (`idrive` CLI is the operational interface for restoration — that's the reality) that pulls a known file from the off-site copy and verifies it, PLUS a generated walk-thru doc the operator can actually follow in a real DR (fire / theft / ransomware) when they're not thinking clearly. Automation proves the path still works; the doc is what gets used at 2 AM. Until both exist, the off-site tier is unverified.
+
+**Queued?** Saratoga drill: yes, follow-up. iDrive drill + walk-thru doc: yes, follow-up. Tracked here.
 
 ---
 
