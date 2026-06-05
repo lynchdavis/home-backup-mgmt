@@ -1167,7 +1167,10 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
             print(line, file=stream)
 
     if not quiet:
-        print(f"sync target: {target_root}/<host>")
+        if len(names) == 1:
+            print(f"sync target: {target_root}/{names[0]}")
+        else:
+            print(f"sync target: {target_root}/<host>  (per-host child dataset)")
         print(f"candidates:  {len(names)} host(s)")
         if args.dry_run:
             print("(dry-run: probe only; no rsync; no state writes)")
