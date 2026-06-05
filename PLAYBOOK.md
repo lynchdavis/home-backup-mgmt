@@ -384,35 +384,53 @@ Target gets a dedicated `tourbillon` service user; kodiak holds a per-host SSH k
 - Stable LAN address. If DHCP, pin a router reservation — host configs assume the IP doesn't drift.
 - Stays awake during the backup window. Desktops: `sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`. Laptops with lids: also `HandleLidSwitch=ignore` in `/etc/systemd/logind.conf`.
 
-**Steps:**
+**Steps** — run top to bottom. The toml in step 2 **must** exist before step 3, or step 3's preflight aborts.
 
-1. **On the target, as root** — copy `bin/bootstrap-tourbillon-user.sh` over and run:
+Pick your values once. On **kodiak**, set these in your shell so the later copy-paste blocks just work (replace the two values):
+
+```bash
+HOST=ldavis-dev-01          # short hostname for this target
+IP=192.168.1.58             # its LAN IP
+```
+
+1. **On the target, as root** — get the bootstrap script over and run it.
+
+   First, from **kodiak**, copy the script to the target (uses your own login, one password prompt):
+   ```bash
+   scp bin/bootstrap-tourbillon-user.sh "$USER@$IP":
+   ```
+   Then, on the **target**, as root:
    ```bash
    sudo bash bootstrap-tourbillon-user.sh
    ```
-   Creates the `tourbillon` service user, installs the sudoers drop-in for narrow rsync access, prints a one-time password. **Save it — step 2 needs it.**
+   Creates the `tourbillon` service user, installs the sudoers drop-in for narrow rsync access, prints a one-time password. **Copy that password — step 3 needs it.**
 
-2. **On kodiak, as ldavis** — push the key, verify auth, lock the password:
+2. **On kodiak** — create the per-host config. Copy `pilatus.toml` as your starting point and open it:
    ```bash
-   bin/bootstrap-from-kodiak.sh <hostname> [<ip>]
+   cp configs/hosts/pilatus.toml "configs/hosts/$HOST.toml"
+   vi "configs/hosts/$HOST.toml"
    ```
-   Generates the per-host ed25519 key under `~tourbillon/.ssh/`, ssh-copy-ids it (paste step 1's password when prompted), verifies key-only auth, then locks the target's tourbillon password. Pass `<ip>` if `<hostname>` doesn't resolve via DNS — the script appends a line to kodiak's `/etc/hosts`.
+   In the editor, set `host = "<your IP>"` and check `paths` (default `/home` + `/etc`). Everything else (`ssh_user`, `excludes_file`, `schedule_when_up`, `ssh_key`, `target_dataset`) inherits from `defaults.toml` — only add a line here when a default doesn't fit.
 
-3. **Create `configs/hosts/<hostname>.toml`** — most fields inherit from `defaults.toml`:
-   ```toml
-   host = "<ip-or-hostname>"
-   # Override paths / excludes_file / schedule_when_up only when defaults don't fit.
-   ```
-
-4. **First sync, forced** to skip the schedule-window check:
+3. **On kodiak** — push the key, verify auth, lock the password:
    ```bash
-   sudo -u tourbillon bin/tourbillon hosts sync --force --name <hostname>
+   bin/bootstrap-from-kodiak.sh "$HOST" "$IP"
    ```
-   Auto-creates `backups-00/hosts/<hostname>` dataset, runs the first rsync, persists state. The every-30-min cron picks it up from then on per `schedule_when_up` (default 24h).
+   Generates the per-host ed25519 key under `~tourbillon/.ssh/`, auto-adds the `/etc/hosts` entry if `$HOST` doesn't resolve via DNS, ssh-copy-ids the key (**paste step 1's password when prompted**), verifies key-only auth, then locks the target's tourbillon password. The `$IP` arg is only used for the `/etc/hosts` add — harmless if the name already resolves.
 
-5. **Verify** — `bin/tourbillon hosts status` shows last-success time. `sudo -u tourbillon bin/tourbillon hosts ping <hostname>` retests connectivity.
+4. **On kodiak** — first sync, forced to skip the schedule-window check:
+   ```bash
+   sudo -u tourbillon bin/tourbillon hosts sync --force --name "$HOST"
+   ```
+   Auto-creates the `backups-00/hosts/$HOST` dataset, runs the first rsync, persists state. The every-30-min cron picks it up from then on per `schedule_when_up` (default 24h).
 
-Both scripts are idempotent — safe to re-run if something failed mid-flow.
+5. **On kodiak** — verify:
+   ```bash
+   bin/tourbillon hosts status                          # shows last-success time
+   sudo -u tourbillon bin/tourbillon hosts ping "$HOST"  # retests connectivity
+   ```
+
+Both bootstrap scripts are idempotent — safe to re-run if something failed mid-flow.
 
 ### macOS / Windows — single-user (per ADR-003)
 

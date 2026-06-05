@@ -1,0 +1,24 @@
+# ldavis-dev-01 — linux dev host on the LAN.
+#
+# Bootstrap (one-time per host):
+#   1. On the TARGET, as root:  sudo bash bootstrap-tourbillon-user.sh
+#      Creates the `tourbillon` user, installs sudoers, prints the
+#      one-time bootstrap password.
+#   2. On KODIAK:                bin/bootstrap-from-kodiak.sh ldavis-dev-01 192.168.1.58
+#      Generates per-host keypair under ~tourbillon/.ssh/, runs
+#      ssh-copy-id (paste the password from step 1 once), verifies
+#      key auth, locks the target's tourbillon password. The <ip>
+#      argument auto-adds an /etc/hosts entry since ldavis-dev-01
+#      does not resolve via DNS yet.
+
+host = "192.168.1.58"
+
+# Mirror /home + /etc — linux is rebuildable from a fresh install;
+# /etc retains the host-specific drift worth keeping; everything
+# else (/usr, /opt, /var) is package-managed.
+paths = ["/home", "/etc"]
+
+# schedule_when_up, ssh_user, target_dataset, excludes_file, ssh_key
+# inherited from configs/hosts/defaults.toml — the templated
+# ssh_key = "~/.ssh/id_ed25519_tourbillon_{host}" gets substituted
+# to ~tourbillon/.ssh/id_ed25519_tourbillon_ldavis-dev-01 at runtime.
