@@ -6,6 +6,29 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-23 (4)
+
+### Done — saratoga-side restore drill (closes the last open half of GAPS.md §1.3)
+
+First-ever execution of the `zfs send | zfs recv` restore test GAPS.md had
+scoped since 2026-05-24 but never run. Manual, not yet scripted/cron'd.
+
+- Picked `backups-00/saratoga/tank/archive/writing` (smallest real dataset,
+  416K) and its latest snapshot. `sudo zfs create backups-00/restore-test`
+  → `zfs send | zfs recv` into it → clean exit.
+- Spot-checked a restored PDF: valid per `file`, original 2021 mtime
+  preserved, sha256 recorded. `sudo zfs destroy -r backups-00/restore-test`
+  cleaned up.
+- **Didn't** mount the live source dataset to diff against directly — it's
+  deliberately `canmount=noauto` (the exact policy the 2026-05-31 incident,
+  above, established as load-bearing). Used `zfs recv`'s own embedded
+  stream-checksum guarantee (a corrupted stream fails the receive, it
+  doesn't silently succeed) plus the file-validity spot-check instead.
+- **Follow-up, not done today**: turn this into
+  `tests/saratoga-restore-drill.sh` (mirrors `restore-drill.sh`'s shape) and
+  add to the monthly cron alongside the two host drills — today's run was
+  manual only, so this doesn't yet run itself.
+
 ## 2026-09-23 (3)
 
 ### Documented — GAPS.md refresh + TrueNAS token exposure (rotation deferred)

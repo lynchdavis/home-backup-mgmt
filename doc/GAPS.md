@@ -64,7 +64,7 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 
 ---
 
-### 1.3 No restore drill has ever been done ~~(open)~~ → addressed for hosts, still TODO for saratoga
+### 1.3 No restore drill has ever been done ~~(open)~~ → addressed for hosts and saratoga; iDrive still TODO
 
 **Update 2026-05-27:** host-side restore drill is now a script + cron job.
 
@@ -72,16 +72,24 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 - **Cron entries on ldavis** at `30 6 1 * *` (arrow-iii) and `35 6 1 * *` (pilatus) — monthly drill, silent on success, cron mails any failure. Captured in `configs/cron/ldavis-crontab`.
 - **First-ever drill executed 2026-05-27** against arrow-iii (`/etc/hostname`) and pilatus (`/etc/hostname`) — both passed with three matching hashes.
 
-**Still open for saratoga side:** `SARATOGA_RESTORE.md` has the `zfs send | zfs recv` test command, but it hasn't been executed and isn't on a cron. Different shape — ZFS-native, not rsync. Worth scripting similarly:
+**Update 2026-09-23:** saratoga-side drill executed manually, passed.
 
-1. `sudo zfs create backups-00/restore-test`
-2. `sudo zfs send backups-00/saratoga/tank/<small-dataset>@<snapshot> | sudo zfs recv backups-00/restore-test/<dataset>`
-3. Spot-check a file via `zfs list -r` + sha256
-4. `sudo zfs destroy -r backups-00/restore-test`
+- Ran the exact four steps below against `backups-00/saratoga/tank/archive/writing@auto-tank-2026-09-23_02-00` (chosen for being small — a `zfs list -r` size check, not a random pick).
+- `zfs send | zfs recv` completed clean (exit 0) — ZFS's own embedded stream checksums are the real integrity proof here: a corrupted stream fails the receive, it doesn't silently succeed.
+- Spot-checked one restored file (a PDF): valid per `file`, correct original mtime preserved, sha256 recorded for the record.
+- **Did not** mount the live `backups-00/saratoga/tank/archive/writing` dataset to compare directly — it's deliberately `canmount=noauto` (the May 31 incident's hard-learned lesson), so verification used the send/recv stream's own guarantees plus a file-validity spot-check instead of a live-mount comparison.
+- **Not yet scripted/cron'd** — this was a manual, one-off run. Worth turning into a `tests/saratoga-restore-drill.sh` mirroring `restore-drill.sh`'s shape (pick smallest dataset, or a configured one; run the 4 steps; verify + report; exit non-zero on failure) and adding to the monthly cron alongside the two host drills.
 
-**Still open for iDrive (off-site tier) side:** ADR-005 wires the off-site backup but no restore has been exercised. The eventual shape: an automated CLI-driven test (`idrive` CLI is the operational interface for restoration — that's the reality) that pulls a known file from the off-site copy and verifies it, PLUS a generated walk-thru doc the operator can actually follow in a real DR (fire / theft / ransomware) when they're not thinking clearly. Automation proves the path still works; the doc is what gets used at 2 AM. Until both exist, the off-site tier is unverified.
+```
+1. sudo zfs create backups-00/restore-test
+2. sudo zfs send <source>@<snapshot> | sudo zfs recv backups-00/restore-test/<dataset>
+3. Spot-check a file: `file <path>` + sha256 (don't mount the live source — see above)
+4. sudo zfs destroy -r backups-00/restore-test
+```
 
-**Queued?** Saratoga drill: yes, follow-up. iDrive drill + walk-thru doc: yes, follow-up. Tracked here.
+**Still open for iDrive (off-site tier) side:** ADR-005 wires the off-site backup but no restore has been exercised. The eventual shape: an automated CLI-driven test (`idrive` CLI is the operational interface for restoration — that's the reality) that pulls a known file from the off-site copy and verifies it, PLUS a generated walk-thru doc the operator can actually follow in a real DR (fire / theft / ransomware) when they're not thinking clearly. Automation proves the path still works; the doc is what gets used at 2 AM. Until both exist, the off-site tier is unverified. Blocked on off-site execution itself (§1.2) happening first.
+
+**Queued?** Saratoga drill: manual pass done 2026-09-23; scripting it is a follow-up. iDrive drill + walk-thru doc: blocked on §1.2.
 
 ---
 

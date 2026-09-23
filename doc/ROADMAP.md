@@ -22,14 +22,13 @@ stale the way `GAPS.md` §2.1 did.
 
 ## Tier 1 — could lose data
 
-1. - [ ] **Saratoga-side restore drill** (`GAPS.md` §1.3). Fully executable
-       now, no external blockers, no cost. Steps already scoped:
-       1. `sudo zfs create backups-00/restore-test`
-       2. `sudo zfs send backups-00/saratoga/tank/<small-dataset>@<snapshot> | sudo zfs recv backups-00/restore-test/<dataset>`
-       3. Spot-check a file via `zfs list -r` + sha256
-       4. `sudo zfs destroy -r backups-00/restore-test`
-       Worth scripting into `tests/` afterward (mirrors `restore-drill.sh`'s
-       shape) so it can join the monthly cron instead of staying manual.
+1. - [x] **Saratoga-side restore drill** (`GAPS.md` §1.3) — done 2026-09-23,
+       manual pass against `tank/archive/writing`. Send/recv clean, restored
+       file valid + correct mtime. Didn't mount the live `noauto` source
+       (May 31 lesson) — verified via the stream's own checksums instead.
+       - [ ] **Follow-up**: script it as `tests/saratoga-restore-drill.sh`
+             (mirrors `restore-drill.sh`'s shape) and add to the monthly
+             cron alongside the two host drills — this run was manual only.
 
 2. - [ ] **Mirror the pool** (`GAPS.md` §1.1). Single biggest reduction in
        catastrophic-loss probability — `backups-00` is one drive at ~88%
