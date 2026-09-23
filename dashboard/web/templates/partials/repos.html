@@ -1,0 +1,29 @@
+<h2>Repo mirrors</h2>
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% elif not rows %}
+  <p class="empty">no repos configured</p>
+{% else %}
+  <p class="summary">{{ rows | length }} repos —
+    {{ rows | selectattr('state', 'equalto', 'ok') | list | length }} ok,
+    {{ rows | rejectattr('state', 'equalto', 'ok') | list | length }} not ok
+  </p>
+  <table>
+    <thead>
+      <tr><th>Repo</th><th>State</th><th>Last OK</th><th>Size</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows if r.state != 'ok' %}
+      <tr>
+        <td>{{ r.slug }}</td>
+        <td><span class="badge fail">{{ r.state }}</span></td>
+        <td>{{ r.last_ok | iso_age }}</td>
+        <td>{{ r.size | bytes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if rows | rejectattr('state', 'equalto', 'ok') | list | length == 0 %}
+    <p class="empty">all repos ok — {{ rows | length }} total, {{ rows | sum(attribute='size') | bytes }}</p>
+  {% endif %}
+{% endif %}

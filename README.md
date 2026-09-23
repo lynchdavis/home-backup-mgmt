@@ -16,9 +16,12 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 - `configs/` — JSON dumps of the live TrueNAS replication / snapshot / SSH configuration. Refresh with `bin/dump-saratoga-config.sh`.
 - `configs/templates/` — JSON templates used to create new tasks via API.
 - `bin/` — small scripts for setup, monitoring, and config dumping. No framework; each script does one thing.
-- `doc/` — ADRs and explanations (e.g., `doc/NAMING.md` — name origins; `doc/CREDENTIALS.md` — credentials inventory + rotation paths; `doc/ADR-001-repo-mirror.md` — repo-mirror design).
+- `doc/` — ADRs and explanations (e.g., `doc/NAMING.md` — name origins; `doc/CREDENTIALS.md` — credentials inventory + rotation paths; `doc/ADR-001-repo-mirror.md` — repo-mirror design; `doc/ADR-006-packaging-and-install.md` — versioned `.deb` packaging + `/opt/server-backups` install; `doc/ADR-007-backup-dashboard.md` — the read-only status dashboard).
+- `dashboard/` — read-only FastAPI + htmx web dashboard for backup status (LAN-only, no auth — see ADR-007). Packaged and deployed via `Taskfile.yml` (see ADR-006).
+- `Taskfile.yml`, `VERSION`, `packaging/` — versioned `.deb` packaging (`task package:deb`) so `bin/` and `dashboard/` install to a stable `/opt/server-backups`, independent of where this checkout lives. See ADR-006.
 
 ## Status
 
 - **A1 — saratoga → kodiak DR backup**: operational. Daily replication via TrueNAS Replication Tasks (push), receiving on `backups-00/saratoga` ZFS pool on kodiak.
 - **A2 — client-host backups**: operational. rsync-over-SSH pull from arrow-iii + pilatus (linux, multi-user per ADR-002) and lynchmbp (mac, single-user per ADR-003). Every-30-min cron with per-host `schedule_when_up` (default 24h). See [PLAYBOOK § Onboarding a new host](PLAYBOOK.md#onboarding-a-new-host-a2) to add another.
+- **Dashboard**: Phase 1 (read-only) — see ADR-007. Phase 2 (editable config + auth) not started.

@@ -6,6 +6,78 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-23
+
+### Added — Packaging (ADR-006) + read-only backup dashboard (ADR-007)
+
+Two related additions, both triggered by the incident below: a versioned
+`.deb` packaging story so this class of bug can't recur, and the dashboard
+it was built to support.
+
+- **`VERSION` + `Taskfile.yml` + `packaging/deb/`** — `task package:deb`
+  builds a `server-backups_<version>_all.deb` that installs `bin/` and
+  `dashboard/` to `/opt/server-backups`, independent of wherever this dev
+  checkout lives. `configs/` is deliberately never packaged — `postinst`
+  symlinks it in from the dev checkout, so config edits (host TOMLs,
+  excludes, cron dumps) stay zero-ceremony, git-tracked, no-rebuild-needed,
+  exactly as before. Modeled on `~/development/bundler-proto`'s Taskfile,
+  trimmed to Debian-only/no-compile-step for this repo's shape. Reuses the
+  existing `tourbillon` service user (ADR-004) rather than inventing one.
+  Full rationale, including why this isn't a repeat of the 2026-05-24
+  Taskfile.yml removal, in `doc/ADR-006-packaging-and-install.md`.
+- **`bin/tourbillon`**: `git_commit_paths()` (used by `repos discover`'s
+  auto-commit) no longer assumes its own directory is the git root —
+  resolves it from the paths being committed instead. Needed because under
+  the packaged layout, `REPO_ROOT` (`/opt/server-backups`) isn't a git
+  working tree; only `configs/`, reached through the symlink, is.
+- **`bin/tourbillon`**: `--json` added to `hosts status`, `hosts issues`,
+  `repos status`, `repos issues` (previously only top-level `status` had
+  it), same idiom as the existing `status --json`. No change to default text
+  output.
+- **`dashboard/`** (new) — read-only FastAPI + htmx web dashboard, LAN-only,
+  no auth. Three panels (saratoga replication + pool/scrub/drive, hosts,
+  repos) mirroring the CLI's own groupings, each polling its own
+  `/partials/*` route every 30s. The API tier (`dashboard/api/`) never
+  re-implements state logic — every route shells out to
+  `tourbillon <cmd> --json`, cached 30s. Deployed as `tourbillon-dashboard`
+  systemd unit, running as the `tourbillon` user, venv built by the
+  package's `postinst`. Scope is backups only (data-organizer excluded).
+  Explicitly deferred to Phase 2: editable config (cron timing, retries,
+  include/exclude, a per-host mail toggle) and the basic-password auth that
+  must land before any of it ships. Full rationale in
+  `doc/ADR-007-backup-dashboard.md`.
+- **Verified**: `task vet`, dev-mode `uvicorn` smoke test against live
+  kodiak state (all three panels render real saratoga/hosts/repos data
+  correctly), then `task package:deb` + install on kodiak itself.
+
+### Fixed — cron broke after the repo moved to `systems-tools/`
+
+The operator moved this repo (and `data-organizer`) into a new
+`~/development/systems-tools/` parent directory. Every cron entry, several
+bootstrap-script invocations, and numerous doc usage examples referenced the
+old `~/development/server-backups/...` path by absolute reference — all
+silently broken (cron couldn't even find the scripts to report a failure).
+
+- **Fixed in place**: all three live crontabs (`ldavis`, `root`, `tourbillon`)
+  reinstalled with corrected paths; `configs/cron/*` dumps, `bin/bootstrap-
+  from-kodiak{,-single-user}.sh`'s functional `sudo -u tourbillon` invocations,
+  and doc usage examples (`PLAYBOOK.md`, `CHANGELOG.md`, ADRs, `doc/GAPS.md`,
+  `doc/SESSION-PROMPT.md`) all repointed at the new path.
+- **Left alone, deliberately**: `SYSTEM-ARCHITECTURE.md` and
+  `data-organizer/claude-reorg-prompt.txt` are frozen historical snapshots —
+  correcting their paths would misrepresent what those docs describe as of
+  when they were written.
+- **`data-organizer/excludes/lynchmbp.txt`** (a separate, pre-existing
+  duplicate of `server-backups/configs/hosts/excludes/lynchmbp.txt`) was
+  found stale and unused, and deleted — see that repo's `HOST-HYGIENE.md`.
+- **`lynchmbp.toml`**: the operator's laptop ("hondajet") roams between two
+  networks with two different DHCP IPs. `bin/tourbillon`'s `host` config
+  field now accepts a list of candidate addresses — `ssh_probe()` tries each
+  in order and `sync_one_host()` pins whichever answered before handing off
+  to rsync. Doesn't cross a real routing gap between the two subnets, but
+  removes the manual-edit step whenever the host is on a network kodiak can
+  already reach.
+
 ## 2026-05-26
 
 ### Added — `bin/idrive-refresh-clones.sh` (snapshot-clone mount strategy)

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+# configs/ is never packaged — it's live, hand-edited, git-tracked
+# operational state (host TOMLs, excludes, cron dumps). Symlinking it in
+# means the installed tree finds it at the stable relative path
+# REPO_ROOT/configs (see bin/tourbillon's REPO_ROOT) without a rebuild ever
+# being required for a config change. See doc/ADR-006-packaging-and-install.md.
+REPO_CHECKOUT="/home/ldavis/development/systems-tools/server-backups"
+ln -sfn "$REPO_CHECKOUT/configs" /opt/server-backups/configs
+
+# git refuses to operate on a repo it doesn't own ("dubious ownership") —
+# the checkout is ldavis-owned, but `repos discover`'s auto-commit
+# (git_commit_paths() in bin/tourbillon) runs as tourbillon. Trust it
+# explicitly for the tourbillon user.
+sudo -u tourbillon git config --global --add safe.directory "$REPO_CHECKOUT"
+
+# The dashboard's venv is built here, not shipped in the package — venvs pin
+# absolute interpreter paths and aren't portably relocatable.
+python3 -m venv /opt/server-backups/dashboard/.venv
+/opt/server-backups/dashboard/.venv/bin/pip install -q --upgrade pip
+/opt/server-backups/dashboard/.venv/bin/pip install -q -r /opt/server-backups/dashboard/requirements.txt
+
+# tourbillon service user already exists per ADR-004 — reuse it rather than
+# creating a new one.
+chown -R tourbillon:tourbillon /opt/server-backups
+
+systemctl daemon-reload
+systemctl enable tourbillon-dashboard
+systemctl restart tourbillon-dashboard || systemctl start tourbillon-dashboard

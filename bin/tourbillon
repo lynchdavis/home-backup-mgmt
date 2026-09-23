@@ -219,25 +219,36 @@ def ensure_defaults() -> bool:
 # ---------- Git auto-commit ----------
 
 def git_commit_paths(paths: list[Path], message: str) -> str | None:
-    """Stage and commit just these paths. Returns short hash on success."""
+    """Stage and commit just these paths. Returns short hash on success.
+
+    Resolves the git root from the paths themselves rather than assuming
+    REPO_ROOT is a git working tree: under a packaged install (REPO_ROOT =
+    /opt/server-backups), configs/ is a symlink into the real dev checkout,
+    and that checkout — not REPO_ROOT — is where the commit belongs.
+    """
     if not paths:
         return None
-    rel = [str(p.relative_to(REPO_ROOT)) for p in paths]
+    resolved = [p.resolve() for p in paths]
+    git_root = Path(subprocess.run(
+        ["git", "-C", str(resolved[0].parent), "rev-parse", "--show-toplevel"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip())
+    rel = [str(p.relative_to(git_root)) for p in resolved]
     env = os.environ.copy()
     # Don't accidentally launch an editor from cron.
     env.setdefault("GIT_EDITOR", "true")
     subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "add", "--", *rel],
+        ["git", "-C", str(git_root), "add", "--", *rel],
         check=True, env=env,
     )
     # Commit only the staged paths matching `rel`. Other unrelated staged
     # changes (if any) are left as-is.
     subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "commit", "-m", message, "--", *rel],
+        ["git", "-C", str(git_root), "commit", "-m", message, "--", *rel],
         check=True, env=env,
     )
     out = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
+        ["git", "-C", str(git_root), "rev-parse", "--short", "HEAD"],
         check=True, capture_output=True, text=True, env=env,
     )
     return out.stdout.strip()
@@ -951,6 +962,10 @@ def cmd_hosts_status(args: argparse.Namespace) -> int:
         names = [n for n in names if n == args.name]
     now_ts = time.time()
     rows = [host_status_row(n, defaults, now_ts) for n in names]
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
     print_hosts_table(rows, now_ts)
     return 0
 
@@ -962,6 +977,10 @@ def cmd_hosts_issues(args: argparse.Namespace) -> int:
     now_ts = time.time()
     rows = [host_status_row(n, defaults, now_ts) for n in names]
     rows = [r for r in rows if r["state"] != "ok"]
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(rows, indent=2, default=str))
+        return 1 if rows else 0
     if not rows:
         if not args.quiet:
             print("no issues — all hosts ok within interval.")
@@ -1673,6 +1692,10 @@ def cmd_repos_status(args: argparse.Namespace) -> int:
         state = load_state(slug)
         rows.append(repo_status_row(slug, config, state, interval_s, now_ts))
 
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
     print_repo_status_table(rows, now_ts)
     return 0
 
@@ -1693,6 +1716,11 @@ def cmd_repos_issues(args: argparse.Namespace) -> int:
         row = repo_status_row(slug, config, state, interval_s, now_ts)
         if row["state"] != "ok":
             rows.append(row)
+
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(rows, indent=2, default=str))
+        return 1 if rows else 0
 
     if not rows:
         # Cron-friendly: nothing wrong means no output.
@@ -1842,11 +1870,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     hp = hsubs.add_parser("status", help="per-host last-sync state + reachability summary")
     hp.add_argument("--name", help="show one specific host")
+    hp.add_argument("--json", action="store_true", help="emit structured JSON instead of a formatted table")
     hp.set_defaults(func=cmd_hosts_status)
 
     hp = hsubs.add_parser("issues", help="filtered status — only hosts not in 'ok' state")
     hp.add_argument("--quiet", action="store_true",
                     help="suppress 'no issues' line when everything is healthy (cron-friendly)")
+    hp.add_argument("--json", action="store_true", help="emit structured JSON instead of a formatted table")
     hp.set_defaults(func=cmd_hosts_issues)
 
     hp = hsubs.add_parser("sync", help="clone or rsync-update due, reachable hosts")
@@ -1879,6 +1909,7 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--name", metavar="SLUG", help="show one specific repo")
     rp.add_argument("--provider", choices=("github", "bitbucket"),
                     help="restrict to one provider")
+    rp.add_argument("--json", action="store_true", help="emit structured JSON instead of a formatted table")
     rp.set_defaults(func=cmd_repos_status)
 
     rp = rsubs.add_parser("issues", help="filtered status — only repos not in 'ok' state")
@@ -1886,6 +1917,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="restrict to one provider")
     rp.add_argument("--quiet", action="store_true",
                     help="suppress 'no issues' line when everything is healthy (cron-friendly)")
+    rp.add_argument("--json", action="store_true", help="emit structured JSON instead of a formatted table")
     rp.set_defaults(func=cmd_repos_issues)
 
     rp = rsubs.add_parser("sync", help="clone / remote-update due repos")

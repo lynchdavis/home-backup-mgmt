@@ -1,0 +1,100 @@
+version: '3'
+
+# Packaging for server-backups. Modeled on ~/development/bundler-proto's
+# Taskfile, trimmed down: no compile step (pure Python), no RPM/cross-arch
+# (single Debian host). See doc/ADR-006-packaging-and-install.md.
+
+vars:
+  VERSION:
+    sh: cat VERSION
+  REPO_URL:
+    sh: git remote get-url origin 2>/dev/null | sed 's/\.git$//' | sed 's|^git@\(.*\):\(.*\)|https://\1/\2|' || echo "https://unknown"
+
+tasks:
+  vet:
+    desc: Syntax-check all first-party Python
+    cmds:
+      - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py dashboard/api/main.py dashboard/api/tourbillon_client.py
+
+  test:
+    desc: Run the existing test harness
+    cmds:
+      - bash tests/test-restore-drill.sh
+
+  "package:deb":
+    desc: "Build the server-backups .deb"
+    deps: [vet]
+    preconditions:
+      - sh: command -v dpkg-deb >/dev/null 2>&1
+        msg: "dpkg-deb not found. Install with: apt install dpkg"
+    vars:
+      DEB_NAME: 'server-backups_{{.VERSION}}_all'
+    cmds:
+      - rm -rf dist/deb-staging
+      - mkdir -p dist/deb-staging/DEBIAN
+      - mkdir -p dist/deb-staging/opt/server-backups/bin
+      - mkdir -p dist/deb-staging/opt/server-backups/dashboard
+      - mkdir -p dist/deb-staging/opt/server-backups/doc
+      - mkdir -p dist/deb-staging/opt/server-backups/tests
+      - mkdir -p dist/deb-staging/etc/systemd/system
+
+      # Control files
+      - |
+        sed -e "s/{{"{{"}}VERSION}}/{{.VERSION}}/g" packaging/deb/control > dist/deb-staging/DEBIAN/control
+      - cp packaging/deb/postinst dist/deb-staging/DEBIAN/postinst
+      - cp packaging/deb/prerm dist/deb-staging/DEBIAN/prerm
+      - chmod 0755 dist/deb-staging/DEBIAN/postinst dist/deb-staging/DEBIAN/prerm
+
+      # Payload: bin/, dashboard/ (minus .venv — built by postinst on target), doc/
+      - cp -r bin/. dist/deb-staging/opt/server-backups/bin/
+      - cp -r dashboard/api dist/deb-staging/opt/server-backups/dashboard/
+      - cp -r dashboard/web dist/deb-staging/opt/server-backups/dashboard/
+      - cp dashboard/requirements.txt dist/deb-staging/opt/server-backups/dashboard/
+      - cp dashboard/config.toml dist/deb-staging/opt/server-backups/dashboard/
+      - cp -r doc/. dist/deb-staging/opt/server-backups/doc/
+      - cp -r tests/. dist/deb-staging/opt/server-backups/tests/
+      - find dist/deb-staging/opt/server-backups -name "__pycache__" -exec rm -rf {} +
+
+      # Systemd unit
+      - |
+        sed -e "s|{{"{{"}}REPO_URL}}|{{.REPO_URL}}|g" packaging/deb/tourbillon-dashboard.service > dist/deb-staging/etc/systemd/system/tourbillon-dashboard.service
+
+      - dpkg-deb --root-owner-group --build dist/deb-staging dist/{{.DEB_NAME}}.deb
+      - rm -rf dist/deb-staging
+      - echo "Built dist/{{.DEB_NAME}}.deb"
+
+  "version:bump:major":
+    desc: "Bump major version (e.g. 0.2.0 → 1.0.0)"
+    cmds:
+      - |
+        IFS='.' read -r major minor patch < VERSION
+        echo "$((major + 1)).0.0" > VERSION
+        echo "Version bumped to $(cat VERSION)"
+
+  "version:bump:minor":
+    desc: "Bump minor version (e.g. 0.2.0 → 0.3.0)"
+    cmds:
+      - |
+        IFS='.' read -r major minor patch < VERSION
+        echo "${major}.$((minor + 1)).0" > VERSION
+        echo "Version bumped to $(cat VERSION)"
+
+  "version:bump:patch":
+    desc: "Bump patch version (e.g. 0.2.0 → 0.2.1)"
+    cmds:
+      - |
+        IFS='.' read -r major minor patch < VERSION
+        echo "${major}.${minor}.$((patch + 1))" > VERSION
+        echo "Version bumped to $(cat VERSION)"
+
+  "version:tag":
+    desc: Create annotated git tag from VERSION file
+    cmds:
+      - git tag -a "v{{.VERSION}}" -m "Release v{{.VERSION}}"
+      - echo "Created tag v{{.VERSION}}"
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf dist/
+      - echo "Cleaned dist/"

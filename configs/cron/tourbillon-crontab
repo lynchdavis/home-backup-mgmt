@@ -10,10 +10,10 @@
 # The wrapper is silent on no-op + exit 0, mails on any output or
 # non-zero exit.
 #
-# The binary, configs, and exclude files live in the repo at
-# /home/ldavis/development/systems-tools/server-backups/ (operator-owned, tourbillon
-# reads via standard 755-traverse). State and env live under tourbillon's
-# own home (/var/lib/tourbillon/).
+# The binary, configs, and exclude files live at /opt/server-backups/
+# (tourbillon-owned per ADR-006's packaging; configs/ symlinks back to the
+# dev checkout). State and env live under tourbillon's own home
+# (/var/lib/tourbillon/).
 #
 # MAILTO is belt-and-suspenders: if a cron entry somehow bypasses the
 # wrapper and produces output, cron's own mail still fires.
@@ -22,9 +22,9 @@ MAILTO=lynchdavis0@gmail.com
 # Every 30 min — sync any due repo mirrors. Per-repo interval (default 24h).
 # Silent when nothing's due; one-line summary when work happens; failures
 # to stderr.
-*/30 * * * * . $HOME/.config/tourbillon/env && /home/ldavis/development/systems-tools/server-backups/bin/mail-on-output.sh "repos sync" /home/ldavis/development/systems-tools/server-backups/bin/tourbillon repos sync --quiet
+*/30 * * * * . $HOME/.config/tourbillon/env && /opt/server-backups/bin/mail-on-output.sh "repos sync" /opt/server-backups/bin/tourbillon repos sync --quiet
 
 # Every 30 min, offset 5 — sync any due host backups. Per-host schedule_when_up
 # (default 24h). Silent on no-op AND on host-offline (unreachable is normal
 # for laptops/desktops, not a failure). Failures to stderr.
-5,35 * * * * /home/ldavis/development/systems-tools/server-backups/bin/mail-on-output.sh "hosts sync" /home/ldavis/development/systems-tools/server-backups/bin/tourbillon hosts sync --quiet
+5,35 * * * * /opt/server-backups/bin/mail-on-output.sh "hosts sync" /opt/server-backups/bin/tourbillon hosts sync --quiet

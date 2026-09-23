@@ -1,0 +1,10 @@
+Package: server-backups
+Version: {{VERSION}}
+Architecture: all
+Maintainer: ldavis
+Description: Home backup system — tourbillon CLI + read-only status dashboard
+ ZFS/rsync backup orchestration (saratoga DR replication, A2 host backups,
+ git repo mirroring) plus a LAN-only web dashboard for status.
+Section: admin
+Priority: optional
+Depends: python3, python3-venv

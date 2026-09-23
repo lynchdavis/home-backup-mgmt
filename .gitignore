@@ -13,3 +13,8 @@ Thumbs.db
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Packaging build output (task package:deb) and the dashboard's venv —
+# rebuildable, not source. See doc/ADR-006-packaging-and-install.md.
+dist/
+dashboard/.venv/

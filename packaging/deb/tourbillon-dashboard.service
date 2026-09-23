@@ -1,0 +1,26 @@
+[Unit]
+Description=Tourbillon backup status dashboard
+Documentation={{REPO_URL}}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tourbillon
+Group=tourbillon
+WorkingDirectory=/opt/server-backups/dashboard
+# Optional (leading '-'): saratoga's TrueNAS API token, needed for the
+# saratoga-replication panel. Same pattern as ~tourbillon/.config/tourbillon/env
+# for github/bitbucket (ADR-004) — set up once, manually, not by postinst
+# (which never has access to the token value). Absent this file, the
+# dashboard degrades gracefully (tourbillon's own saratoga_replication_summary()
+# already handles a missing token) rather than failing to start.
+EnvironmentFile=-/var/lib/tourbillon/.config/saratoga/env
+ExecStart=/opt/server-backups/dashboard/.venv/bin/uvicorn api.main:app --host 192.168.1.61 --port 8000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

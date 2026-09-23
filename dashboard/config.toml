@@ -1,0 +1,11 @@
+# Dashboard settings. Read by dashboard/api/tourbillon_client.py.
+# The systemd unit's --host/--port flags are the actual bind address for
+# Phase 1 (see packaging/deb/tourbillon-dashboard.service) — this file
+# exists mainly for the cache setting today, and as the natural home for
+# more knobs (poll interval, etc.) as the dashboard grows.
+
+[cache]
+# How long a `tourbillon ... --json` result is reused before re-running the
+# command. Keeps the dashboard's polling from hammering zfs/ssh on every
+# browser refresh.
+ttl_seconds = 30

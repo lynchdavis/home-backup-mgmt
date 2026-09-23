@@ -1,0 +1,39 @@
+{% if error %}
+  <h2>Saratoga / Pool / Drive</h2>
+  <p class="error">{{ error }}</p>
+{% else %}
+  <h2>Saratoga replication</h2>
+  {% if data.saratoga.ok %}
+    <table>
+      <thead><tr><th>Task</th><th>State</th><th>Last snapshot</th></tr></thead>
+      <tbody>
+        {% for task in data.saratoga.tasks %}
+        <tr>
+          <td>{{ task.name }}</td>
+          <td><span class="badge {{ 'ok' if task.state == 'FINISHED' else 'warn' }}">{{ task.state }}</span></td>
+          <td>{{ task.last_snapshot }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="error">{{ data.saratoga.error or "saratoga status unavailable" }}</p>
+  {% endif %}
+
+  <h2>Pool — {{ data.pool.pool }}</h2>
+  <div class="kv-grid">
+    <div><span class="label">Health</span><span class="badge {{ 'ok' if data.pool.health == 'ONLINE' else 'fail' }}">{{ data.pool.health }}</span></div>
+    <div><span class="label">Capacity</span><span>{{ data.pool.capacity_pct }}% ({{ data.pool.alloc | bytes }} / {{ data.pool.size | bytes }})</span></div>
+    <div><span class="label">Errors</span><span>{{ data.pool.read_errors }} read / {{ data.pool.write_errors }} write / {{ data.pool.cksum_errors }} cksum</span></div>
+    <div><span class="label">Next scrub</span><span>{{ data.next_scrub.next }} {{ data.next_scrub.tz }}</span></div>
+  </div>
+
+  <h2>Drive — {{ data.drive.device }}</h2>
+  <div class="kv-grid">
+    <div><span class="label">Model</span><span>{{ data.drive.model }}</span></div>
+    <div><span class="label">Power-on hours</span><span>{{ data.drive.power_on_hours }}</span></div>
+    <div><span class="label">Reallocated / Pending / Uncorrectable</span><span>{{ data.drive.reallocated }} / {{ data.drive.pending }} / {{ data.drive.uncorrectable }}</span></div>
+  </div>
+
+  <p class="timestamp">as of {{ data.timestamp }}</p>
+{% endif %}
