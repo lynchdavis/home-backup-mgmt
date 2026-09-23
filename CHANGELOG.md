@@ -6,6 +6,30 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-23 (3)
+
+### Documented — GAPS.md refresh + TrueNAS token exposure (rotation deferred)
+
+Doc-only pass, closing out today's session:
+
+- **`doc/GAPS.md` §2.1** rewritten — was still "LynchMBP not yet
+  bootstrapped" (stale since well before this session); now reflects that
+  it's bootstrapped and operational, with the concurrency pile-up (fixed,
+  see the entry below) and the still-open sync-reliability question (the
+  laptop's dual-network `Broken pipe` failures) folded in.
+- **`doc/GAPS.md` §4.5** (new) — the TrueNAS API token was exposed in
+  kodiak's systemd journal while debugging the dashboard's
+  `EnvironmentFile=` setup (a malformed env line caused systemd to log it
+  verbatim). Fixed the file format so it can't recur; rotation itself is
+  **deferred by operator decision** — closed home network, not considered
+  a realistic target. Documented rather than silently dropped.
+- **`doc/GAPS.md`** "Last reviewed" bumped to today; "Recommended next
+  moves" refreshed (several items had quietly been done since May: cron
+  mail, LynchMBP bootstrap).
+- **This changelog**: backfilled a 2026-09-19 entry (below) for the
+  TrueNAS REST API deprecation finding, which had only ever lived in
+  `GAPS.md` §4.4.
+
 ## 2026-09-23 (2)
 
 ### Fixed — `hosts sync` had no per-host lock; 11 concurrent rsyncs piled up against lynchmbp
@@ -108,6 +132,26 @@ silently broken (cron couldn't even find the scripts to report a failure).
   to rsync. Doesn't cross a real routing gap between the two subnets, but
   removes the manual-edit step whenever the host is on a network kodiak can
   already reach.
+
+## 2026-09-19
+
+### Found — Saratoga REST API deprecated; two scripts need JSON-RPC/WebSocket migration
+
+Surfaced via a saratoga UI notification: the deprecated TrueNAS REST API
+was used to authenticate once in the prior 24h from `192.168.0.61`
+(kodiak's private 10GbE IP) — our own tooling, not an external caller.
+TrueNAS is removing the REST API in **26.04** in favor of JSON-RPC 2.0 over
+WebSocket.
+
+- **`bin/dump-saratoga-config.sh`** and **`bin/apply-media-tasks.sh`** both
+  call `https://192.168.0.60/api/v2.0` directly with a bearer token
+  (`TRUENAS_API_TOKEN`). Neither degrades gracefully — the endpoint
+  disappears outright once saratoga is upgraded, so both would just start
+  failing.
+- **Fix (not started):** port both scripts to TrueNAS's JSON-RPC 2.0/
+  WebSocket API. Different transport and auth handshake, not a config
+  tweak — bounded but real work. Do before any saratoga upgrade to 26.04
+  or later. Full detail in `doc/GAPS.md` §4.4.
 
 ## 2026-05-26
 

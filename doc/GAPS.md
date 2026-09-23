@@ -2,9 +2,9 @@
 
 What this backup system doesn't (yet) do, and why each gap matters. Living doc — review periodically (suggested cadence: once after each major change, plus a forced look every ~6 months).
 
-**Last reviewed:** 2026-05-28.
-**Reviewer:** ldavis (with [[Claude]]).
-**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), 2.43 TB used of 3.5 TB raw.
+**Last reviewed:** 2026-09-23.
+**Reviewer:** ldavis (with Claude).
+**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus, lynchmbp) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), ~88% full. New since May: versioned `.deb` packaging to a stable `/opt/server-backups` (ADR-006) and a read-only status dashboard (ADR-007) — see `CHANGELOG.md`.
 
 **Adjacent storage on kodiak** (informational, not part of the backup system):
 
@@ -87,17 +87,43 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 
 ## Tier 2 — coverage holes (planned, not done)
 
-### 2.1 Mac (LynchMBP) not yet bootstrapped
+### 2.1 LynchMBP ("hondajet") bootstrapped, but sync reliability is unresolved
 
-Single-user flow per `ADR-003` is ready:
+**Update 2026-09-23**: bootstrapped and operational — closing the original
+"not yet bootstrapped" gap — but two problems surfaced the same day:
 
-- `bin/bootstrap-from-kodiak-single-user.sh` (refactored: IP arg, `accept-new`, preflight)
-- `configs/hosts/excludes/mac-user.txt` ported from `data-organizer/excludes/lynchmbp.txt`
-- Per-host config template printed at end of the bootstrap script
+- **Concurrency pile-up (fixed).** No per-host lock meant a sync that
+  outlasted one 30-min cron interval got a second, fully independent
+  `rsync --delete` launched on top of it at the next firing. By the time
+  this was caught, 11 concurrent rsyncs were racing the same destination —
+  a real corruption risk (concurrent `--delete` passes), not just wasted
+  bandwidth. Fixed: `acquire_host_lock()` in `bin/tourbillon` (per-host
+  `flock`, non-blocking, held for the sync's full duration).
+- **Still open: the host itself is flaky.** Even a single, uncontested sync
+  attempt has twice failed with `rsync: [generator] write error: Broken
+  pipe (32)` — the laptop roams between two networks (`192.168.1.x` home,
+  `192.168.68.x` other) with no routing between them, and the connection
+  appears to drop mid-transfer rather than cleanly closing. `host` now
+  accepts multiple candidate IPs (tries each, uses whichever answers — see
+  `lynchmbp.toml`), which fixed *finding* the host but not the mid-transfer
+  drops. `--partial` means each attempt keeps whatever progress it made, so
+  this should eventually converge over enough 30-min cycles, but it hasn't
+  yet (`last_success_at` is still over a month old as of this review).
 
-Just hasn't been run.
+**Fix options:**
+- Add `--timeout=N` to the rsync invocation (`rsync_one_path()`) so a
+  genuinely stalled connection fails fast and cleanly instead of however
+  `Broken pipe` currently resolves — doesn't fix the underlying flakiness,
+  but bounds how long a bad attempt wastes.
+- Investigate the routing gap between the two networks directly (why
+  `192.168.1.x` can't reach `192.168.68.x`) — the real fix, if the laptop
+  is regularly on the second network during sync windows.
+- Accept it as an intermittent, self-healing situation now that the
+  concurrency bug is fixed — each attempt makes some progress; eventually
+  a lucky stable window completes it.
 
-**When:** convenient. The scripts are warm; while you remember the flow is the cheap moment.
+**Queued?** Not started. Monitor via the dashboard's hosts panel or
+`tourbillon hosts status`.
 
 ---
 
@@ -226,14 +252,58 @@ Closed today. msmtp + gmail SMTP forwarder set up; tested end-to-end from both l
 
 ---
 
+### 4.4 Saratoga REST API deprecated — two scripts need migration to JSON-RPC/WebSocket
+
+Surfaced 2026-09-19 via a saratoga UI notification: the deprecated TrueNAS REST API was used to authenticate once in the prior 24h from `192.168.0.61` (kodiak's private 10GbE IP) — that's our own tooling, not an external caller. TrueNAS is removing the REST API in **26.04** in favor of JSON-RPC 2.0 over WebSocket.
+
+Two scripts call `https://192.168.0.60/api/v2.0` directly with a bearer token (`TRUENAS_API_TOKEN`):
+
+- `bin/dump-saratoga-config.sh` — pulls replication tasks, snapshot tasks, SSH connections/keypairs into `configs/*.json` (run on-demand, not cron).
+- `bin/apply-media-tasks.sh` — same REST base URL.
+
+Neither degrades gracefully — the `/api/v2.0` endpoint disappears outright once saratoga is upgraded to 26.04, so both scripts would just start failing.
+
+**Fix:** port both scripts' HTTP calls to TrueNAS's JSON-RPC 2.0/WebSocket API. Different transport and auth handshake, not a config tweak — bounded but real work.
+
+**Queued?** Not started. Do before any saratoga upgrade to 26.04 or later.
+
+---
+
+### 4.5 TrueNAS API token was exposed in kodiak's systemd journal (rotation deferred)
+
+2026-09-23: while wiring the dashboard's `EnvironmentFile=` for
+`~tourbillon/.config/saratoga/env`, a malformed line caused systemd to log
+the offending line — including the literal `TRUENAS_API_TOKEN` value —
+into its own journal, and a debugging `journalctl | grep` echoed it into
+that session's output. Fixed the file format so it can't recur, but the
+old value is still sitting in plaintext in kodiak's journal (no
+`MaxRetentionSec` configured, so it ages out by disk pressure, not time —
+could be weeks).
+
+**Operator decision (2026-09-23):** rotation deferred — closed home
+network, not considered a realistic target. Documented here rather than
+silently dropped, per `doc/CREDENTIALS.md`'s existing rotation-path
+convention.
+
+**Fix, whenever convenient:** TrueNAS UI → Credentials → Local Users →
+root → API Keys → Add, then delete the old key in the same screen, then
+update `~/.config/saratoga/env` directly (not pasted through a chat
+session) and re-sync `~tourbillon`'s copy.
+
+**Queued?** No — accepted risk per operator.
+
+---
+
 ## Recommended next moves, in priority order
 
 1. ~~**Restore drill (host side)** (§1.3).~~ ✓ done 2026-05-27 — scripted + wired to monthly cron.
-2. **Today / this week — confirm cron mail works** (§4.3). The restore-drill cron will silently swallow failures if mail doesn't actually deliver. Verify before relying on it.
-3. **This week — saratoga restore drill** (§1.3 follow-up). `zfs send | zfs recv` into a `restore-test` dataset; sha256 a file; destroy. Same five minutes.
-4. **Next opportunity (~$100, ~half a day) — mirror the pool** (§1.1). Single biggest reduction in catastrophic-loss probability.
-5. **While the scripts are warm — bootstrap LynchMBP** (§2.1).
-6. **Separate ADR — off-site tier** (§1.2). Most-irreplaceable subset first.
+2. ~~**Confirm cron mail works** (§4.3).~~ ✓ done 2026-05-27 — msmtp → gmail.
+3. ~~**Bootstrap LynchMBP** (§2.1).~~ ✓ done, but see §2.1's 2026-09-23 update — sync reliability is the new open thread there.
+4. **hondajet sync reliability** (§2.1) — the most recently active gap; monitor via the dashboard, consider `rsync --timeout` or the routing investigation if it doesn't self-resolve over the next several cycles.
+5. **Saratoga restore drill** (§1.3 follow-up). `zfs send | zfs recv` into a `restore-test` dataset; sha256 a file; destroy. Same five minutes.
+6. **Mirror the pool** (§1.1, ~$100/half-day) — single biggest reduction in catastrophic-loss probability; pool is at ~88% capacity, worth pairing with a capacity conversation.
+7. **Off-site tier execution** (§1.2) — design exists (ADR-005), execution stalled on iDrive's headless-client issue.
+8. **TrueNAS REST API migration** (§4.4) — no urgency until a saratoga upgrade to 26.04 is planned, but bounded real work, worth scheduling ahead of that upgrade rather than during it.
 
 Everything else can wait until something forces it.
 
