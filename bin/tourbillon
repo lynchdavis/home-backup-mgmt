@@ -790,34 +790,50 @@ def resolve_ssh_key(host_cfg: dict) -> str:
     return str(Path(template.replace("{host}", name)).expanduser())
 
 
-def ssh_probe(host_cfg: dict) -> tuple[bool, str]:
-    """`ssh -o BatchMode=yes ... true` with a short timeout.
-    Returns (reachable, message). Never raises."""
-    host = host_cfg.get("host", host_cfg["_name"])
+def host_candidates(host_cfg: dict) -> list[str]:
+    """Normalize `host` into an ordered list of addresses to try.
+
+    Most hosts have one static address. A host that roams between networks
+    (e.g. a laptop with a home-network IP and a second-network IP) can set
+    `host = ["192.168.1.216", "192.168.68.59"]` in its per-host TOML array;
+    each candidate is probed in turn and the first reachable one wins."""
+    val = host_cfg.get("host", host_cfg.get("_name"))
+    return list(val) if isinstance(val, list) else [val]
+
+
+def ssh_probe(host_cfg: dict) -> tuple[bool, str, str | None]:
+    """`ssh -o BatchMode=yes ... true` with a short timeout, tried against
+    each address from `host_candidates()` in order until one answers.
+    Returns (reachable, message, resolved_host) — resolved_host is the
+    address that answered, or None if none did. Never raises."""
     user = host_cfg.get("ssh_user", "tourbillon")
     key = resolve_ssh_key(host_cfg)
     timeout_s = parse_seconds_field(host_cfg.get("ssh_probe_timeout", "5s"))
-    cmd = [
-        "ssh",
-        "-o", "BatchMode=yes",
-        "-o", f"ConnectTimeout={timeout_s}",
-        "-o", "StrictHostKeyChecking=accept-new",
-    ]
-    if key:
-        cmd += ["-i", key]
-    cmd += [f"{user}@{host}", "true"]
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout_s + 5
-        )
-    except subprocess.TimeoutExpired:
-        return False, "ssh probe timed out"
-    except FileNotFoundError:
-        return False, "ssh binary not in PATH"
-    if proc.returncode == 0:
-        return True, "reachable"
-    last = (proc.stderr or proc.stdout or "").strip().splitlines()
-    return False, last[-1] if last else f"ssh exited {proc.returncode}"
+    last_msg = "no candidate host configured"
+    for host in host_candidates(host_cfg):
+        cmd = [
+            "ssh",
+            "-o", "BatchMode=yes",
+            "-o", f"ConnectTimeout={timeout_s}",
+            "-o", "StrictHostKeyChecking=accept-new",
+        ]
+        if key:
+            cmd += ["-i", key]
+        cmd += [f"{user}@{host}", "true"]
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout_s + 5
+            )
+        except subprocess.TimeoutExpired:
+            last_msg = f"{host}: ssh probe timed out"
+            continue
+        except FileNotFoundError:
+            return False, "ssh binary not in PATH", None
+        if proc.returncode == 0:
+            return True, "reachable", host
+        last = (proc.stderr or proc.stdout or "").strip().splitlines()
+        last_msg = f"{host}: {last[-1] if last else f'ssh exited {proc.returncode}'}"
+    return False, last_msg, None
 
 
 def host_status_row(name: str, defaults: dict, now_ts: float) -> dict:
@@ -831,7 +847,7 @@ def host_status_row(name: str, defaults: dict, now_ts: float) -> dict:
 
     row = {
         "name": name,
-        "host": cfg.get("host", name),
+        "host": " / ".join(host_candidates(cfg)),
         "state": "NEVER",
         "last_success_at": None,
         "last_unreachable_at": None,
@@ -913,13 +929,16 @@ def cmd_hosts_ping(args: argparse.Namespace) -> int:
         print(f"unknown host: {args.host}  (no configs/hosts/{args.host}.toml)", file=sys.stderr)
         return 2
     cfg = load_host_config(args.host)
-    target = f"{cfg.get('ssh_user', 'tourbillon')}@{cfg.get('host', args.host)}"
-    print(f"probing {target} ...", flush=True)
+    user = cfg.get("ssh_user", "tourbillon")
+    candidates = host_candidates(cfg)
+    label = " / ".join(candidates)
+    print(f"probing {user}@{{{label}}} ..." if len(candidates) > 1 else f"probing {user}@{label} ...", flush=True)
     started = time.time()
-    reachable, msg = ssh_probe(cfg)
+    reachable, msg, resolved = ssh_probe(cfg)
     elapsed = time.time() - started
     if reachable:
-        print(f"  reachable  ({elapsed:.2f}s)")
+        note = f" via {resolved}" if len(candidates) > 1 else ""
+        print(f"  reachable{note}  ({elapsed:.2f}s)")
         return 0
     print(f"  UNREACHABLE  ({elapsed:.2f}s): {msg}", file=sys.stderr)
     return 1
@@ -1088,7 +1107,7 @@ def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
     """Probe + rsync each configured path. Never raises."""
     started = time.time()
 
-    reachable, msg = ssh_probe(cfg)
+    reachable, msg, resolved = ssh_probe(cfg)
     if not reachable:
         return {
             "name": name, "ok": False, "reachable": False,
@@ -1096,6 +1115,11 @@ def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
             "duration_s": time.time() - started,
             "paths": [],
         }
+    # Pin the resolved address so rsync_one_path() hits the same host the
+    # probe just confirmed reachable, even when `host` is a multi-candidate
+    # list (a roaming host might otherwise answer on one address and get
+    # rsync'd against a different, stale one from the config).
+    cfg = {**cfg, "host": resolved}
 
     if dry_run:
         return {
