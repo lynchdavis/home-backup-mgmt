@@ -1,13 +1,13 @@
 # Next backup-session prompt — dev-01, staleness alarm, flow off-site confirm
 
-Paste this into a fresh session opened in `~/development/server-backups`. It
+Paste this into a fresh session opened in `~/development/systems-tools/server-backups`. It
 bundles three related tasks that all live in the tourbillon / cron / state /
 mail-on-failure world. Design-then-build; read state and confirm before changing
 anything.
 
 ---
 
-We're working in ~/development/server-backups (the A2 host-backup system —
+We're working in ~/development/systems-tools/server-backups (the A2 host-backup system —
 `tourbillon` service user, rsync-over-SSH, ZFS backups-00/hosts/<host>). Three
 related tasks. Read the state and confirm the plan before changing anything.
 
@@ -78,6 +78,6 @@ bin/tourbillon (ssh_probe, host_status_row, cmd_hosts_sync, is_due),
 configs/hosts/{defaults,arrow-iii}.toml, bin/mail-on-output.sh,
 bin/weekly-summary.sh, configs/cron/tourbillon-crontab, the relevant ADRs
 (002/003/004), and doc/GAPS.md. For Task 3, also skim
-~/development/data-organizer/FLOW-DESIGN.md §3/§5 and the `promote` script's
+~/development/systems-tools/data-organizer/FLOW-DESIGN.md §3/§5 and the `promote` script's
 manifest format. Then propose each design for the operator to react to before
 building.

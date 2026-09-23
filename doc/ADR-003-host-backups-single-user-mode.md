@@ -50,7 +50,7 @@ Tourbillon substitutes `{host}` with the per-host config's basename at runtime. 
 Three exclude files, one per platform shape:
 
 - `configs/hosts/excludes/linux-user.txt` — multi-user linux hosts. Existing.
-- `configs/hosts/excludes/mac-user.txt` — macOS single-user. Ports `~/development/data-organizer/excludes/lynchmbp.txt` wholesale (battle-tested during the migration) and adds tourbillon-specific section header for new additions.
+- `configs/hosts/excludes/mac-user.txt` — macOS single-user. Ports `~/development/systems-tools/data-organizer/excludes/lynchmbp.txt` wholesale (battle-tested during the migration) and adds tourbillon-specific section header for new additions.
 - `configs/hosts/excludes/windows-user.txt` — Windows single-user. Not implemented in this slice; documented as Future Work.
 
 Each per-host config points at the right one via `excludes_file`. The macOS and linux excludes overlap heavily (language toolchains, IDE caches) but are kept separate because the OS-specific sections differ enough that one file with conditional comments would be more confusing than two files with shared content.
@@ -151,7 +151,7 @@ Implementation slot when needed: ~30 lines of code in `rsync_one_path`, no schem
 ## Implementation plan (slice 4)
 
 1. **Revise `configs/hosts/defaults.toml`** — declarative form, every field listed with a one-line comment + default value. Includes `sudo_required = true` and `ssh_key = "~/.ssh/id_ed25519_tourbillon_{host}"`.
-2. **`configs/hosts/excludes/mac-user.txt`** — port `~/development/data-organizer/excludes/lynchmbp.txt` wholesale + macOS-specific additions section.
+2. **`configs/hosts/excludes/mac-user.txt`** — port `~/development/systems-tools/data-organizer/excludes/lynchmbp.txt` wholesale + macOS-specific additions section.
 3. **`bin/tourbillon`** — `resolve_ssh_key()` does `{host}` substitution explicitly (no more code-only default); `rsync_one_path()` honors `sudo_required` (conditionally adds `--rsync-path='sudo /usr/bin/rsync'`).
 4. **`bin/bootstrap-from-kodiak-single-user.sh`** — new wrapper script.
 5. **`doc/CREDENTIALS.md`** — note the single-user variant: same per-host key model, just no target-side service-account/sudoers (key lives in operator's existing `~/.ssh/authorized_keys`).

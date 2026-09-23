@@ -234,8 +234,8 @@ And excludes_file to configs/hosts/excludes/windows-user.txt.
 
 Then from kodiak:
 
-    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts ping ${HOSTNAME}
-    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts sync --force --name ${HOSTNAME}
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/systems-tools/server-backups/bin/tourbillon hosts ping ${HOSTNAME}
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/systems-tools/server-backups/bin/tourbillon hosts sync --force --name ${HOSTNAME}
 
 Note: this host's password is the operator's own — NOT locked, NOT
 disturbed. Unlike the multi-user flow there's no service-account

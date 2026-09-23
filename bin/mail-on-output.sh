@@ -22,9 +22,9 @@
 #
 # Example:
 #   */30 * * * * . $HOME/.config/tourbillon/env && \
-#       /home/ldavis/development/server-backups/bin/mail-on-output.sh \
+#       /home/ldavis/development/systems-tools/server-backups/bin/mail-on-output.sh \
 #       "repos sync" \
-#       /home/ldavis/development/server-backups/bin/tourbillon repos sync --quiet
+#       /home/ldavis/development/systems-tools/server-backups/bin/tourbillon repos sync --quiet
 #
 # The wrapper:
 #   - Captures combined stdout+stderr.

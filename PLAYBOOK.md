@@ -273,7 +273,7 @@ bin/dump-saratoga-config.sh   # snapshot live state into configs/
 
 For cron entries that need API access (the scripts fail-fast on missing `TRUENAS_API_TOKEN`):
 ```
-0 4 * * 0  . $HOME/.config/saratoga/env && $HOME/development/server-backups/bin/dump-saratoga-config.sh
+0 4 * * 0  . $HOME/.config/saratoga/env && $HOME/development/systems-tools/server-backups/bin/dump-saratoga-config.sh
 ```
 
 **Gotcha worth flagging early:** the token only lives in shell environment variables during a session. If you didn't persist it the first time you generated it, the only fix is regenerating a new one in the UI — TrueNAS never re-displays an issued token.
@@ -465,8 +465,8 @@ Logs to stderr if no fresh snapshot landed in the last 26h. Wire as cron mail if
 ```bash
 export TRUENAS_API_TOKEN='1-...'
 bin/dump-saratoga-config.sh
-git -C /home/ldavis/development/server-backups diff configs/
-git -C /home/ldavis/development/server-backups commit -am "config: refresh after <change>"
+git -C /home/ldavis/development/systems-tools/server-backups diff configs/
+git -C /home/ldavis/development/systems-tools/server-backups commit -am "config: refresh after <change>"
 ```
 
 ### Restore

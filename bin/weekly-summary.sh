@@ -18,7 +18,7 @@
 # msmtp is down.
 #
 # Wire as a cron entry on ldavis:
-#   0 8 * * 0  /home/ldavis/development/server-backups/bin/weekly-summary.sh
+#   0 8 * * 0  /home/ldavis/development/systems-tools/server-backups/bin/weekly-summary.sh
 
 set -uo pipefail
 

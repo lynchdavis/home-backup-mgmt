@@ -31,4 +31,4 @@
 # ADR-005 — refresh ZFS clones from latest saratoga snapshots before
 # idrivecron's daily backup fires (03:30). 02:30 gives 30-minute headroom
 # after A1 replication completes at 02:00.
-30 2 * * * /home/ldavis/development/server-backups/bin/idrive-refresh-clones.sh
+30 2 * * * /home/ldavis/development/systems-tools/server-backups/bin/idrive-refresh-clones.sh

@@ -4,7 +4,7 @@ How to get data back when saratoga loses it. Companion to [PLAYBOOK.md](PLAYBOOK
 
 **Scope:** restore from the kodiak-side ZFS pool `backups-00` (mounted at `/kodiak00/backups-00`), populated by TrueNAS Replication Tasks pushing from saratoga. The replicated snapshots follow saratoga's TrueNAS naming schema (`auto-YYYY-MM-DD_HH-MM`).
 
-**Not in scope:** restoring the TrueNAS system config itself (apps, SMB share definitions, network config). Those are state, not data — recreate with `saratoga-build.sh` / `saratoga-shares.sh` from `~/development/data-organizer/`.
+**Not in scope:** restoring the TrueNAS system config itself (apps, SMB share definitions, network config). Those are state, not data — recreate with `saratoga-build.sh` / `saratoga-shares.sh` from `~/development/systems-tools/data-organizer/`.
 
 ---
 

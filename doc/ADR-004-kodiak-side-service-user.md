@@ -63,7 +63,7 @@ Considered and rejected:
 
 | Item | Why |
 |---|---|
-| The git repo (`~/development/server-backups/`) | The operator edits, commits, and pushes from here. tourbillon reads/executes via standard `755`-traverse perms; no need to relocate code. |
+| The git repo (`~/development/systems-tools/server-backups/`) | The operator edits, commits, and pushes from here. tourbillon reads/executes via standard `755`-traverse perms; no need to relocate code. |
 | Saratoga env (`~/.config/saratoga/env`) | TrueNAS API token. Used by `tests/check-saratoga-replication.sh`, which is *monitoring* (alerts the operator if A1 stalls), not running backups. |
 | `0 8 * * * check-saratoga-replication.sh` cron entry | Same: it's a monitoring job whose output mails the operator. Operator gets the mail; operator's crontab. |
 
@@ -114,7 +114,7 @@ The target-side script (`bootstrap-tourbillon-user.sh`) is unchanged — runs on
 ### Costs
 
 - **`sudo -u tourbillon` to invoke the CLI manually.** Slightly more typing for the operator. Acceptable for ad-hoc invocations (the common case is cron).
-- **Tourbillon needs read access to the repo path** (`/home/ldavis/development/server-backups/`). Relies on default home perms (`/home/ldavis` mode 755). If the operator ever locks down `/home/ldavis` to 700, A2 cron would break with permission-denied. Acceptable; not a realistic risk on a personal workstation.
+- **Tourbillon needs read access to the repo path** (`/home/ldavis/development/systems-tools/server-backups/`). Relies on default home perms (`/home/ldavis` mode 755). If the operator ever locks down `/home/ldavis` to 700, A2 cron would break with permission-denied. Acceptable; not a realistic risk on a personal workstation.
 - **Token env moves to a path the operator no longer owns** (`~tourbillon/.config/tourbillon/env`). To rotate a token: `sudo -u tourbillon vim ~tourbillon/.config/tourbillon/env`. Documented in CREDENTIALS.md.
 
 ### Migration window risk

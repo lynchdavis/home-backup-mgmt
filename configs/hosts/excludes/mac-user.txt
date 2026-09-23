@@ -1,6 +1,6 @@
 # tourbillon excludes for single-user macOS hosts (rsync --exclude-from=).
 #
-# Ported wholesale from ~/development/data-organizer/excludes/lynchmbp.txt
+# Ported wholesale from ~/development/systems-tools/data-organizer/excludes/lynchmbp.txt
 # (battle-tested during the May 2026 LynchMBP migration). See
 # doc/ADR-003-host-backups-single-user-mode.md for context.
 #

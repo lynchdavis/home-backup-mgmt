@@ -219,11 +219,11 @@ Password:      locked on target (key-only)
 
 Quick test from kodiak:
 
-    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts ping ${HOSTNAME}
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/systems-tools/server-backups/bin/tourbillon hosts ping ${HOSTNAME}
 
 (should print "reachable")
 
 First seed (warning: may be large):
 
-    sudo -u $KODIAK_SVC_USER /home/ldavis/development/server-backups/bin/tourbillon hosts sync --force --name ${HOSTNAME}
+    sudo -u $KODIAK_SVC_USER /home/ldavis/development/systems-tools/server-backups/bin/tourbillon hosts sync --force --name ${HOSTNAME}
 EOF

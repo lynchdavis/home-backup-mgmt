@@ -147,7 +147,7 @@ tourbillon hosts show <host>                     # detail for one host (sizes, p
 
 ```
 */30 * * * *  . $HOME/.config/tourbillon/env && \
-              $HOME/development/server-backups/bin/tourbillon hosts sync --quiet
+              $HOME/development/systems-tools/server-backups/bin/tourbillon hosts sync --quiet
 ```
 
 Same half-hour cadence as the repo sync, same ldavis crontab, same `--quiet` cron-friendly silence-on-no-work behavior.

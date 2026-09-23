@@ -134,7 +134,7 @@ Each repo has an `interval` (from its config or defaults). A repo is **due** whe
 Cron entry on kodiak (`ldavis` crontab):
 ```
 # repo mirror: sync any due repos hourly. Hourly granularity supports interval=1h overrides.
-*/30 * * * *  . $HOME/.config/saratoga/env && . $HOME/.config/tourbillon/env && $HOME/development/server-backups/bin/tourbillon repos sync --quiet
+*/30 * * * *  . $HOME/.config/saratoga/env && . $HOME/.config/tourbillon/env && $HOME/development/systems-tools/server-backups/bin/tourbillon repos sync --quiet
 ```
 
 (`saratoga/env` because tourbillon's status display may also touch the TrueNAS API; cheap to source both.)

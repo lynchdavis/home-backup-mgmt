@@ -119,7 +119,7 @@ Then on kodiak: same `bootstrap-from-kodiak-single-user.sh`, just with Windows p
 
 Kodiak holds:
 
-- The `server-backups` repo at `/home/ldavis/development/server-backups/` (recoverable from github)
+- The `server-backups` repo at `/home/ldavis/development/systems-tools/server-backups/` (recoverable from github)
 - Other home-dir state (shell history, settings)
 - `/etc` drift (some manual config from the PLAYBOOK steps)
 - The crontabs (captured in `configs/cron/`)
