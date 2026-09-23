@@ -6,6 +6,37 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-23 (2)
+
+### Fixed — `hosts sync` had no per-host lock; 11 concurrent rsyncs piled up against lynchmbp
+
+Surfaced while verifying the packaging work below: hondajet (lynchmbp) had
+just become reachable after being off/away for over a month, and its first
+real sync attempt (09:35) ran long enough that every subsequent `5,35 * * *
+*` cron firing launched a brand-new, fully independent `rsync --delete`
+against the same host and destination — 11 of them running concurrently by
+14:35, each holding its own live SSH connection, none ever finishing.
+Multiple concurrent `--delete` passes racing against the same destination
+is a real data-integrity risk, not just wasted bandwidth (one instance can
+delete a file another is mid-transfer on).
+
+- **Killed** the 10 redundant duplicates (kept the oldest, most-progressed
+  one). Safe: `--partial` was already in the rsync flags, so no data was
+  lost — everything resumes from where it left off. The original attempt
+  itself errored out shortly after (`rsync: [generator] write error: Broken
+  pipe (32)`) — separate, network-flakiness issue (see hondajet's dual-IP
+  note above), not the concurrency bug.
+- **`bin/tourbillon`**: new `acquire_host_lock()` — a non-blocking
+  per-host `flock` (`STATE_HOSTS/<host>.lock`) acquired for the full
+  duration of `sync_one_host()`. A host that's still mid-sync when the next
+  cron firing lands is now skipped cleanly ("sync already in progress"),
+  same bucket as "not due" — no state write, no error, no pile-up. Verified
+  via a real held lock (`flock ... -c "sleep 8"` as the `tourbillon` user)
+  blocking a concurrent `hosts sync --force` call, then releasing normally.
+- Repackaged and reinstalled (`task package:deb` + `dpkg -i`) to get the fix
+  onto `/opt/server-backups` immediately rather than waiting for the next
+  scheduled deploy.
+
 ## 2026-09-23
 
 ### Added — Packaging (ADR-006) + read-only backup dashboard (ADR-007)

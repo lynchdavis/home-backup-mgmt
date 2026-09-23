@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import fcntl
 import json
 import os
 import shutil
@@ -1122,6 +1123,29 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
     }
 
 
+def acquire_host_lock(name: str):
+    """Non-blocking per-host lock. Returns an open file handle holding the
+    lock, or None if another process already holds it.
+
+    Without this, a host whose sync outlasts the 30-min cron interval (a
+    large first-real-sync after weeks unreachable, e.g.) gets a second,
+    fully independent rsync launched on top of it at the next firing —
+    observed 2026-09-23: 11 concurrent `rsync --delete` processes racing
+    against the same destination for over 5 hours before any one of them
+    errored out. Two concurrent `--delete` passes can race and corrupt the
+    mirror, not just waste bandwidth. Caller must close() the handle when
+    done (releases the lock).
+    """
+    STATE_HOSTS.mkdir(parents=True, exist_ok=True)
+    fh = open(STATE_HOSTS / f"{name}.lock", "w")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    return fh
+
+
 def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
     """Probe + rsync each configured path. Never raises."""
     started = time.time()
@@ -1232,48 +1256,62 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
             emit(f"  {name:<{longest}}  skipped       ({why})")
             continue
 
-        result = sync_one_host(name, cfg, dry_run=args.dry_run)
-
-        if args.dry_run:
-            tag = result["action"]
-            emit(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
+        # Per-host lock — see acquire_host_lock() docstring for why this
+        # exists (2026-09-23: 11 concurrent rsyncs to the same host/dest).
+        # A locked host is *in progress*, not an error: skip it silently,
+        # same bucket as "not due", and let the running sync finish on its
+        # own time rather than piling another one on top of it.
+        lock_fh = acquire_host_lock(name)
+        if lock_fh is None:
+            summary["skipped"] += 1
+            emit(f"  {name:<{longest}}  skipped       (sync already in progress)")
             continue
 
-        # Persist state
-        new_state = dict(state) if state else {"first_seen_at": iso_now()}
-        new_state["last_attempt_at"] = iso_now()
-        if result.get("reachable"):
-            new_state["last_reachable_at"] = iso_now()
-        else:
-            new_state["last_unreachable_at"] = iso_now()
+        try:
+            result = sync_one_host(name, cfg, dry_run=args.dry_run)
 
-        if not result.get("reachable", True):
-            # Unreachable is a soft case — not an error
-            new_state["last_error"] = None
-            save_host_state(name, new_state)
-            summary["unreachable"] += 1
-            emit(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
-        elif result["ok"]:
-            new_state["last_success_at"] = iso_now()
-            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
-            new_state["last_size_bytes"] = result.get("dataset_used", 0)
-            new_state["last_error"] = None
-            save_host_state(name, new_state)
-            summary["ok"] += 1
-            summary["total_bytes"] += result.get("bytes_xfer", 0)
-            summary["total_seconds"] += result.get("duration_s", 0)
-            size_str = format_size(result.get("bytes_xfer", 0))
-            dur_str = format_duration(result.get("duration_s", 0))
-            w = result.get("warnings") or []
-            w_note = f"  (warnings: {len(w)})" if w else ""
-            emit(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
-        else:
-            new_state["last_error"] = result.get("reason", "unknown")
-            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
-            save_host_state(name, new_state)
-            summary["failed"] += 1
-            err = (result.get("reason") or "unknown")[:80]
-            emit(f"  {name:<{longest}}  FAILED        {err}", stream=sys.stderr)
+            if args.dry_run:
+                tag = result["action"]
+                emit(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
+                continue
+
+            # Persist state
+            new_state = dict(state) if state else {"first_seen_at": iso_now()}
+            new_state["last_attempt_at"] = iso_now()
+            if result.get("reachable"):
+                new_state["last_reachable_at"] = iso_now()
+            else:
+                new_state["last_unreachable_at"] = iso_now()
+
+            if not result.get("reachable", True):
+                # Unreachable is a soft case — not an error
+                new_state["last_error"] = None
+                save_host_state(name, new_state)
+                summary["unreachable"] += 1
+                emit(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
+            elif result["ok"]:
+                new_state["last_success_at"] = iso_now()
+                new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+                new_state["last_size_bytes"] = result.get("dataset_used", 0)
+                new_state["last_error"] = None
+                save_host_state(name, new_state)
+                summary["ok"] += 1
+                summary["total_bytes"] += result.get("bytes_xfer", 0)
+                summary["total_seconds"] += result.get("duration_s", 0)
+                size_str = format_size(result.get("bytes_xfer", 0))
+                dur_str = format_duration(result.get("duration_s", 0))
+                w = result.get("warnings") or []
+                w_note = f"  (warnings: {len(w)})" if w else ""
+                emit(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
+            else:
+                new_state["last_error"] = result.get("reason", "unknown")
+                new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+                save_host_state(name, new_state)
+                summary["failed"] += 1
+                err = (result.get("reason") or "unknown")[:80]
+                emit(f"  {name:<{longest}}  FAILED        {err}", stream=sys.stderr)
+        finally:
+            lock_fh.close()
 
     if not quiet:
         print()
