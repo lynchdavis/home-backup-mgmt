@@ -2,9 +2,9 @@
 
 What this backup system doesn't (yet) do, and why each gap matters. Living doc — review periodically (suggested cadence: once after each major change, plus a forced look every ~6 months).
 
-**Last reviewed:** 2026-09-23.
+**Last reviewed:** 2026-09-24.
 **Reviewer:** ldavis (with Claude).
-**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus, lynchmbp) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), ~88% full. New since May: versioned `.deb` packaging to a stable `/opt/server-backups` (ADR-006) and a read-only status dashboard (ADR-007) — see `CHANGELOG.md`.
+**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus, lynchmbp) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), **95% full (181GB free)**. Off-site copy (§1.2) confirmed operational since 2026-06-01 — was misdocumented as open/failing until today. New since May: versioned `.deb` packaging to a stable `/opt/server-backups` (ADR-006), a read-only status dashboard (ADR-007), and `dump-saratoga-config` migrated off the deprecated TrueNAS REST API — see `CHANGELOG.md`.
 
 **Adjacent storage on kodiak** (informational, not part of the backup system):
 
@@ -40,7 +40,7 @@ SMART says zero errors and ~20,000 power-on hours. Reliable today; mechanical dr
 
 ---
 
-### 1.2 Zero off-site copy ~~(open)~~ → design committed 2026-05-27 via [ADR-005](ADR-005-off-site-tier-idrive.md); execution pending
+### 1.2 Off-site copy — ~~zero~~ → **operational since 2026-06-01**, closed
 
 **Update 2026-05-27**: design + transition plan now exist as ADR-005 (off-site tier via iDrive Personal on kodiak). `bin/install-idrive-on-kodiak.sh` written as a helper (download + extract + hand-off to interactive iDrive install). Still gap-open until execution completes: initial sync (~24-72h upload) + restore drill from iDrive + workstation device decommissioned.
 
@@ -60,29 +60,43 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 - **Larger scope**: extend to all of `tank/active` (~520 MB) and `tank/finance` (small) — still tiny next to media.
 - **Full off-site**: everything. 2.4 TB at B2 = ~$15/mo. Tractable but big jump.
 
-**Update 2026-09-24**: re-checked live state while answering an operator
-question, and the picture is materially different from the "headless GUI
-rejection" blocker above — that part got resolved at some point without a
-doc update. Current reality (`bin/idrive-status.sh`):
+**Update 2026-09-24, corrected same day:** an operator question ("is
+backups-00 backed up to iDrive?") led to checking live state, and an
+initial pass (a truncated `dashboard.log` tail showing
+`IOError: getfilecontent... FileNotFoundError` at the daily 03:30 run)
+was **wrongly read as evidence of daily failure** — the actual conclusion
+was the opposite. Digging into the full per-run logs
+(`Backup/DefaultBackupSet/LOGS/*_Success_*`) instead of the summary trace:
 
-- `idriveforlinux 1.7.0` is installed; `idrivecron.service` is a healthy,
-  running, enabled systemd daemon — headless invocation is *not* the
-  blocker anymore.
-- The 13 `backups-00/idrive-staging/*` clone datasets ADR-005's mount
-  strategy designed are present and mounted.
-- **But** the daily 03:30 backup job has hit `IOError: getfilecontent...
-  FileNotFoundError` and died immediately every day for at least 5
-  consecutive days (2026-09-20 through 2026-09-24). No `idevsutil` worker
-  process running; no evidence in the log of a completed run.
+- **99 total daily runs since 2026-06-01. Every single one is named
+  `_Success_` — zero failures, ever**, including every day this doc
+  previously (wrongly) said was failing.
+- **Initial full upload completed 2026-06-01**: 142,374 files, **1.63 TB**,
+  0 failures.
+- Every day since, the incremental run correctly finds ~0 new/modified
+  files (steady state — the staging clones barely change day to day) and
+  reports success. Today: 142,544 files considered, 142,544 already
+  present, 0 failed, 0 newly transferred.
+- The `FileNotFoundError` on `error.txt` is iDrive's own client trying to
+  open a per-run error-detail file that's only created *when there are
+  failures*. Since there are none, the open fails, logs a harmless
+  warning, and the run completes successfully anyway — cosmetic log noise
+  in iDrive's closed-source client, nothing to fix on our side.
+- The "GUI rejects headless invocation" blocker this section previously
+  described is also stale — resolved at some point without a doc update;
+  `idrivecron.service` runs fine as a systemd daemon.
 
-**Practical answer: `backups-00` is very likely not actually landing on
-iDrive right now**, despite the daemon looking active — this is a new,
-more specific bug (a missing file/path at backup-start time), not the
-old GUI/headless problem. Root cause not yet investigated (would need the
-daemon's fuller logs to find the specific missing path).
+**This Tier-1 catastrophic gap is closed.** Off-site coverage matches
+ADR-005's scope (photography + non-photo archive + active + hosts, ~1.65TB)
+and has been reliably current for nearly 4 months.
 
-**Queued?** Not started — surfaced 2026-09-24, needs its own debugging
-session. Tracked in `doc/ROADMAP.md` Tier 1.
+**Still open, smaller in scope:** the restore drill from iDrive (§1.3) has
+never been exercised — backing up is verified, restoring is not. The
+"decommission the workstation device" step from ADR-005's transition plan
+also hasn't been explicitly confirmed done.
+
+**Queued?** Closed 2026-09-24. Restore drill: tracked in §1.3 and
+`doc/ROADMAP.md`.
 
 ---
 

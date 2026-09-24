@@ -6,6 +6,42 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24 (3)
+
+### Corrected — off-site (iDrive) has been operational since June; earlier "failing" diagnosis was wrong
+
+Follow-up to CHANGELOG 2026-09-24 (2)'s off-site re-diagnosis, which itself
+turns out to have been mistaken — corrected the same day after digging
+further, per the operator flagging it as a priority to chase down.
+
+- The earlier conclusion ("very likely not landing on iDrive") was drawn
+  from a truncated `dashboard.log` tail showing a daily
+  `FileNotFoundError`. Following through to the actual per-run logs
+  (`Backup/DefaultBackupSet/LOGS/*_Success_*`) instead: **99 total daily
+  runs since 2026-06-01, every single one named `_Success_` — zero
+  failures, ever.**
+- The initial full upload completed **2026-06-01**: 142,374 files, 1.63TB,
+  0 failures. Every day since, the incremental run correctly finds ~0
+  new/modified files (steady state) and reports success — today: 142,544
+  files considered, 142,544 already present, 0 failed, 0 newly
+  transferred.
+- The `FileNotFoundError` is iDrive's own client trying to open a per-run
+  `error.txt` detail file that's only created when there ARE failures.
+  Since there weren't any, the open fails, logs a harmless warning, and
+  the run completes successfully regardless — cosmetic log noise in
+  iDrive's closed-source client. Nothing in this codebase to fix.
+- **`GAPS.md` §1.2 closed** — the "zero off-site copy" Tier-1 catastrophic
+  gap has actually been resolved since June, just never marked as such.
+  `doc/ROADMAP.md` updated to match, with two smaller follow-ups spun out:
+  the never-exercised iDrive restore drill (already tracked in §1.3), and
+  confirming the old workstation's iDrive device was decommissioned per
+  ADR-005's transition plan.
+
+**Lesson for next time:** a log tail showing an error string isn't the
+same as confirming a job actually failed — the per-run authoritative
+result (here, the renamed `_Success_`/`_Failed_` log files) should be the
+first thing checked, not the last.
+
 ## 2026-09-24 (2)
 
 ### Found — off-site (iDrive) has been silently failing daily; pool-mirroring paused

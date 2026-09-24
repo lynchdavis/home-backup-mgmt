@@ -30,22 +30,19 @@ stale the way `GAPS.md` §2.1 did.
              (mirrors `restore-drill.sh`'s shape) and add to the monthly
              cron alongside the two host drills — this run was manual only.
 
-2. - [ ] **Off-site copy — daily job failing silently** (`GAPS.md` §1.2,
-       ADR-005) — **re-diagnosed 2026-09-24, materially different from what
-       was documented.** The "iDrive GUI rejects headless invocation"
-       blocker is stale: `idriveforlinux 1.7.0` is installed,
-       `idrivecron.service` runs as a proper systemd daemon, and the 13
-       `backups-00/idrive-staging/*` clone datasets ADR-005 designed are
-       mounted and present. But the daily 03:30 backup job has hit
-       `IOError: getfilecontent... FileNotFoundError` and died immediately
-       every day for at least 5 days (2026-09-20 through 2026-09-24) — no
-       `idevsutil` worker process running, no evidence of a completed run.
-       **Practically: `backups-00` is very likely not actually landing on
-       iDrive right now**, despite the service looking active. Needs
-       debugging (find the missing path in the daemon's fuller logs) before
-       any restore-drill or off-site verification work makes sense. Not
-       started — surfaced while answering an operator question, not yet
-       investigated further.
+2. - [x] **Off-site copy** (`GAPS.md` §1.2, ADR-005) — **closed 2026-09-24.**
+       Initial worry (a truncated log tail suggesting daily failures) was
+       **wrong** — full per-run logs show 99/99 daily runs `Success` since
+       the initial 1.63TB/142,374-file upload completed 2026-06-01, current
+       as of today (0 new files needed — steady state). The
+       `FileNotFoundError` that looked alarming is iDrive's own client
+       logging a harmless warning when there's no error-detail file to open
+       (because there were no errors). Nothing to fix; the Tier-1
+       catastrophic gap is genuinely closed, not just diagnosed.
+       - [ ] **Follow-up**: restore drill from iDrive has never been
+             exercised (backing up ≠ restorable) — see `GAPS.md` §1.3.
+       - [ ] **Follow-up**: confirm the old workstation iDrive device was
+             actually decommissioned per ADR-005's transition plan.
 
 (Pool mirroring — moved to Backlog, 2026-09-24: operator wants to hold off on the drive-purchase decision for now.)
 
