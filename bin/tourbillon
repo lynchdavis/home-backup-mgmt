@@ -1072,6 +1072,7 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
     sudo_required = cfg.get("sudo_required", True)
     archive_flags = cfg.get("rsync_archive_flags", "-avHAX")
     rsync_path = (cfg.get("rsync_path") or "").strip()
+    rsync_timeout_s = parse_seconds_field(cfg.get("rsync_timeout", "300s"))
 
     cmd = [
         "sudo", "-n", "rsync",
@@ -1080,6 +1081,7 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
         "--numeric-ids",
         "--partial",
         "--stats",
+        f"--timeout={rsync_timeout_s}",
         f"--exclude-from={excludes_path}",
         "-e", ssh_cmd,
     ]

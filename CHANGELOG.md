@@ -6,6 +6,33 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-23 (5)
+
+### Fixed — hondajet's sync reliability: routing ruled out, `rsync --timeout` added, sync now succeeds
+
+Closes the "Active" thread from earlier today (the concurrency pile-up).
+
+- **Investigated the routing gap** between hondajet's two networks
+  (`192.168.1.x` home, `192.168.68.x` other) as a possible fix for the
+  `Broken pipe` failures: kodiak's gateway (`192.168.1.1`) ICMP-redirects
+  toward `192.168.1.5` for `192.168.68.x` traffic (a second router/AP
+  presumably bridges it), but pinging through that path returns
+  "Destination Host Unreachable." No visibility or access to fix this from
+  kodiak — it's a home-router configuration matter, ruled out as a code fix.
+- **`bin/tourbillon`**: added `--timeout` to the rsync invocation
+  (`rsync_one_path()`), new `rsync_timeout` field in
+  `configs/hosts/defaults.toml` (default `300s`). More important than it
+  looks: the per-host lock added earlier today means a *truly hung*
+  transfer would now hold its lock forever and lock the host out of every
+  future attempt — nothing previously bounded that.
+- **Result**: the next sync attempt succeeded outright. `tourbillon hosts
+  status` shows `lynchmbp: ok`, last success 3.8h ago, 994.3 GB (up from
+  526.6 GB — over a month of accumulated changes finally landed). Whether
+  it was the removed contention, a stable network window, or both is
+  unclear, but the host is caught up.
+- Repackaged and reinstalled (`task package:deb` + `dpkg -i`) as with the
+  earlier fixes today.
+
 ## 2026-09-23 (4)
 
 ### Done — saratoga-side restore drill (closes the last open half of GAPS.md §1.3)

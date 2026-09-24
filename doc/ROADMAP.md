@@ -49,21 +49,19 @@ stale the way `GAPS.md` §2.1 did.
 
 ## Active (in-progress threads from 2026-09-23)
 
-- [ ] **hondajet ("lynchmbp") sync reliability** (`GAPS.md` §2.1). The
-      concurrency pile-up is fixed (per-host lock shipped); the host itself
-      still fails solo with `rsync: [generator] write error: Broken pipe
-      (32)`, almost certainly the dual-network routing gap
-      (`192.168.1.x` ↔ `192.168.68.x`, no route between them). Options, not
-      yet chosen between:
-      - Add `--timeout=N` to `rsync_one_path()` — fails fast/clean instead
-        of whatever `Broken pipe` currently resolves to; doesn't fix the
-        underlying flakiness.
-      - Investigate the routing gap directly, if the laptop's regularly on
-        the second network during sync windows.
-      - Do nothing — `--partial` + the lock fix means it should eventually
-        converge over enough stable 30-min windows on its own. Monitor via
-        the dashboard's hosts panel.
-- [x] ~~Concurrent-rsync pile-up~~ — fixed 2026-09-23, `acquire_host_lock()`.
+- [x] **hondajet ("lynchmbp") sync reliability** (`GAPS.md` §2.1) — resolved
+      2026-09-23:
+      - Concurrency pile-up: fixed, `acquire_host_lock()`.
+      - Routing gap investigated: ruled out — kodiak's gateway ICMP-redirects
+        toward `192.168.1.5` for the second subnet, but that path returns
+        "Destination Host Unreachable." No visibility/access from kodiak to
+        fix further; this is a home-router config matter, not code.
+      - Added `--timeout` (`rsync_timeout`, default 300s) — closes a
+        correctness gap the lock fix introduced (a truly-hung transfer would
+        otherwise hold its lock forever).
+      - **Result**: next sync attempt succeeded — `lynchmbp: ok`, 994.3 GB,
+        caught up after over a month behind. Monitor for recurrence; no
+        further action queued unless it comes back.
 
 ---
 

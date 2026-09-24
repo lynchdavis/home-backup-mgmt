@@ -118,20 +118,31 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
   this should eventually converge over enough 30-min cycles, but it hasn't
   yet (`last_success_at` is still over a month old as of this review).
 
-**Fix options:**
-- Add `--timeout=N` to the rsync invocation (`rsync_one_path()`) so a
-  genuinely stalled connection fails fast and cleanly instead of however
-  `Broken pipe` currently resolves — doesn't fix the underlying flakiness,
-  but bounds how long a bad attempt wastes.
-- Investigate the routing gap between the two networks directly (why
-  `192.168.1.x` can't reach `192.168.68.x`) — the real fix, if the laptop
-  is regularly on the second network during sync windows.
-- Accept it as an intermittent, self-healing situation now that the
-  concurrency bug is fixed — each attempt makes some progress; eventually
-  a lucky stable window completes it.
+**Update 2026-09-23 (later same day):** investigated the routing option
+first — kodiak's gateway (`192.168.1.1`) actually returns an ICMP redirect
+toward `192.168.1.5` for `192.168.68.x` traffic, suggesting a second
+router/AP bridges that segment, but pinging through it returns
+"Destination Host Unreachable." That's a home-router configuration matter
+with zero visibility or access from kodiak — ruled out as something fixable
+in this codebase.
 
-**Queued?** Not started. Monitor via the dashboard's hosts panel or
-`tourbillon hosts status`.
+Added `--timeout` instead (`rsync_timeout`, default `300s`, new field in
+`configs/hosts/defaults.toml`) — this turned out to matter more than
+originally scoped: the per-host lock above means a *truly hung* (not just
+broken-pipe-terminated) transfer would now hold its lock forever and lock
+the host out of every future attempt, with nothing previously bounding
+that. `--timeout` closes that gap regardless of what caused hondajet's
+specific flakiness.
+
+**Result:** the very next sync attempt succeeded outright — `hosts status`
+now shows `lynchmbp: ok`, last success 3.8h ago, 994.3 GB (up from 526.6 GB,
+reflecting over a month of accumulated changes finally landing). Whether
+that was the lock fix removing contention, a stable network window, or
+both, is unclear — but the host is caught up as of this review.
+
+**Queued?** Concurrency + timeout fixes shipped. Monitor via the
+dashboard's hosts panel or `tourbillon hosts status` for recurrence; no
+further action unless it does.
 
 ---
 

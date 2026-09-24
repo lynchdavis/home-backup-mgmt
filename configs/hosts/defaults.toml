@@ -68,6 +68,16 @@ rsync_path = ""
 # can't represent, so mac hosts should drop -A.
 rsync_archive_flags = "-avHAX"
 
+# rsync --timeout (seconds): if no data moves for this long, rsync exits
+# instead of waiting indefinitely. Added 2026-09-23 after a per-host lock
+# (see acquire_host_lock() in bin/tourbillon) started guarding against
+# overlapping syncs — without a timeout, a truly stalled (not just
+# cleanly-failed) transfer would hold that lock forever and lock the host
+# out of every future attempt. Only fires on genuine idleness, not on a
+# slow-but-progressing transfer. Lower this per-host for a link known to
+# stall rather than cleanly disconnect.
+rsync_timeout = "300s"
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Schedule + reachability
