@@ -6,6 +6,16 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24 (6)
+
+### Confirmed — data-00 videos/archive upload to iDrive completed, 0 failures
+
+The manual run triggered in CHANGELOG 2026-09-24 (5) finished the same
+day: **52,781 files, 177.07GB, 0 failures.** `videos/` and `archive/` are
+now fully landed on iDrive alongside the existing saratoga `tank/*`
+content (195,325 files total considered, 142,544 already present from
+before). `idrivecron.service` unaffected throughout.
+
 ## 2026-09-24 (5)
 
 ### Added — `data-00/videos` + `data-00/archive` to the live iDrive backup set (178GB, previously unbacked-up and irreplaceable)

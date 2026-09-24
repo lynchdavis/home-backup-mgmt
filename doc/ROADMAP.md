@@ -90,9 +90,10 @@ stale the way `GAPS.md` §2.1 did.
       interactive `./idrive` config wizard via tmux, confirmed persisted,
       "Backupset is updated"). 5TB iDrive quota, only 1.68TB used at the
       time — plenty of headroom.
-      - [x] `videos/` + `archive/` (178GB) — done, added to iDrive. Initial
-            upload run triggered manually 2026-09-24 (rather than waiting
-            for the next 03:30 cron), running in the background.
+      - [x] `videos/` + `archive/` (178GB) — done, added to iDrive.
+            Initial upload triggered manually 2026-09-24 (rather than
+            waiting for the next 03:30 cron) — **completed same day**:
+            52,781 files, 177.07GB, 0 failures. Fully landed.
       - [ ] **Parked for operator review**: `backups/{Alex Backup, Leigh
             Backup, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state,
             logs}` (~50GB old-machine backups) — operator wants to review
