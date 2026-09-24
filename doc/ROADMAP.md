@@ -90,15 +90,18 @@ stale the way `GAPS.md` §2.1 did.
       interactive `./idrive` config wizard via tmux, confirmed persisted,
       "Backupset is updated"). 5TB iDrive quota, only 1.68TB used at the
       time — plenty of headroom.
-      - [x] `videos/` + `archive/` (178GB) — done, added to iDrive.
-      - [ ] **Follow-up**: `backups/{Alex Backup, Leigh Backup, 2018-05-06,
-            ldavis-FP-mbp, saratoga-pre-migration-state, logs}` (~50GB
-            old-machine backups) — same fix applies, small enough to just
-            add, not yet done.
-      - [ ] **Follow-up, larger**: `backups/host-backups/{2024-02-07-LynchMBP
-            313G, 2026-05-19-LynchMBP 695G}` (~1TB) — needs a scope
-            decision (full inclusion vs. curated subset vs. accept-as-is)
-            before adding, given the size relative to the 5TB quota.
+      - [x] `videos/` + `archive/` (178GB) — done, added to iDrive. Initial
+            upload run triggered manually 2026-09-24 (rather than waiting
+            for the next 03:30 cron), running in the background.
+      - [ ] **Parked for operator review**: `backups/{Alex Backup, Leigh
+            Backup, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state,
+            logs}` (~50GB old-machine backups) — operator wants to review
+            contents before adding, not a technical blocker this time
+            (same fix would apply — just add the paths).
+      - [ ] **Parked for operator review**: `backups/host-backups/{2024-02-07-LynchMBP
+            313G, 2026-05-19-LynchMBP 695G}` (~1TB) — operator wants to
+            evaluate these snapshots themselves before deciding scope
+            (full inclusion vs. curated subset vs. accept-as-is).
       **Context (not an open item):** the *original* pre-migration local
       copy of saratoga's mounts (12 NFS exports, ~2.67TB, at the old
       `backups-00/saratoga/`) no longer exists — that pool was wiped

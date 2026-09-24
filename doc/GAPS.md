@@ -269,7 +269,7 @@ Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 T
 - **For the two LynchMBP snapshots (~1TB)**: needs a decision first — full inclusion, a curated subset, or accept as-is — before adding, given the size.
 - **Move into `backups-00/historical/`** (a new ZFS dataset under the managed pool) was the original fix idea here — now less relevant for videos/archive/old-machine-backups since direct iDrive inclusion is simpler and doesn't touch the already-95%-full `backups-00` pool at all.
 
-**Queued?** videos/archive: done 2026-09-24. Old-machine-backups (~50GB): not started, same-day follow-up candidate. LynchMBP snapshots (~1TB): not started, needs a scope decision first.
+**Queued?** videos/archive: done 2026-09-24 (initial upload run triggered manually same day). Old-machine-backups (~50GB) and the LynchMBP snapshots (~1TB): parked — operator wants to personally review contents before either is added, not a technical blocker.
 
 ### 3.1 No capacity-trending alarm
 
