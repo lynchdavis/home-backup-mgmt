@@ -4,11 +4,19 @@ What this backup system doesn't (yet) do, and why each gap matters. Living doc �
 
 **Last reviewed:** 2026-09-24.
 **Reviewer:** ldavis (with Claude).
-**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus, lynchmbp) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), **95% full (181GB free)**. Off-site copy (§1.2) confirmed operational since 2026-06-01 — was misdocumented as open/failing until today. New since May: versioned `.deb` packaging to a stable `/opt/server-backups` (ADR-006), a read-only status dashboard (ADR-007), and `dump-saratoga-config` migrated off the deprecated TrueNAS REST API — see `CHANGELOG.md`.
+**State at review:** A1 saratoga DR + A2 repos (40) + A2 hosts (arrow-iii, pilatus, lynchmbp) all operational; tnreplicate + tourbillon kodiak-side service users in place; refactored bootstrap scripts captured. Pool `backups-00` is one drive (`WDC_WD40EFRX`), **95% full (181GB free)**. Off-site copy (§1.2) confirmed operational since 2026-06-01 — was misdocumented as open/failing until today — but covers a narrower scope than believed: `tank/*` (~1.65TB) only, not `media/*` (~547GB, by design) or `hosts/*` (a real gap against ADR-005's own design). New since May: versioned `.deb` packaging to a stable `/opt/server-backups` (ADR-006), a read-only status dashboard (ADR-007), and `dump-saratoga-config` migrated off the deprecated TrueNAS REST API — see `CHANGELOG.md`.
 
 **Adjacent storage on kodiak** (informational, not part of the backup system):
 
-- `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-05-28, 1.4 TB used / 2.5 TB free** (was 3.5 TB used / 331 GB free before reclamation). The reclaim removed `host-backups/saratoga/photography` (1.5 TB, verified redundant per migration checklist) and `data-00/photography` staging (625 GB, same provenance). What's left is ~50 GB of irreplaceable old-machine backups (Alex/Leigh/2018/FP-mbp/saratoga-pre-migration) plus ~1 TB of bulk content (videos, ISOs, virtualbox images, applications). None of `data-00` is backed up anywhere — see §2.4 below.
+- `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-09-24, 1.4 TB used / 2.5 TB free.** Current `backups/` inventory, verified directly (`du -sh`):
+  - `Alex Backup` (14G), `Leigh Backup 2015-08-16` (33G), `2018-05-06` (1.1G), `ldavis-FP-mbp` (822M), `logs` (320M), `saratoga-pre-migration-state` (1.1M) — the ~50GB "irreplaceable old-machine backups" bucket from earlier reviews.
+  - `host-backups/2024-02-07-LynchMBP` (313G) and `host-backups/2026-05-19-LynchMBP` (695G) — two migration-era laptop snapshots, **not previously itemized in this doc** — together over 1TB, not backed up anywhere. Worth folding into a future review of §2.4's scope (currently written as if the irreplaceable bucket is only ~50GB; these two alone dwarf that).
+  - `host-backups/saratoga/` — now just an empty stub (4.0K); the 1.5TB photography copy that lived here was reclaimed 2026-05-28 (see below) after hash-verification.
+  - `host-backups/dev-01-cyfir` (12G) — reference pattern, see `HOST-HYGIENE.md`.
+  - Roughly ~1TB of the reproducible bulk (videos, ISOs, VM images, applications) mentioned in earlier reviews wasn't re-verified this pass.
+  None of `data-00` is backed up anywhere — see §2.4 below.
+
+**History — the original pre-migration local copy of saratoga's mounts** (surfaced 2026-09-24, answering an operator question; not an open gap, purely for the record): before the FreeNAS/TrueNAS-CORE → TrueNAS SCALE rebuild, a full ad hoc local backup of saratoga's live NFS exports was made at `/kodiak00/backups-00/saratoga/` (12 exports, ~2.67TB, via since-removed `scripts/backup-saratoga.sh` + `backup-photography-parallel.sh`) plus a small OS-side reference capture at `saratoga-pre-migration-state/` (autofs maps, `rpcinfo`/`showmount` dumps, a TrueNAS-13.0 OS tarball). **The bulk 2.67TB copy no longer exists** — confirmed via ZFS dataset creation timestamps: the current `backups-00` pool was created 2026-05-23 21:47 ("freshly wiped" per the 2026-05-24 CHANGELOG entry), one day after the pre-migration-state capture (dated 2026-05-19) — that pool/drive was wiped to build today's TrueNAS-replication architecture. Only the small reference-state capture survives (on the separate `data-00` volume, unaffected by the wipe). **Practical consequence:** there is no way back to a pre-migration snapshot of saratoga — the current `backups-00/saratoga/{tank,media}` datasets (kept current by TrueNAS Replication Tasks, A1) are the sole surviving copy on kodiak. This was the intended outcome of the migration (per ADR-001), not an accidental loss, but worth having on record.
 
 The point of this doc is to be honest about what could go wrong, not to chase zero risk. Personal infra; pragmatic tradeoffs are the goal. For each gap: what it is, what it costs, whether a fix is queued.
 
@@ -86,17 +94,43 @@ was the opposite. Digging into the full per-run logs
   described is also stale — resolved at some point without a doc update;
   `idrivecron.service` runs fine as a systemd daemon.
 
-**This Tier-1 catastrophic gap is closed.** Off-site coverage matches
-ADR-005's scope (photography + non-photo archive + active + hosts, ~1.65TB)
-and has been reliably current for nearly 4 months.
+**This Tier-1 catastrophic gap is closed for the scope actually
+configured.** But that scope is narrower than "the complete TrueNAS
+replica" and even narrower than ADR-005's own original design — checked
+2026-09-24 by diffing the live iDrive backup-set content list against the
+full `backups-00/saratoga` structure:
 
-**Still open, smaller in scope:** the restore drill from iDrive (§1.3) has
-never been exercised — backing up is verified, restoring is not. The
-"decommission the workstation device" step from ADR-005's transition plan
-also hasn't been explicitly confirmed done.
+- **Covered** (`tank/active/*` + `tank/archive/*`, ~1.65TB): aviation,
+  finance-current, flightclub-personal, personal (active); books,
+  employers, finance, legal, medical, personal, photography, software,
+  writing (archive). The genuinely irreplaceable, non-reproducible
+  material — this part is solid.
+- **Not covered — `media/*` entirely** (audiobooks, movies, music flac+aac,
+  tv, staging — **~547GB**): by design, per ADR-005's "irreplaceable
+  subset only" scoping — reproducible/re-rippable content, reasonably
+  excluded.
+- **Not covered — `tank/scratch` + `tank/staging`**: transient, reasonably
+  excluded.
+- **Not covered — `backups-00/hosts/*`** (arrow-iii, pilatus, lynchmbp,
+  ldavis-dev-01 — lynchmbp alone is 994GB): **this contradicts ADR-005's
+  own documented scope**, which explicitly included "hosts (~17GB
+  estimated at design time)." Never actually added to the live iDrive
+  backup-set config — a real drift between design and what's running, not
+  a deliberate exclusion like the two above.
+- Not covered — `backups-00/repos` (308MB): absent, but trivially
+  recoverable from GitHub/Bitbucket regardless — doesn't matter in
+  practice.
 
-**Queued?** Closed 2026-09-24. Restore drill: tracked in §1.3 and
-`doc/ROADMAP.md`.
+**Still open:** wiring `backups-00/hosts/*` into the iDrive backup set (to
+actually match ADR-005's design) or consciously re-scoping ADR-005 to
+document the exclusion as intentional. The restore drill from iDrive
+(§1.3) has also never been exercised — backing up is verified, restoring
+is not. The "decommission the workstation device" step from ADR-005's
+transition plan hasn't been explicitly confirmed done either.
+
+**Queued?** The "is anything reaching iDrive at all" catastrophic gap:
+closed 2026-09-24. The hosts-not-included scope gap, and the restore
+drill: not started, tracked in `doc/ROADMAP.md`.
 
 ---
 

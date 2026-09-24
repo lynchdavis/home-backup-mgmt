@@ -6,6 +6,41 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24 (4)
+
+### Documented — saratoga pre-migration history; found iDrive's scope excludes host backups
+
+Two findings from an operator question about the old pre-migration backup
+copy.
+
+- **History recorded** (`GAPS.md` "Adjacent storage" section): before the
+  TrueNAS-CORE → SCALE rebuild, a full ad hoc local backup of saratoga's
+  NFS exports existed at `/kodiak00/backups-00/saratoga/` (12 exports,
+  ~2.67TB). Confirmed via ZFS dataset creation timestamps that **it no
+  longer exists** — the `backups-00` pool was created 2026-05-23 21:47
+  ("freshly wiped" per the 2026-05-24 entry above), one day after the
+  pre-migration-state capture. Only the small OS-side reference capture
+  (`saratoga-pre-migration-state/`, on the separate unaffected `data-00`
+  volume) survives. The current `backups-00/saratoga/{tank,media}`
+  datasets are the sole surviving copy of saratoga's data on kodiak —
+  expected per ADR-001's design, not an accidental loss, but now on record.
+- **`data-00`'s inventory corrected**: two migration-era laptop snapshots
+  (`host-backups/2024-02-07-LynchMBP` 313G,
+  `host-backups/2026-05-19-LynchMBP` 695G) were not itemized in earlier
+  reviews — the "irreplaceable, unbacked-up" bucket in `data-00` is over
+  1TB, not the ~50GB previously cited. `host-backups/saratoga/` confirmed
+  as just an empty stub now (the 1.5TB photography copy there was reclaimed
+  in May).
+- **Found while cross-checking**: answering "is the complete TrueNAS set
+  going to iDrive?" — no. Diffed the live iDrive backup-set content list
+  against the full `backups-00/saratoga` structure: only `tank/active/*` +
+  `tank/archive/*` (~1.65TB) is covered. `media/*` (~547GB) is excluded by
+  design (matches ADR-005's "irreplaceable subset" scoping). But
+  `backups-00/hosts/*` is **also** excluded, despite ADR-005's own design
+  explicitly including hosts — a real drift between documented design and
+  live config, not a deliberate choice. `GAPS.md` §1.2 and `ROADMAP.md`
+  updated with the precise coverage breakdown.
+
 ## 2026-09-24 (3)
 
 ### Corrected — off-site (iDrive) has been operational since June; earlier "failing" diagnosis was wrong

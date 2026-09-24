@@ -30,15 +30,25 @@ stale the way `GAPS.md` §2.1 did.
              (mirrors `restore-drill.sh`'s shape) and add to the monthly
              cron alongside the two host drills — this run was manual only.
 
-2. - [x] **Off-site copy** (`GAPS.md` §1.2, ADR-005) — **closed 2026-09-24.**
-       Initial worry (a truncated log tail suggesting daily failures) was
-       **wrong** — full per-run logs show 99/99 daily runs `Success` since
-       the initial 1.63TB/142,374-file upload completed 2026-06-01, current
-       as of today (0 new files needed — steady state). The
-       `FileNotFoundError` that looked alarming is iDrive's own client
-       logging a harmless warning when there's no error-detail file to open
-       (because there were no errors). Nothing to fix; the Tier-1
-       catastrophic gap is genuinely closed, not just diagnosed.
+2. - [x] **Off-site copy — "is anything reaching iDrive" is closed** (`GAPS.md`
+       §1.2, ADR-005) — closed 2026-09-24. Initial worry (a truncated log
+       tail suggesting daily failures) was **wrong** — full per-run logs
+       show 99/99 daily runs `Success` since the initial
+       1.63TB/142,374-file upload completed 2026-06-01, current as of today
+       (0 new files needed — steady state). The `FileNotFoundError` that
+       looked alarming is iDrive's own client logging a harmless warning
+       when there's no error-detail file to open (because there were no
+       errors). Nothing to fix here.
+       - [ ] **Follow-up, found same day**: the *scope* actually configured
+             is narrower than believed. Covers `tank/active/*` +
+             `tank/archive/*` (~1.65TB) only. `media/*` (~547GB) is
+             excluded by design (reproducible content, matches ADR-005).
+             But `backups-00/hosts/*` (arrow-iii, pilatus, lynchmbp,
+             ldavis-dev-01) is **also** excluded — despite ADR-005's own
+             design explicitly including hosts (~17GB estimated at design
+             time). Never wired into the live backup-set config. Either
+             add it, or consciously re-scope ADR-005 to document the
+             exclusion as intentional.
        - [ ] **Follow-up**: restore drill from iDrive has never been
              exercised (backing up ≠ restorable) — see `GAPS.md` §1.3.
        - [ ] **Follow-up**: confirm the old workstation iDrive device was
@@ -68,12 +78,25 @@ stale the way `GAPS.md` §2.1 did.
 
 ## Coverage gaps (planned, not urgent)
 
-- [~] **`/kodiak00/data-00`'s ~50GB irreplaceable subset unbacked up**
+- [~] **`/kodiak00/data-00`'s irreplaceable subset unbacked up**
       (`GAPS.md` §2.4) — **paused 2026-09-24**: `backups-00` is at 95%
       capacity (181GB free, mostly consumed by hondajet's catch-up sync
-      landing 468GB). Adding another ~50GB to an already-tight pool isn't
-      wise right now. Revisit once the pool-mirror decision (Tier 1 #2)
-      lands, or capacity otherwise improves.
+      landing 468GB). Adding more to an already-tight pool isn't wise right
+      now. Revisit once the pool-mirror decision (Backlog) lands, or
+      capacity otherwise improves. Scope note found 2026-09-24: the
+      irreplaceable bucket is larger than the ~50GB earlier reviews cited —
+      two previously-unitemized migration-era laptop snapshots
+      (`host-backups/2024-02-07-LynchMBP` 313G,
+      `host-backups/2026-05-19-LynchMBP` 695G) push it well over 1TB. See
+      `GAPS.md`'s "Adjacent storage" note for the full current inventory.
+      **Context (not an open item):** the *original* pre-migration local
+      copy of saratoga's mounts (12 NFS exports, ~2.67TB, at the old
+      `backups-00/saratoga/`) no longer exists — that pool was wiped
+      2026-05-23 to build the current TrueNAS-replication architecture.
+      Only a small OS-side reference capture (`saratoga-pre-migration-state/`)
+      survives; the current `backups-00/saratoga/{tank,media}` datasets are
+      the sole surviving copy of saratoga's data on kodiak. Full history in
+      `GAPS.md`'s "Adjacent storage" section.
 - [x] **TrueNAS REST API deprecation** (`GAPS.md` §4.4, found 2026-09-19) —
       `bin/dump-saratoga-config.py` migrated to the official
       `truenas_api_client` (JSON-RPC/WebSocket), verified against live
