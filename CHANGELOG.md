@@ -6,6 +6,37 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24 (5)
+
+### Added — `data-00/videos` + `data-00/archive` to the live iDrive backup set (178GB, previously unbacked-up and irreplaceable)
+
+Follow-up to CHANGELOG 2026-09-24 (4)'s finding that `data-00` isn't part
+of any backup mechanism.
+
+- **Miscategorization corrected**: `videos/` (99GB — real family footage,
+  birthdays/dance recitals, 2004-2007) and `archive/` (79GB — per-person
+  personal document archives) were lumped into "reproducible bulk" in
+  earlier `GAPS.md` reviews alongside ISOs/VM images/applications. They're
+  not reproducible. `GAPS.md` §2.4 and the "Adjacent storage" section
+  corrected with a full, accurate inventory breakdown.
+- **Fixed the same day**: added both paths directly to the live iDrive
+  backup set. Unlike saratoga's `canmount=noauto` ZFS datasets, `data-00`
+  is a plain always-mounted ext4 filesystem — no snapshot-clone workaround
+  needed, no `backups-00` pool capacity touched at all (relevant given the
+  pool is at 95% — this sidesteps that constraint entirely). Confirmed 5TB
+  iDrive quota with only 1.68TB used, plenty of headroom.
+- **Mechanism**: iDrive's backup-set is stored encrypted
+  (`BackupsetFile.enc`) and only editable via the interactive `./idrive`
+  terminal wizard (Main menu → "Edit backup set" → opens a plain-text vi
+  buffer of paths, one per line). Drove it via `tmux` (send-keys +
+  capture-pane) so each step could be narrated and verified before
+  committing — appended the two new paths, saved, reopened to confirm
+  persistence ("Backupset is updated", 15 total paths), exited cleanly.
+  iDrive's own backup-set scan kicked off automatically on save.
+- **Not yet done**: the ~50GB old-machine-backups bucket (small, same fix
+  applies) and the ~1TB of migration-era LynchMBP snapshots (needs a scope
+  decision first, given the size). Both tracked in `doc/ROADMAP.md`.
+
 ## 2026-09-24 (4)
 
 ### Documented — saratoga pre-migration history; found iDrive's scope excludes host backups

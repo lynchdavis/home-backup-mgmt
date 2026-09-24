@@ -79,16 +79,26 @@ stale the way `GAPS.md` §2.1 did.
 ## Coverage gaps (planned, not urgent)
 
 - [~] **`/kodiak00/data-00`'s irreplaceable subset unbacked up**
-      (`GAPS.md` §2.4) — **paused 2026-09-24**: `backups-00` is at 95%
-      capacity (181GB free, mostly consumed by hondajet's catch-up sync
-      landing 468GB). Adding more to an already-tight pool isn't wise right
-      now. Revisit once the pool-mirror decision (Backlog) lands, or
-      capacity otherwise improves. Scope note found 2026-09-24: the
-      irreplaceable bucket is larger than the ~50GB earlier reviews cited —
-      two previously-unitemized migration-era laptop snapshots
-      (`host-backups/2024-02-07-LynchMBP` 313G,
-      `host-backups/2026-05-19-LynchMBP` 695G) push it well over 1TB. See
-      `GAPS.md`'s "Adjacent storage" note for the full current inventory.
+      (`GAPS.md` §2.4) — **partially fixed 2026-09-24.** Turned out the
+      original plan (move into `backups-00/historical/`, blocked by the
+      pool's 95% capacity) wasn't actually needed for most of this: `videos/`
+      (99GB, real family footage) and `archive/` (79GB, personal document
+      archives) were miscategorized in earlier reviews as "replaceable
+      bulk" — corrected, and **added directly to the live iDrive backup
+      set** (`data-00` is plain ext4, no `canmount=noauto` restriction, so
+      no ZFS/pool-capacity involvement at all — walked through the
+      interactive `./idrive` config wizard via tmux, confirmed persisted,
+      "Backupset is updated"). 5TB iDrive quota, only 1.68TB used at the
+      time — plenty of headroom.
+      - [x] `videos/` + `archive/` (178GB) — done, added to iDrive.
+      - [ ] **Follow-up**: `backups/{Alex Backup, Leigh Backup, 2018-05-06,
+            ldavis-FP-mbp, saratoga-pre-migration-state, logs}` (~50GB
+            old-machine backups) — same fix applies, small enough to just
+            add, not yet done.
+      - [ ] **Follow-up, larger**: `backups/host-backups/{2024-02-07-LynchMBP
+            313G, 2026-05-19-LynchMBP 695G}` (~1TB) — needs a scope
+            decision (full inclusion vs. curated subset vs. accept-as-is)
+            before adding, given the size relative to the 5TB quota.
       **Context (not an open item):** the *original* pre-migration local
       copy of saratoga's mounts (12 NFS exports, ~2.67TB, at the old
       `backups-00/saratoga/`) no longer exists — that pool was wiped

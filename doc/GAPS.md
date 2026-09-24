@@ -8,13 +8,14 @@ What this backup system doesn't (yet) do, and why each gap matters. Living doc �
 
 **Adjacent storage on kodiak** (informational, not part of the backup system):
 
-- `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-09-24, 1.4 TB used / 2.5 TB free.** Current `backups/` inventory, verified directly (`du -sh`):
-  - `Alex Backup` (14G), `Leigh Backup 2015-08-16` (33G), `2018-05-06` (1.1G), `ldavis-FP-mbp` (822M), `logs` (320M), `saratoga-pre-migration-state` (1.1M) — the ~50GB "irreplaceable old-machine backups" bucket from earlier reviews.
-  - `host-backups/2024-02-07-LynchMBP` (313G) and `host-backups/2026-05-19-LynchMBP` (695G) — two migration-era laptop snapshots, **not previously itemized in this doc** — together over 1TB, not backed up anywhere. Worth folding into a future review of §2.4's scope (currently written as if the irreplaceable bucket is only ~50GB; these two alone dwarf that).
-  - `host-backups/saratoga/` — now just an empty stub (4.0K); the 1.5TB photography copy that lived here was reclaimed 2026-05-28 (see below) after hash-verification.
-  - `host-backups/dev-01-cyfir` (12G) — reference pattern, see `HOST-HYGIENE.md`.
-  - Roughly ~1TB of the reproducible bulk (videos, ISOs, VM images, applications) mentioned in earlier reviews wasn't re-verified this pass.
-  None of `data-00` is backed up anywhere — see §2.4 below.
+- `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-09-24, 1.4 TB used / 2.5 TB free.** Current top-level + `backups/` inventory, verified directly (`du -sh`):
+  - **`videos/` (99GB)** and **`archive/` (79GB)** — **corrected 2026-09-24**: previous reviews lumped these into "reproducible bulk." They're not. `videos/` is real family footage (birthdays, dance recitals, dated 2004-2007); `archive/` is per-person personal document archives (`Davis_Michelle`, `Davis_Cindy`, `Davis_Lynch`, medical/aviation-related folders). **Fixed same day** — added directly to the live iDrive backup set (`/kodiak00/data-00/videos/`, `/kodiak00/data-00/archive/`), no ZFS snapshot-clone workaround needed since `data-00` is a plain always-mounted ext4 path, unlike saratoga's `canmount=noauto` datasets. iDrive account had 5TB headroom (1.68TB used of 5TB at the time), plenty of room.
+  - `backups/Alex Backup` (14G), `backups/Leigh Backup 2015-08-16` (33G), `backups/2018-05-06` (1.1G), `backups/ldavis-FP-mbp` (822M), `backups/logs` (320M), `backups/saratoga-pre-migration-state` (1.1M) — the ~50GB "irreplaceable old-machine backups" bucket from earlier reviews. **Still not backed up anywhere** — smaller and lower-profile than videos/archive, not yet added to iDrive.
+  - `backups/host-backups/2024-02-07-LynchMBP` (313G) and `backups/host-backups/2026-05-19-LynchMBP` (695G) — two migration-era laptop snapshots, not previously itemized in this doc — together over 1TB. **Still not backed up anywhere** — not yet evaluated for iDrive inclusion (large; worth a deliberate scope decision, not an automatic add).
+  - `backups/host-backups/saratoga/` — now just an empty stub (4.0K); the 1.5TB photography copy that lived here was reclaimed 2026-05-28 (see below) after hash-verification.
+  - `backups/host-backups/dev-01-cyfir` (12G) — reference pattern, see `HOST-HYGIENE.md`.
+  - Genuinely reproducible, lower-priority: `iso/` (31GB) + `G1000_sim_130-002.iso` (2.2GB), `virtualbox/` (108GB), `applications/` (1.6GB). Not backed up anywhere, and reasonably so.
+  `data-00` is otherwise not part of any backup mechanism (no ZFS snapshots, no sanoid, not part of A1/A2) — only the two now-added iDrive paths have any off-site coverage.
 
 **History — the original pre-migration local copy of saratoga's mounts** (surfaced 2026-09-24, answering an operator question; not an open gap, purely for the record): before the FreeNAS/TrueNAS-CORE → TrueNAS SCALE rebuild, a full ad hoc local backup of saratoga's live NFS exports was made at `/kodiak00/backups-00/saratoga/` (12 exports, ~2.67TB, via since-removed `scripts/backup-saratoga.sh` + `backup-photography-parallel.sh`) plus a small OS-side reference capture at `saratoga-pre-migration-state/` (autofs maps, `rpcinfo`/`showmount` dumps, a TrueNAS-13.0 OS tarball). **The bulk 2.67TB copy no longer exists** — confirmed via ZFS dataset creation timestamps: the current `backups-00` pool was created 2026-05-23 21:47 ("freshly wiped" per the 2026-05-24 CHANGELOG entry), one day after the pre-migration-state capture (dated 2026-05-19) — that pool/drive was wiped to build today's TrueNAS-replication architecture. Only the small reference-state capture survives (on the separate `data-00` volume, unaffected by the wipe). **Practical consequence:** there is no way back to a pre-migration snapshot of saratoga — the current `backups-00/saratoga/{tank,media}` datasets (kept current by TrueNAS Replication Tasks, A1) are the sole surviving copy on kodiak. This was the intended outcome of the migration (per ADR-001), not an accidental loss, but worth having on record.
 
@@ -251,23 +252,24 @@ Kodiak's *system* is rebuildable from PLAYBOOK. Anything *uncommitted* in `~ldav
 
 ---
 
-### 2.4 `/kodiak00/data-00/` historical bulk storage isn't backed up
+### 2.4 `/kodiak00/data-00/` historical bulk storage — mostly still unbacked up, corrected + partially fixed 2026-09-24
 
-Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 TB of LVM-ext4 on `sdc` (`/kodiak00/data-00` + `/kodiak00/media-00`). As of the 2026-05-28 reclamation, `data-00` holds ~1.4 TB:
+Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 TB of LVM-ext4 on `sdc` (`/kodiak00/data-00` + `/kodiak00/media-00`, the latter confirmed 2026-09-24 to be completely empty). As of 2026-09-24, `data-00` holds ~1.4 TB:
 
-- **~50 GB irreplaceable**: `data-00/backups/{Alex Backup, Leigh Backup 2015-08-16, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state, logs}`. Old-machine backups; those machines are gone. **Single copy on a single disk.**
-- **~1 TB replaceable bulk**: `data-00/{applications, archive, iso, videos, virtualbox}` + leftover `data-00/backups/host-backups/`. Re-downloadable / re-buildable, mostly.
+- **`videos/` (99GB) + `archive/` (79GB) — irreplaceable, previously miscategorized as "replaceable bulk."** `videos/` is real family footage; `archive/` is per-person personal document archives. **Fixed 2026-09-24**: both added directly to the live iDrive backup set (no ZFS workaround needed — `data-00` is plain ext4, not subject to the `canmount=noauto` restriction saratoga's datasets have).
+- **~50GB irreplaceable, still unbacked up**: `backups/{Alex Backup, Leigh Backup 2015-08-16, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state, logs}`. Old-machine backups; those machines are gone. **Single copy on a single disk.**
+- **~1TB irreplaceable, still unbacked up, found 2026-09-24**: `backups/host-backups/{2024-02-07-LynchMBP, 2026-05-19-LynchMBP}` — two migration-era laptop snapshots. Larger than the other two buckets combined; needs a deliberate scope/cost decision before adding to iDrive (unlike videos/archive, which were small enough to just add).
+- **Genuinely reproducible, lower priority**: `applications/` (1.6GB), `iso/` + `G1000_sim_130-002.iso` (~33GB), `virtualbox/` (108GB). Not backed up, reasonably so.
 
-The irreplaceable ~50 GB is the real concern: if sdc dies, those bytes are gone permanently and the original machines no longer exist to reconstitute them.
-
-**Severity:** medium. Low probability (drive failure) × catastrophic outcome (irrecoverable) × small subset (50 GB).
+**Severity:** medium-high for the two still-unbacked-up irreplaceable buckets (~1TB+, not ~50GB as this section said until today) — if `sdc` dies, those bytes are gone permanently.
 
 **Fix options:**
 
-- **Move the irreplaceable subset into `backups-00/historical/`** — a new ZFS dataset under the managed pool. 50 GB doesn't move the needle on `backups-00` capacity, and it brings the bytes under sanoid snapshots + (eventually) iDrive off-site. Cheapest, biggest reduction in loss-probability.
-- **Accept as-is** — recognize that those 50 GB live on one disk and will be gone if it dies.
+- **For the ~50GB old-machine-backups bucket**: same approach as videos/archive — just add the paths to the iDrive backup set directly. Small enough not to need a scope discussion.
+- **For the two LynchMBP snapshots (~1TB)**: needs a decision first — full inclusion, a curated subset, or accept as-is — before adding, given the size.
+- **Move into `backups-00/historical/`** (a new ZFS dataset under the managed pool) was the original fix idea here — now less relevant for videos/archive/old-machine-backups since direct iDrive inclusion is simpler and doesn't touch the already-95%-full `backups-00` pool at all.
 
-**Queued?** Not started. Worth doing alongside the next operational pass.
+**Queued?** videos/archive: done 2026-09-24. Old-machine-backups (~50GB): not started, same-day follow-up candidate. LynchMBP snapshots (~1TB): not started, needs a scope decision first.
 
 ### 3.1 No capacity-trending alarm
 
