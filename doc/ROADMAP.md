@@ -30,23 +30,24 @@ stale the way `GAPS.md` §2.1 did.
              (mirrors `restore-drill.sh`'s shape) and add to the monthly
              cron alongside the two host drills — this run was manual only.
 
-2. - [ ] **Mirror the pool** (`GAPS.md` §1.1). Single biggest reduction in
-       catastrophic-loss probability — `backups-00` is one drive, now at
-       **95% full (181GB free)** as of 2026-09-24 (was 88% yesterday;
-       hondajet's 468GB catch-up sync landing explains the jump — not a
-       leak). Getting more pressing. **Needs the operator**: buy a second
-       ~4TB drive (~$80-120); I can run `zpool attach` and monitor the
-       resilver once it's physically installed, but can't purchase/install
-       hardware.
+2. - [ ] **Off-site copy — daily job failing silently** (`GAPS.md` §1.2,
+       ADR-005) — **re-diagnosed 2026-09-24, materially different from what
+       was documented.** The "iDrive GUI rejects headless invocation"
+       blocker is stale: `idriveforlinux 1.7.0` is installed,
+       `idrivecron.service` runs as a proper systemd daemon, and the 13
+       `backups-00/idrive-staging/*` clone datasets ADR-005 designed are
+       mounted and present. But the daily 03:30 backup job has hit
+       `IOError: getfilecontent... FileNotFoundError` and died immediately
+       every day for at least 5 days (2026-09-20 through 2026-09-24) — no
+       `idevsutil` worker process running, no evidence of a completed run.
+       **Practically: `backups-00` is very likely not actually landing on
+       iDrive right now**, despite the service looking active. Needs
+       debugging (find the missing path in the daemon's fuller logs) before
+       any restore-drill or off-site verification work makes sense. Not
+       started — surfaced while answering an operator question, not yet
+       investigated further.
 
-3. - [ ] **Off-site copy execution** (`GAPS.md` §1.2, ADR-005). Design is
-       done; execution stalled because iDrive's `.deb`-installed client is
-       an Electron GUI app that rejects headless invocation, and the older
-       CLI installer (`idevsutil_dedup`) appears deprecated. **Needs a
-       decision**: keep chasing iDrive headless support, or pivot to
-       GAPS.md's own suggested alternative (`restic` → Backblaze B2 or
-       iDrive e2, ~$1.50/mo for the irreplaceable subset). Worth a short
-       research spike before committing either way.
+(Pool mirroring — moved to Backlog, 2026-09-24: operator wants to hold off on the drive-purchase decision for now.)
 
 ---
 
@@ -96,6 +97,18 @@ stale the way `GAPS.md` §2.1 did.
 ---
 
 ## Backlog (unordered, lower priority — triage later)
+
+**Mirror the pool** (`GAPS.md` §1.1) — paused 2026-09-24 at the operator's
+request; drive-purchase decision on hold. `backups-00` is one drive, now at
+**95% full (181GB free)**, up from 88% two days ago (hondajet's 468GB
+catch-up sync landing, not a leak). Confirmed via `lsblk`/`dmesg`: no spare
+drive exists anywhere on kodiak (`sdb` is the live OS boot disk — HDD, not
+SSD, contrary to a hallway-memory check that turned out stale; `sdc` is the
+already-in-use `data-00`/`media-00` MegaRAID array) and there's free SATA
+controller headroom for a new one whenever this is picked back up. Decision
+still open when revisited: same-size 4TB (redundancy only, ~$80-120) vs.
+larger e.g. 8TB (redundancy now + a future capacity-upgrade path via a
+later `zpool replace` of the original drive).
 
 **Small / monitoring** (`GAPS.md` Tier 3-4):
 - No capacity-trending alarm (pool at ~88%, no proactive alert)

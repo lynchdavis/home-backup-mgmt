@@ -60,7 +60,29 @@ The migration project's `MIGRATION-CHECKLIST.md` mentions an iDrive integration 
 - **Larger scope**: extend to all of `tank/active` (~520 MB) and `tank/finance` (small) — still tiny next to media.
 - **Full off-site**: everything. 2.4 TB at B2 = ~$15/mo. Tractable but big jump.
 
-**Queued?** Separate ADR pending. Most-irreplaceable subset first.
+**Update 2026-09-24**: re-checked live state while answering an operator
+question, and the picture is materially different from the "headless GUI
+rejection" blocker above — that part got resolved at some point without a
+doc update. Current reality (`bin/idrive-status.sh`):
+
+- `idriveforlinux 1.7.0` is installed; `idrivecron.service` is a healthy,
+  running, enabled systemd daemon — headless invocation is *not* the
+  blocker anymore.
+- The 13 `backups-00/idrive-staging/*` clone datasets ADR-005's mount
+  strategy designed are present and mounted.
+- **But** the daily 03:30 backup job has hit `IOError: getfilecontent...
+  FileNotFoundError` and died immediately every day for at least 5
+  consecutive days (2026-09-20 through 2026-09-24). No `idevsutil` worker
+  process running; no evidence in the log of a completed run.
+
+**Practical answer: `backups-00` is very likely not actually landing on
+iDrive right now**, despite the daemon looking active — this is a new,
+more specific bug (a missing file/path at backup-start time), not the
+old GUI/headless problem. Root cause not yet investigated (would need the
+daemon's fuller logs to find the specific missing path).
+
+**Queued?** Not started — surfaced 2026-09-24, needs its own debugging
+session. Tracked in `doc/ROADMAP.md` Tier 1.
 
 ---
 

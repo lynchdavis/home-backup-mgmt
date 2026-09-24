@@ -6,6 +6,41 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24 (2)
+
+### Found — off-site (iDrive) has been silently failing daily; pool-mirroring paused
+
+Two threads from a single operator question ("is backups-00 backed up to
+iDrive?").
+
+- **Investigated the pool-mirror drive question first.** Checked for a
+  spare drive on kodiak per the operator's memory of adding one "a few
+  months back": confirmed via `lsblk`/`cat /sys/block/sdb/queue/rotational`
+  that `sdb` is a spinning HDD (not the remembered SSD) and is kodiak's
+  live OS boot disk (`/`, `/var`, `/home`, swap) — not available, and
+  wouldn't be a good idea to reuse even if it were (couples the OS and one
+  mirror half's failure domains). `sdc` is the already-in-use
+  `data-00`/`media-00` MegaRAID array. `sda` is `backups-00` itself — the
+  drive being protected, not a spare. No spare drive exists anywhere on the
+  box; confirmed free SATA controller ports exist for whenever a new one is
+  bought. **Paused at operator's request** — drive-size decision (4TB vs
+  8TB) moved to `doc/ROADMAP.md`'s Backlog.
+- **Re-diagnosed the off-site (iDrive) gap while answering the actual
+  question**, and it's materially different from what `GAPS.md` §1.2
+  documented: the "GUI rejects headless invocation" blocker is stale —
+  `idriveforlinux 1.7.0` is installed and `idrivecron.service` runs as a
+  healthy, enabled systemd daemon, and ADR-005's 13
+  `backups-00/idrive-staging/*` clone datasets are mounted and present.
+  But (`bin/idrive-status.sh`): the daily 03:30 backup job has hit
+  `IOError: getfilecontent... FileNotFoundError` and died immediately every
+  day for at least 5 consecutive days (2026-09-20 through 2026-09-24) — no
+  `idevsutil` worker process running, no evidence of a completed run.
+  **Practical answer to the operator's question: no, `backups-00` is very
+  likely not actually landing on iDrive right now**, despite the daemon
+  looking active. Root cause (the specific missing path) not yet
+  investigated. `GAPS.md` §1.2 and `ROADMAP.md` Tier 1 updated to reflect
+  this instead of the stale headless-GUI narrative.
+
 ## 2026-09-24
 
 ### Migrated — `dump-saratoga-config` off the deprecated TrueNAS REST API (closes half of GAPS.md §4.4)
