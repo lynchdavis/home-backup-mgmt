@@ -20,10 +20,8 @@
     "id": 1,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780495200000
-      },
-      "last_snapshot": "tank/active@auto-2026-06-03_07-00"
+      "datetime": "2026-09-24T13:00:00+00:00",
+      "last_snapshot": "tank/active@auto-2026-09-24_06-00"
     },
     "vmware_sync": false
   },
@@ -48,10 +46,8 @@
     "id": 2,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780480800000
-      },
-      "last_snapshot": "tank/archive@auto-2026-06-03_03-00"
+      "datetime": "2026-09-24T10:00:00+00:00",
+      "last_snapshot": "tank/archive@auto-2026-09-24_03-00"
     },
     "vmware_sync": false
   },
@@ -76,10 +72,8 @@
     "id": 3,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780480800000
-      },
-      "last_snapshot": "tank/system@auto-2026-06-03_03-00"
+      "datetime": "2026-09-24T10:00:00+00:00",
+      "last_snapshot": "tank/system@auto-2026-09-24_03-00"
     },
     "vmware_sync": false
   },
@@ -104,10 +98,8 @@
     "id": 4,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780221600000
-      },
-      "last_snapshot": "tank/scratch@auto-2026-05-31_03-00"
+      "datetime": "2026-09-20T10:00:00+00:00",
+      "last_snapshot": "tank/scratch@auto-2026-09-20_03-00"
     },
     "vmware_sync": false
   },
@@ -132,10 +124,8 @@
     "id": 5,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780225200000
-      },
-      "last_snapshot": "media/music@auto-2026-05-31_04-00"
+      "datetime": "2026-09-20T11:00:00+00:00",
+      "last_snapshot": "media/music@auto-2026-09-20_04-00"
     },
     "vmware_sync": false
   },
@@ -160,10 +150,8 @@
     "id": 6,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780477200000
-      },
-      "last_snapshot": "tank@auto-tank-2026-06-03_02-00"
+      "datetime": "2026-09-24T09:00:00+00:00",
+      "last_snapshot": "tank@auto-tank-2026-09-24_02-00"
     },
     "vmware_sync": false
   },
@@ -188,10 +176,8 @@
     "id": 7,
     "state": {
       "state": "FINISHED",
-      "datetime": {
-        "$date": 1780477200000
-      },
-      "last_snapshot": "media@auto-media-2026-06-03_02-00"
+      "datetime": "2026-09-24T09:00:00+00:00",
+      "last_snapshot": "media@auto-media-2026-09-24_02-00"
     },
     "vmware_sync": false
   }

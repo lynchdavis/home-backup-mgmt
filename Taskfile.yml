@@ -14,7 +14,7 @@ tasks:
   vet:
     desc: Syntax-check all first-party Python
     cmds:
-      - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py dashboard/api/main.py dashboard/api/tourbillon_client.py
+      - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py bin/dump-saratoga-config.py dashboard/api/main.py dashboard/api/tourbillon_client.py
 
   test:
     desc: Run the existing test harness
@@ -45,8 +45,10 @@ tasks:
       - cp packaging/deb/prerm dist/deb-staging/DEBIAN/prerm
       - chmod 0755 dist/deb-staging/DEBIAN/postinst dist/deb-staging/DEBIAN/prerm
 
-      # Payload: bin/, dashboard/ (minus .venv — built by postinst on target), doc/
+      # Payload: bin/, dashboard/ (both minus .venv — built by postinst on
+      # target; venvs pin absolute interpreter paths, aren't relocatable), doc/
       - cp -r bin/. dist/deb-staging/opt/server-backups/bin/
+      - rm -rf dist/deb-staging/opt/server-backups/bin/.venv
       - cp -r dashboard/api dist/deb-staging/opt/server-backups/dashboard/
       - cp -r dashboard/web dist/deb-staging/opt/server-backups/dashboard/
       - cp dashboard/requirements.txt dist/deb-staging/opt/server-backups/dashboard/

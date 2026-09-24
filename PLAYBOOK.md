@@ -25,7 +25,7 @@ Pull-via-syncoid from kodiak is the "obviously correct" architecture (backup hos
 After four diagnosed dead-ends with concrete blast-radius (one broke sshd), we pivoted to push. TrueNAS owns its own side as root internally; we only have to make the *receive* side work on kodiak — a system we fully control.
 
 What this design gives up:
-- **Config not in repo (natively)** — recovered by `bin/dump-saratoga-config.sh` pulling the live state into JSON.
+- **Config not in repo (natively)** — recovered by `bin/dump-saratoga-config.py` pulling the live state into JSON.
 - **Saratoga owns "did it happen?"** — recovered by `tests/check-saratoga-replication.sh` on kodiak: passive "did a fresh snapshot land in the last 26h?" check.
 
 ---
@@ -268,12 +268,12 @@ chmod 600 ~/.config/saratoga/env
 Usage thereafter:
 ```bash
 . ~/.config/saratoga/env
-bin/dump-saratoga-config.sh   # snapshot live state into configs/
+bin/.venv/bin/python3 bin/dump-saratoga-config.py   # snapshot live state into configs/
 ```
 
 For cron entries that need API access (the scripts fail-fast on missing `TRUENAS_API_TOKEN`):
 ```
-0 4 * * 0  . $HOME/.config/saratoga/env && $HOME/development/systems-tools/server-backups/bin/dump-saratoga-config.sh
+0 4 * * 0  . $HOME/.config/saratoga/env && $HOME/development/systems-tools/server-backups/bin/.venv/bin/python3 $HOME/development/systems-tools/server-backups/bin/dump-saratoga-config.py
 ```
 
 **Gotcha worth flagging early:** the token only lives in shell environment variables during a session. If you didn't persist it the first time you generated it, the only fix is regenerating a new one in the UI — TrueNAS never re-displays an issued token.
@@ -347,7 +347,7 @@ The tourbillon crontab assumes `~tourbillon/.config/tourbillon/env` exists (gith
 3. Add the Replication Task — easiest via `bin/apply-<target>-tasks.sh` mirroring `apply-media-tasks.sh`. Same templated settings.
 4. Create the first parent-level snapshot via API (the precondition gotcha above).
 5. Fire the replication via API or UI Run Now.
-6. After it succeeds, run `bin/dump-saratoga-config.sh` to refresh the JSON in this repo.
+6. After it succeeds, run `bin/dump-saratoga-config.py` to refresh the JSON in this repo.
 
 ---
 
@@ -464,7 +464,7 @@ Logs to stderr if no fresh snapshot landed in the last 26h. Wire as cron mail if
 
 ```bash
 export TRUENAS_API_TOKEN='1-...'
-bin/dump-saratoga-config.sh
+bin/.venv/bin/python3 bin/dump-saratoga-config.py
 git -C /home/ldavis/development/systems-tools/server-backups diff configs/
 git -C /home/ldavis/development/systems-tools/server-backups commit -am "config: refresh after <change>"
 ```
@@ -519,7 +519,7 @@ configs/
     snapshot-task-media.json   template for new media-style snapshot tasks
     replication-task-media.json   template for new media-style replication tasks
 bin/
-  dump-saratoga-config.sh        refresh configs/ from TrueNAS API
+  dump-saratoga-config.py        refresh configs/ from TrueNAS API
   apply-media-tasks.sh           create snapshot + replication task for media via API
   check-saratoga-replication.sh  passive monitor: did a snapshot land in last 26h
 ```

@@ -18,3 +18,4 @@ __pycache__/
 # rebuildable, not source. See doc/ADR-006-packaging-and-install.md.
 dist/
 dashboard/.venv/
+bin/.venv/

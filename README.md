@@ -14,7 +14,7 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 - **[doc/GAPS.md](doc/GAPS.md)** — honest inventory of what this system doesn't do yet, tiered by severity. Living doc; review after major changes.
 - **[doc/ROADMAP.md](doc/ROADMAP.md)** — prioritized execution plan built from GAPS.md + the ADRs (bugs → Tier 1 → active threads → coverage gaps → backlog). Living doc; check items off as they land.
 - **[CHANGELOG.md](CHANGELOG.md)** — pragmatic record of functional changes (what shipped, when, what to remove later).
-- `configs/` — JSON dumps of the live TrueNAS replication / snapshot / SSH configuration. Refresh with `bin/dump-saratoga-config.sh`.
+- `configs/` — JSON dumps of the live TrueNAS replication / snapshot / SSH configuration. Refresh with `bin/dump-saratoga-config.py`.
 - `configs/templates/` — JSON templates used to create new tasks via API.
 - `bin/` — small scripts for setup, monitoring, and config dumping. No framework; each script does one thing.
 - `doc/` — ADRs and explanations (e.g., `doc/NAMING.md` — name origins; `doc/CREDENTIALS.md` — credentials inventory + rotation paths; `doc/ADR-001-repo-mirror.md` — repo-mirror design; `doc/ADR-006-packaging-and-install.md` — versioned `.deb` packaging + `/opt/server-backups` install; `doc/ADR-007-backup-dashboard.md` — the read-only status dashboard).

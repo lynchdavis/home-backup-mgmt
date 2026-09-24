@@ -31,10 +31,13 @@ stale the way `GAPS.md` §2.1 did.
              cron alongside the two host drills — this run was manual only.
 
 2. - [ ] **Mirror the pool** (`GAPS.md` §1.1). Single biggest reduction in
-       catastrophic-loss probability — `backups-00` is one drive at ~88%
-       full. **Needs the operator**: buy a second ~4TB drive (~$80-120);
-       I can run `zpool attach` and monitor the resilver once it's
-       physically installed, but can't purchase/install hardware.
+       catastrophic-loss probability — `backups-00` is one drive, now at
+       **95% full (181GB free)** as of 2026-09-24 (was 88% yesterday;
+       hondajet's 468GB catch-up sync landing explains the jump — not a
+       leak). Getting more pressing. **Needs the operator**: buy a second
+       ~4TB drive (~$80-120); I can run `zpool attach` and monitor the
+       resilver once it's physically installed, but can't purchase/install
+       hardware.
 
 3. - [ ] **Off-site copy execution** (`GAPS.md` §1.2, ADR-005). Design is
        done; execution stalled because iDrive's `.deb`-installed client is
@@ -67,14 +70,19 @@ stale the way `GAPS.md` §2.1 did.
 
 ## Coverage gaps (planned, not urgent)
 
-- [ ] **`/kodiak00/data-00`'s ~50GB irreplaceable subset unbacked up**
-      (`GAPS.md` §2.4). Fix: move into a new `backups-00/historical/`
-      dataset — cheap, brings it under sanoid snapshots + future off-site.
-- [ ] **TrueNAS REST API deprecation** (`GAPS.md` §4.4, found 2026-09-19).
-      `bin/dump-saratoga-config.sh` + `bin/apply-media-tasks.sh` need
-      porting from REST to JSON-RPC 2.0/WebSocket before any saratoga
-      upgrade to 26.04+. Bounded, real work — schedule ahead of that
-      upgrade, not during it.
+- [~] **`/kodiak00/data-00`'s ~50GB irreplaceable subset unbacked up**
+      (`GAPS.md` §2.4) — **paused 2026-09-24**: `backups-00` is at 95%
+      capacity (181GB free, mostly consumed by hondajet's catch-up sync
+      landing 468GB). Adding another ~50GB to an already-tight pool isn't
+      wise right now. Revisit once the pool-mirror decision (Tier 1 #2)
+      lands, or capacity otherwise improves.
+- [x] **TrueNAS REST API deprecation** (`GAPS.md` §4.4, found 2026-09-19) —
+      `bin/dump-saratoga-config.py` migrated to the official
+      `truenas_api_client` (JSON-RPC/WebSocket), verified against live
+      saratoga. `apply-media-tasks.sh` deliberately deferred — one-shot,
+      non-idempotent task-creation script, no safe way to test blind, no
+      current need. Revisit at the next new task of this shape, or before
+      any actual 26.04 upgrade.
 - [ ] **Kodiak itself isn't backed up** (`GAPS.md` §2.3). Low severity
       (recoverable from GitHub + PLAYBOOK). Natural fix once a second
       always-on target exists.

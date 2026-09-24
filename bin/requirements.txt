@@ -1,0 +1,7 @@
+# truenas_api_client isn't on PyPI -- installed from GitHub, pinned to the
+# tag matching saratoga's current TrueNAS SCALE version (25.10.3.1). When
+# saratoga is upgraded, re-pin this to the matching TS-<version> tag --
+# the client's auth flow changed materially between this version and
+# master (SCRAM/PLAIN split for TrueNAS 26+; see
+# bin/dump-saratoga-config.py's module docstring).
+git+https://github.com/truenas/api_client.git@TS-25.10.3.1

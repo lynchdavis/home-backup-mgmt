@@ -271,20 +271,54 @@ Closed today. msmtp + gmail SMTP forwarder set up; tested end-to-end from both l
 
 ---
 
-### 4.4 Saratoga REST API deprecated — two scripts need migration to JSON-RPC/WebSocket
+### 4.4 Saratoga REST API deprecated — `dump-saratoga-config` migrated; `apply-media-tasks.sh` deliberately deferred
 
 Surfaced 2026-09-19 via a saratoga UI notification: the deprecated TrueNAS REST API was used to authenticate once in the prior 24h from `192.168.0.61` (kodiak's private 10GbE IP) — that's our own tooling, not an external caller. TrueNAS is removing the REST API in **26.04** in favor of JSON-RPC 2.0 over WebSocket.
 
-Two scripts call `https://192.168.0.60/api/v2.0` directly with a bearer token (`TRUENAS_API_TOKEN`):
+**Update 2026-09-24: `bin/dump-saratoga-config.py` migrated and verified
+live.** Rewritten from bash+curl+jq to Python using the official
+`truenas_api_client` library (installed from GitHub — not on PyPI — into
+its own `bin/.venv`, pinned to tag `TS-25.10.3.1` matching saratoga's
+actual TrueNAS version). Notes for whoever touches this next:
 
-- `bin/dump-saratoga-config.sh` — pulls replication tasks, snapshot tasks, SSH connections/keypairs into `configs/*.json` (run on-demand, not cron).
-- `bin/apply-media-tasks.sh` — same REST base URL.
+- The pinned-tag client's `auth.login_with_api_key(token)` is a single
+  positional call — no username, no mechanism choice. **This will very
+  likely change** when saratoga is eventually upgraded to 26+: the
+  library's `master` branch already has a SCRAM/PLAIN auth-mechanism split
+  (`login_with_api_key(username, key, auth_mechanism=...)`) that this
+  older pinned version predates. Re-pin `bin/requirements.txt` to the
+  matching tag at upgrade time and expect to update the auth call, not
+  just the pin.
+- Verified against the live server: all four `.query` calls (`replication`,
+  `pool.snapshottask`, `keychaincredential` ×2) return identical data to
+  the old REST version (diff was 100% legitimate content drift — different
+  job IDs/timestamps between the stale dump and today's live state, not a
+  format regression) except one deliberate improvement: TrueNAS date
+  fields now serialize as ISO-8601 strings instead of the old
+  `{"$date": <epoch-ms>}` extended-JSON wrapper the REST+jq path produced
+  verbatim — more readable for the git-diff-driven review workflow these
+  files exist for, and nothing else in the repo parses them.
+- Packaging updated: `bin/.venv` is built by `postinst` alongside the
+  dashboard's, from `bin/requirements.txt`. `PLAYBOOK.md`'s invocations now
+  show the explicit `bin/.venv/bin/python3 bin/dump-saratoga-config.py`
+  form — the script's own shebang's system python3 does **not** have the
+  dependency installed.
 
-Neither degrades gracefully — the `/api/v2.0` endpoint disappears outright once saratoga is upgraded to 26.04, so both scripts would just start failing.
+**`bin/apply-media-tasks.sh` — deliberately deferred, not forgotten.**
+Unlike the read-only, periodically-rerun `dump-saratoga-config`, this is a
+one-shot, **non-idempotent** script that *creates* replication/snapshot
+tasks — re-running it (even to test a migrated version) would create
+duplicate tasks on live saratoga config. It already did its one job (the
+media task it creates exists and runs). Porting it blind, with no safe way
+to test the write path without side effects, isn't worth doing before
+there's an actual reason to (a new task following this same pattern, or
+the 26.04 upgrade actually being scheduled) — at which point it should be
+ported using the same `truenas_api_client` approach, tested against
+whatever new task is actually being created.
 
-**Fix:** port both scripts' HTTP calls to TrueNAS's JSON-RPC 2.0/WebSocket API. Different transport and auth handshake, not a config tweak — bounded but real work.
-
-**Queued?** Not started. Do before any saratoga upgrade to 26.04 or later.
+**Queued?** `dump-saratoga-config`: done 2026-09-24. `apply-media-tasks.sh`:
+not started, deliberately — before any saratoga upgrade to 26.04, or when
+a new task needs creating, whichever comes first.
 
 ---
 

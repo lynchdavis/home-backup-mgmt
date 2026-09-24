@@ -6,6 +6,54 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-24
+
+### Migrated — `dump-saratoga-config` off the deprecated TrueNAS REST API (closes half of GAPS.md §4.4)
+
+Coverage-gap work. Also found and paused a second coverage-gap item on
+capacity grounds (below).
+
+- **`bin/dump-saratoga-config.py`** (replaces `dump-saratoga-config.sh`) —
+  rewritten from bash+curl+jq to Python using the official
+  `truenas_api_client` library (JSON-RPC 2.0 over WebSocket; not on PyPI,
+  installed from GitHub, pinned to tag `TS-25.10.3.1` matching saratoga's
+  actual TrueNAS version — the first attempt used `master`, which targets
+  the newer SCRAM/PLAIN auth split for TrueNAS 26+ and failed auth outright
+  against today's server; the version-matched tag's simpler
+  `auth.login_with_api_key(token)` is what actually works today).
+- **New `bin/.venv`** (`bin/requirements.txt`) — bin/ scripts were
+  previously dependency-free by design; this is the first exception, and
+  narrowly scoped to just this one script. `PLAYBOOK.md`'s invocations
+  updated to the explicit `bin/.venv/bin/python3 bin/dump-saratoga-config.py`
+  form (the shebang's system python3 doesn't have the dependency).
+- **Verified against live saratoga**: all four `.query` calls return data
+  identical in substance to the old REST version (the diff was 100%
+  legitimate content drift between the stale dump and today's live state),
+  plus one deliberate format improvement — TrueNAS date fields now
+  serialize as readable ISO-8601 strings instead of the raw
+  `{"$date": <epoch-ms>}` wrapper REST+jq passed through verbatim. Nothing
+  else in the repo parses these files (they're git-diff-reviewed by a
+  human), so this is a pure improvement, not a compat break.
+- **`bin/apply-media-tasks.sh` deliberately deferred** — one-shot,
+  non-idempotent, task-*creation* script; no safe way to test a migrated
+  version without side effects on live saratoga config, and no current
+  need (the task it creates already exists). Revisit at the next new task
+  of this shape, or before an actual 26.04 upgrade.
+- Packaging updated (`Taskfile.yml`, `postinst`) to build `bin/.venv` on
+  install the same way `dashboard/.venv` already is.
+
+### Paused — `/kodiak00/data-00` irreplaceable-subset migration (capacity)
+
+Investigated moving the ~50GB irreplaceable `data-00/backups/*` subset into
+`backups-00/historical/` (`GAPS.md` §2.4, the other coverage-gap item).
+Stopped before touching anything: `backups-00` is at **95% capacity, only
+181GB free** — up sharply from 88% yesterday. Confirmed the cause is
+legitimate, not a leak: `backups-00/hosts/lynchmbp` grew from 526.6GB to
+994GB in yesterday's catch-up sync (the fix from CHANGELOG 2026-09-23 (5)
+working as intended, landing over a month of backlog in one shot). Adding
+another ~50GB to an already-95%-full pool isn't wise. Paused pending the
+pool-mirror decision already tracked in `doc/ROADMAP.md` Tier 1.
+
 ## 2026-09-23 (5)
 
 ### Fixed — hondajet's sync reliability: routing ruled out, `rsync --timeout` added, sync now succeeds

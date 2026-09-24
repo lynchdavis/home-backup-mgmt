@@ -15,11 +15,17 @@ ln -sfn "$REPO_CHECKOUT/configs" /opt/server-backups/configs
 # explicitly for the tourbillon user.
 sudo -u tourbillon git config --global --add safe.directory "$REPO_CHECKOUT"
 
-# The dashboard's venv is built here, not shipped in the package — venvs pin
+# Both venvs are built here, not shipped in the package — venvs pin
 # absolute interpreter paths and aren't portably relocatable.
 python3 -m venv /opt/server-backups/dashboard/.venv
 /opt/server-backups/dashboard/.venv/bin/pip install -q --upgrade pip
 /opt/server-backups/dashboard/.venv/bin/pip install -q -r /opt/server-backups/dashboard/requirements.txt
+
+# bin/'s venv: currently only for dump-saratoga-config.py's truenas_api_client
+# (not on PyPI, installed from GitHub — see bin/requirements.txt).
+python3 -m venv /opt/server-backups/bin/.venv
+/opt/server-backups/bin/.venv/bin/pip install -q --upgrade pip
+/opt/server-backups/bin/.venv/bin/pip install -q -r /opt/server-backups/bin/requirements.txt
 
 # tourbillon service user already exists per ADR-004 — reuse it rather than
 # creating a new one.

@@ -55,7 +55,7 @@ Auth shape: `Authorization: Bearer ${GITHUB_TOKEN}` for the API; `https://x-acce
 
 ### TrueNAS API token
 
-Used for: tourbillon (and the `dump-saratoga-config.sh` / `apply-*-tasks.sh` scripts) reading + writing replication/snapshot/SSH config on saratoga.
+Used for: tourbillon (and the `dump-saratoga-config.py` / `apply-*-tasks.sh` scripts) reading + writing replication/snapshot/SSH config on saratoga.
 Type: TrueNAS API key (`1-`-prefixed, 64 chars).
 Auth shape: `Authorization: Bearer ${TRUENAS_API_TOKEN}` against `https://192.168.0.60/api/v2.0/`.
 
@@ -71,7 +71,7 @@ Private key: in TrueNAS DB, never on kodiak. TrueNAS embeds it in the SSH Connec
 Public key: `/var/lib/tnreplicate/.ssh/authorized_keys` on kodiak (the only place that side of the key needs to exist).
 
 **No expiration.** Replace when:
-- The TrueNAS-side credential leaks (e.g., a config dump escapes the repo with the SSH keypair private key un-redacted — `dump-saratoga-config.sh` strips this, so the path of harm is unlikely)
+- The TrueNAS-side credential leaks (e.g., a config dump escapes the repo with the SSH keypair private key un-redacted — `dump-saratoga-config.py` strips this, so the path of harm is unlikely)
 - A new host receives backups (generate a separate keypair per receiving host, don't share one across multiple targets)
 
 **Regenerate** flow:
