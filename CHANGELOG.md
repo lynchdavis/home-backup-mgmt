@@ -6,6 +6,44 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-26
+
+### Added — `tests/saratoga-restore-drill.sh` + monthly cron (closes the scripting follow-up from GAPS.md §1.3)
+
+Scripts the manual zfs send/recv restore-drill pass from 2026-09-23 into a
+proper cron-run test, mirroring `restore-drill.sh`'s shape for the
+ZFS-native case (no rsync, no host involved).
+
+- **`tests/saratoga-restore-drill.sh`**: same 4 steps as the manual pass
+  (`zfs create` a throwaway dataset, `zfs send | zfs recv` the latest
+  snapshot into it, spot-check a regular file via `file` + sha256, always
+  `zfs destroy -r` via trap). Auto-pick mode tries leaf datasets under
+  `backups-00/saratoga` smallest-first and skips one that's technically
+  non-empty but holds no real files (e.g. an `active/personal` leaf that's
+  just per-dataset overhead) rather than treating that as a failure — it
+  wasn't a deliberate pick. An explicitly-named dataset with no files IS a
+  failure, since that's a deliberate choice. `--verbose`/`--help` flags,
+  silent-on-success, exit 0/1/2 matching `check-saratoga-replication.sh`'s
+  contract (`tests/README.md` updated with the new row).
+- **Cron entry** at `40 6 1 * *` (5 min after the pilatus host drill),
+  pinned to `tank/archive/writing` rather than auto-pick — same dataset
+  every month, so drift over time is comparable. Added to
+  `configs/cron/ldavis-crontab` and installed live.
+- **Bug caught while testing, worth remembering**: `send_rc=${PIPESTATUS[0]}`
+  followed by `recv_rc=${PIPESTATUS[1]}` as two separate statements fails
+  with "unbound variable" under `set -u` — the first assignment is itself
+  a simple command, which resets `PIPESTATUS` to its own 1-element result
+  before the second assignment can read index 1. First test run silently
+  mis-skipped every candidate dataset because of this (each attempt died
+  on the unbound-variable reference before reaching the real logic).
+  Fixed by capturing the whole array atomically in one statement:
+  `pipe_rc=("${PIPESTATUS[@]}")`.
+- Verified: all of auto-pick (lands on `tank/archive/writing`, matching
+  the original manual pass's exact file and sha256), explicit-good,
+  explicit-nonexistent (exit 2), explicit-with-no-files (exit 1, not
+  skipped), `--help`, and the packaged install + exact cron invocation via
+  `mail-on-output.sh`.
+
 ## 2026-09-24 (6)
 
 ### Confirmed — data-00 videos/archive upload to iDrive completed, 0 failures

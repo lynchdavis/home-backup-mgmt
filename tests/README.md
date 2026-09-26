@@ -8,6 +8,7 @@ Verification scripts that check the **backup system is healthy**, separate from 
 |---|---|---|---|
 | [`check-saratoga-replication.sh`](check-saratoga-replication.sh) | Daily 08:00 via cron | A saratoga snapshot has landed on kodiak in the last 26h | 0 = fresh; 1 = stale; 2 = pool/zfs error |
 | [`restore-drill.sh`](restore-drill.sh) | Monthly per host via cron | Host mirror == live source == reverse-rsync'd file, by sha256 | 0 = three-way match; 1 = mismatch or transport failure |
+| [`saratoga-restore-drill.sh`](saratoga-restore-drill.sh) | Monthly via cron (pinned to `tank/archive/writing`) | A saratoga dataset's latest snapshot actually restores via `zfs send \| recv`, plus a file spot-check — ZFS-native, not rsync. Doesn't mount the live `canmount=noauto` source (see script header) | 0 = restore + spot-check passed; 1 = send/recv or spot-check failed; 2 = pool/dataset doesn't exist |
 | [`test-restore-drill.sh`](test-restore-drill.sh) | Manual, on-demand | Self-test of `restore-drill.sh` — runs the drill in four shapes (happy verbose, happy silent, bad host, symlink refused) and confirms each behaves correctly | 0 = all cases pass; 1 = any case failed |
 
 ## How they fit in

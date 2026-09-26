@@ -26,9 +26,17 @@ stale the way `GAPS.md` §2.1 did.
        manual pass against `tank/archive/writing`. Send/recv clean, restored
        file valid + correct mtime. Didn't mount the live `noauto` source
        (May 31 lesson) — verified via the stream's own checksums instead.
-       - [ ] **Follow-up**: script it as `tests/saratoga-restore-drill.sh`
-             (mirrors `restore-drill.sh`'s shape) and add to the monthly
-             cron alongside the two host drills — this run was manual only.
+       - [x] **Follow-up: scripted + cron'd, 2026-09-26.**
+             `tests/saratoga-restore-drill.sh` — same 4 steps, plus
+             auto-pick with retry-across-candidates (skips a technically
+             non-empty but file-less dataset rather than failing on it).
+             Cron entry `40 6 1 * *`, pinned to `tank/archive/writing`.
+             Caught and fixed a real bash gotcha along the way: splitting
+             `${PIPESTATUS[0]}`/`${PIPESTATUS[1]}` across two assignment
+             statements loses index 1 under `set -u` (the first assignment
+             resets PIPESTATUS to its own result) — fixed by capturing the
+             array atomically (`pipe_rc=("${PIPESTATUS[@]}")`). Verified
+             against the packaged install and the exact cron invocation.
 
 2. - [x] **Off-site copy — "is anything reaching iDrive" is closed** (`GAPS.md`
        §1.2, ADR-005) — closed 2026-09-24. Initial worry (a truncated log

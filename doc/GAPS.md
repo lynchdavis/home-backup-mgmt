@@ -149,7 +149,24 @@ drill: not started, tracked in `doc/ROADMAP.md`.
 - `zfs send | zfs recv` completed clean (exit 0) — ZFS's own embedded stream checksums are the real integrity proof here: a corrupted stream fails the receive, it doesn't silently succeed.
 - Spot-checked one restored file (a PDF): valid per `file`, correct original mtime preserved, sha256 recorded for the record.
 - **Did not** mount the live `backups-00/saratoga/tank/archive/writing` dataset to compare directly — it's deliberately `canmount=noauto` (the May 31 incident's hard-learned lesson), so verification used the send/recv stream's own guarantees plus a file-validity spot-check instead of a live-mount comparison.
-- **Not yet scripted/cron'd** — this was a manual, one-off run. Worth turning into a `tests/saratoga-restore-drill.sh` mirroring `restore-drill.sh`'s shape (pick smallest dataset, or a configured one; run the 4 steps; verify + report; exit non-zero on failure) and adding to the monthly cron alongside the two host drills.
+**Update 2026-09-26: scripted and cron'd.** `tests/saratoga-restore-drill.sh`
+implements the four manual steps below, plus retry-across-candidates logic
+in auto-pick mode (a technically-non-empty-but-file-less dataset — e.g. an
+active/personal leaf that's just per-dataset overhead — is skipped, not
+treated as a failure, since it wasn't a deliberate pick). Cron entry added
+at `40 6 1 * *` (5 min after the pilatus host drill), pinned to
+`tank/archive/writing` rather than auto-pick so the same dataset is tested
+every month and drift is comparable. `--help`/`--verbose` flags, silent on
+success, exit 0/1/2 matching the other drills' contract. Verified against
+the packaged install (`/opt/server-backups/tests/...`) and the exact cron
+invocation via `mail-on-output.sh`.
+
+Bug caught during testing, worth remembering: a bash gotcha, not a logic
+error — `send_rc=${PIPESTATUS[0]}; recv_rc=${PIPESTATUS[1]}` as two
+separate statements fails under `set -u`, because the first assignment is
+itself a "simple command" that resets `PIPESTATUS` to its own 1-element
+result before the second assignment can read index 1. Fixed by capturing
+the whole array atomically: `pipe_rc=("${PIPESTATUS[@]}")`.
 
 ```
 1. sudo zfs create backups-00/restore-test
@@ -160,7 +177,7 @@ drill: not started, tracked in `doc/ROADMAP.md`.
 
 **Still open for iDrive (off-site tier) side:** ADR-005 wires the off-site backup but no restore has been exercised. The eventual shape: an automated CLI-driven test (`idrive` CLI is the operational interface for restoration — that's the reality) that pulls a known file from the off-site copy and verifies it, PLUS a generated walk-thru doc the operator can actually follow in a real DR (fire / theft / ransomware) when they're not thinking clearly. Automation proves the path still works; the doc is what gets used at 2 AM. Until both exist, the off-site tier is unverified. Blocked on off-site execution itself (§1.2) happening first.
 
-**Queued?** Saratoga drill: manual pass done 2026-09-23; scripting it is a follow-up. iDrive drill + walk-thru doc: blocked on §1.2.
+**Queued?** Saratoga drill: done — manual pass 2026-09-23, scripted + monthly cron 2026-09-26. iDrive drill + walk-thru doc: not started, no longer blocked on §1.2 (that's closed) but still needs doing.
 
 ---
 
