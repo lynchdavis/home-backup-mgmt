@@ -6,6 +6,37 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-27
+
+### Added — `backups-00/hosts/*` to the iDrive backup set (closes the ADR-005 scope-drift gap); decided against the old LynchMBP snapshots
+
+Closes the "hosts excluded despite ADR-005's design" follow-up from
+CHANGELOG 2026-09-24's off-site re-diagnosis.
+
+- **Added all 4 host paths** (`arrow-iii`, `pilatus`, `lynchmbp`,
+  `ldavis-dev-01`) directly to the live iDrive backup set — same
+  mechanism as the `data-00` fix (all `backups-00/hosts/*` datasets are
+  `canmount=on`, normally mounted, no ZFS snapshot-clone workaround
+  needed). Confirmed via the same `tmux`-driven `./idrive` wizard: saved,
+  "Backupset is updated," 19 total paths.
+- **Operator decision**: the two migration-era LynchMBP snapshots in
+  `data-00` (`host-backups/2024-02-07-LynchMBP` 313G,
+  `host-backups/2026-05-19-LynchMBP` 695G — parked for review since
+  2026-09-24) will **not** be added to iDrive. The live
+  `backups-00/hosts/lynchmbp` mirror (now covered above) is sufficient;
+  closed with a decision, not left parked.
+- **Manual trigger hit a real snag**: starting a backup run immediately
+  (rather than waiting for tonight's cron) stalled — `idrive --backup`
+  logged "Unable to start CDP client server" and made no further progress
+  (4 seconds of CPU time over 3.5 minutes), almost certainly a conflict
+  with `idrivecron`'s own already-running background CDP server/client
+  processes (alive since 2026-09-19). Cancelled rather than fight it —
+  the regularly-scheduled cron path has a 99+ run unbroken success record
+  and doesn't hit this conflict, so the new host paths (lynchmbp alone is
+  994GB) will land via tonight's 03:30 run instead.
+- `GAPS.md` §1.2 and §2.4, and `ROADMAP.md`, updated to reflect both the
+  fix and the decision.
+
 ## 2026-09-26
 
 ### Added — `tests/saratoga-restore-drill.sh` + monthly cron (closes the scripting follow-up from GAPS.md §1.3)

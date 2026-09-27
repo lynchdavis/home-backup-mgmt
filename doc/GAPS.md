@@ -11,7 +11,7 @@ What this backup system doesn't (yet) do, and why each gap matters. Living doc �
 - `/kodiak00/data-00` (sdc, ext4 LVM, 4 TB partition): historical bulk storage. **As of 2026-09-24, 1.4 TB used / 2.5 TB free.** Current top-level + `backups/` inventory, verified directly (`du -sh`):
   - **`videos/` (99GB)** and **`archive/` (79GB)** — **corrected 2026-09-24**: previous reviews lumped these into "reproducible bulk." They're not. `videos/` is real family footage (birthdays, dance recitals, dated 2004-2007); `archive/` is per-person personal document archives (`Davis_Michelle`, `Davis_Cindy`, `Davis_Lynch`, medical/aviation-related folders). **Fixed same day** — added directly to the live iDrive backup set (`/kodiak00/data-00/videos/`, `/kodiak00/data-00/archive/`), no ZFS snapshot-clone workaround needed since `data-00` is a plain always-mounted ext4 path, unlike saratoga's `canmount=noauto` datasets. iDrive account had 5TB headroom (1.68TB used of 5TB at the time), plenty of room.
   - `backups/Alex Backup` (14G), `backups/Leigh Backup 2015-08-16` (33G), `backups/2018-05-06` (1.1G), `backups/ldavis-FP-mbp` (822M), `backups/logs` (320M), `backups/saratoga-pre-migration-state` (1.1M) — the ~50GB "irreplaceable old-machine backups" bucket from earlier reviews. **Still not backed up anywhere** — smaller and lower-profile than videos/archive, not yet added to iDrive.
-  - `backups/host-backups/2024-02-07-LynchMBP` (313G) and `backups/host-backups/2026-05-19-LynchMBP` (695G) — two migration-era laptop snapshots, not previously itemized in this doc — together over 1TB. **Still not backed up anywhere** — not yet evaluated for iDrive inclusion (large; worth a deliberate scope decision, not an automatic add).
+  - `backups/host-backups/2024-02-07-LynchMBP` (313G) and `backups/host-backups/2026-05-19-LynchMBP` (695G) — two migration-era laptop snapshots, not previously itemized in this doc — together over 1TB. **Decided 2026-09-27: not being added to iDrive** — the live `backups-00/hosts/lynchmbp` mirror (now itself in the iDrive backup set) is sufficient; these old point-in-time snapshots aren't worth the extra ~1TB. Still sit unbacked-up on a single disk, but that's now an accepted risk, not an open question.
   - `backups/host-backups/saratoga/` — now just an empty stub (4.0K); the 1.5TB photography copy that lived here was reclaimed 2026-05-28 (see below) after hash-verification.
   - `backups/host-backups/dev-01-cyfir` (12G) — reference pattern, see `HOST-HYGIENE.md`.
   - Genuinely reproducible, lower-priority: `iso/` (31GB) + `G1000_sim_130-002.iso` (2.2GB), `virtualbox/` (108GB), `applications/` (1.6GB). Not backed up anywhere, and reasonably so.
@@ -112,25 +112,32 @@ full `backups-00/saratoga` structure:
   excluded.
 - **Not covered — `tank/scratch` + `tank/staging`**: transient, reasonably
   excluded.
-- **Not covered — `backups-00/hosts/*`** (arrow-iii, pilatus, lynchmbp,
-  ldavis-dev-01 — lynchmbp alone is 994GB): **this contradicts ADR-005's
-  own documented scope**, which explicitly included "hosts (~17GB
-  estimated at design time)." Never actually added to the live iDrive
-  backup-set config — a real drift between design and what's running, not
-  a deliberate exclusion like the two above.
+- **`backups-00/hosts/*` — fixed 2026-09-27** (arrow-iii, pilatus, lynchmbp,
+  ldavis-dev-01): had contradicted ADR-005's own documented scope (which
+  explicitly included "hosts (~17GB estimated at design time)") — never
+  actually added to the live iDrive backup-set config. Added directly (all
+  4 host datasets are `canmount=on`, normally mounted — no ZFS workaround
+  needed, same as `data-00`). lynchmbp alone is 994GB; total quota use
+  after this add is well within the 5TB plan.
 - Not covered — `backups-00/repos` (308MB): absent, but trivially
   recoverable from GitHub/Bitbucket regardless — doesn't matter in
   practice.
 
-**Still open:** wiring `backups-00/hosts/*` into the iDrive backup set (to
-actually match ADR-005's design) or consciously re-scoping ADR-005 to
-document the exclusion as intentional. The restore drill from iDrive
-(§1.3) has also never been exercised — backing up is verified, restoring
-is not. The "decommission the workstation device" step from ADR-005's
-transition plan hasn't been explicitly confirmed done either.
+**Related decision, same day**: the two migration-era LynchMBP snapshots in
+`data-00` (`host-backups/2024-02-07-LynchMBP` 313G,
+`host-backups/2026-05-19-LynchMBP` 695G — see §2.4) will **not** be added
+to iDrive. Operator's call: the live `backups-00/hosts/lynchmbp` mirror
+(now covered above) is sufficient; the old point-in-time snapshots aren't
+worth the extra ~1TB. Closes that "parked for operator review" item with a
+decision, not an oversight.
+
+**Still open:** the restore drill from iDrive (§1.3) has never been
+exercised — backing up is verified, restoring is not. The "decommission
+the workstation device" step from ADR-005's transition plan hasn't been
+explicitly confirmed done either.
 
 **Queued?** The "is anything reaching iDrive at all" catastrophic gap:
-closed 2026-09-24. The hosts-not-included scope gap, and the restore
+closed 2026-09-24. The hosts-scope gap: closed 2026-09-27. The restore
 drill: not started, tracked in `doc/ROADMAP.md`.
 
 ---
@@ -278,15 +285,14 @@ Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 T
 - **~1TB irreplaceable, still unbacked up, found 2026-09-24**: `backups/host-backups/{2024-02-07-LynchMBP, 2026-05-19-LynchMBP}` — two migration-era laptop snapshots. Larger than the other two buckets combined; needs a deliberate scope/cost decision before adding to iDrive (unlike videos/archive, which were small enough to just add).
 - **Genuinely reproducible, lower priority**: `applications/` (1.6GB), `iso/` + `G1000_sim_130-002.iso` (~33GB), `virtualbox/` (108GB). Not backed up, reasonably so.
 
-**Severity:** medium-high for the two still-unbacked-up irreplaceable buckets (~1TB+, not ~50GB as this section said until today) — if `sdc` dies, those bytes are gone permanently.
+**Severity:** medium for the one remaining still-unbacked-up irreplaceable bucket (~50GB old-machine backups) — if `sdc` dies, those bytes are gone permanently. The LynchMBP snapshots are now an accepted risk (see decision above), not an open severity concern.
 
 **Fix options:**
 
-- **For the ~50GB old-machine-backups bucket**: same approach as videos/archive — just add the paths to the iDrive backup set directly. Small enough not to need a scope discussion.
-- **For the two LynchMBP snapshots (~1TB)**: needs a decision first — full inclusion, a curated subset, or accept as-is — before adding, given the size.
-- **Move into `backups-00/historical/`** (a new ZFS dataset under the managed pool) was the original fix idea here — now less relevant for videos/archive/old-machine-backups since direct iDrive inclusion is simpler and doesn't touch the already-95%-full `backups-00` pool at all.
+- **For the ~50GB old-machine-backups bucket**: same approach as videos/archive — just add the paths to the iDrive backup set directly. Small enough not to need a scope discussion. Still parked for operator review.
+- **Move into `backups-00/historical/`** (a new ZFS dataset under the managed pool) was the original fix idea here — now less relevant since direct iDrive inclusion is simpler and doesn't touch the already-95%-full `backups-00` pool at all.
 
-**Queued?** videos/archive: done 2026-09-24 (initial upload run triggered manually same day). Old-machine-backups (~50GB) and the LynchMBP snapshots (~1TB): parked — operator wants to personally review contents before either is added, not a technical blocker.
+**Queued?** videos/archive: done 2026-09-24. LynchMBP snapshots: decided against 2026-09-27 (live host mirror sufficient) — closed, not parked. Old-machine-backups (~50GB): still parked, operator wants to review contents first.
 
 ### 3.1 No capacity-trending alarm
 

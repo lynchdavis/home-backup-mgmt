@@ -47,16 +47,25 @@ stale the way `GAPS.md` §2.1 did.
        looked alarming is iDrive's own client logging a harmless warning
        when there's no error-detail file to open (because there were no
        errors). Nothing to fix here.
-       - [ ] **Follow-up, found same day**: the *scope* actually configured
-             is narrower than believed. Covers `tank/active/*` +
-             `tank/archive/*` (~1.65TB) only. `media/*` (~547GB) is
-             excluded by design (reproducible content, matches ADR-005).
-             But `backups-00/hosts/*` (arrow-iii, pilatus, lynchmbp,
-             ldavis-dev-01) is **also** excluded — despite ADR-005's own
-             design explicitly including hosts (~17GB estimated at design
-             time). Never wired into the live backup-set config. Either
-             add it, or consciously re-scope ADR-005 to document the
-             exclusion as intentional.
+       - [x] **Follow-up, found same day, closed 2026-09-27**: the *scope*
+             actually configured was narrower than believed. `media/*`
+             (~547GB) stays excluded by design (reproducible, matches
+             ADR-005). `backups-00/hosts/*` (arrow-iii, pilatus, lynchmbp,
+             ldavis-dev-01) was **also** excluded despite ADR-005's design
+             explicitly including hosts — fixed: all 4 added directly
+             (normally-mounted `canmount=on` datasets, no ZFS workaround
+             needed), confirmed persisted ("Backupset is updated").
+             A manually-triggered initial run hit a "CDP client server"
+             conflict with idrivecron's own already-running background
+             services and stalled (0 real progress after 3.5 minutes) —
+             cancelled rather than fight it. Letting tonight's regular
+             03:30 cron pick up the new paths instead, same mechanism with
+             a 99+ run unbroken success record. Initial upload for
+             lynchmbp (994GB) will take a while once it starts.
+             **Related operator decision**: the two migration-era LynchMBP
+             snapshots in `data-00` (~1TB, see the coverage-gap entry
+             below) will *not* be added — the live host mirror above is
+             sufficient.
        - [ ] **Follow-up**: restore drill from iDrive has never been
              exercised (backing up ≠ restorable) — see `GAPS.md` §1.3.
        - [ ] **Follow-up**: confirm the old workstation iDrive device was
@@ -107,10 +116,12 @@ stale the way `GAPS.md` §2.1 did.
             logs}` (~50GB old-machine backups) — operator wants to review
             contents before adding, not a technical blocker this time
             (same fix would apply — just add the paths).
-      - [ ] **Parked for operator review**: `backups/host-backups/{2024-02-07-LynchMBP
-            313G, 2026-05-19-LynchMBP 695G}` (~1TB) — operator wants to
-            evaluate these snapshots themselves before deciding scope
-            (full inclusion vs. curated subset vs. accept-as-is).
+      - [x] **Decided against, 2026-09-27**: `backups/host-backups/{2024-02-07-LynchMBP
+            313G, 2026-05-19-LynchMBP 695G}` (~1TB) — operator's call: the
+            live `backups-00/hosts/lynchmbp` mirror (added to iDrive the
+            same day, see Tier 1 #2 above) is sufficient; these old
+            point-in-time snapshots aren't worth the extra ~1TB. Closed
+            with a decision, not left parked.
       **Context (not an open item):** the *original* pre-migration local
       copy of saratoga's mounts (12 NFS exports, ~2.67TB, at the old
       `backups-00/saratoga/`) no longer exists — that pool was wiped
