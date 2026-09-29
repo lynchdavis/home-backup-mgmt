@@ -60,8 +60,19 @@ stale the way `GAPS.md` §2.1 did.
              services and stalled (0 real progress after 3.5 minutes) —
              cancelled rather than fight it. Letting tonight's regular
              03:30 cron pick up the new paths instead, same mechanism with
-             a 99+ run unbroken success record. Initial upload for
-             lynchmbp (994GB) will take a while once it starts.
+             a 99+ run unbroken success record. **Confirmed landed
+             2026-09-29**: that night's/the following nights' scheduled
+             runs picked up the new host paths and fully uploaded them —
+             the 2026-09-29 run report shows 1,346,363 files already
+             present (up from 195,325 before this fix), confirming the
+             ~1TB host bulk upload completed. **2 files failed, both runs
+             (Sep 28 initial + Sep 29 incremental), same 2 files both
+             times** — macOS's own regenerable icon cache
+             (`~/Library/Group Containers/group.com.apple.chronod/chronod/icons/...heic`,
+             unusual `::`-containing filenames iDrive's client can't
+             handle). Stable and narrow, not spreading. Not user data, not
+             worth chasing further — closed as a known, accepted
+             limitation.
              **Related operator decision**: the two migration-era LynchMBP
              snapshots in `data-00` (~1TB, see the coverage-gap entry
              below) will *not* be added — the live host mirror above is

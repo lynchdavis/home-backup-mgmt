@@ -6,6 +6,33 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-29
+
+### Confirmed — host backups fully landed on iDrive; 2 stable, harmless failures identified
+
+Follow-up to CHANGELOG 2026-09-27's `backups-00/hosts/*` addition. The
+operator forwarded IDrive's automated run-report email, prompting a check.
+
+- **Confirmed landed**: the 2026-09-29 run report shows 1,346,937 files
+  considered, **1,346,363 already present** — up from 195,325 before the
+  hosts fix, confirming the ~1TB host bulk upload (lynchmbp alone 994GB)
+  completed. It landed via the regular 03:30 cron on 2026-09-28 (a
+  262MB run log — the giveaway for a big first-time upload), not the
+  cancelled manual trigger from 2026-09-27.
+- **2 files failed** in both the 2026-09-28 initial upload and the
+  2026-09-29 incremental run — the *same two files* both times, per
+  `grep -n "FAILED\]" LOGS/*`:
+  `~/Library/Group Containers/group.com.apple.chronod/chronod/icons/Ƭ$::...::com.{imdb,dice}...heic`
+  — macOS's own regenerable app-icon cache, with unusual `::`-containing
+  filenames that iDrive's client can't parse. Stable and narrow (not
+  spreading to other files), not user data. Closed as a known, accepted
+  limitation — nothing to fix on our side.
+- Hit a transient tool-side issue mid-investigation (a `sudo`-command
+  safety classifier was briefly unavailable); retried successfully a few
+  attempts later. Unrelated to iDrive/backups — noted only because it
+  briefly blocked the `sudo`-dependent log reads.
+- `GAPS.md` §1.2 and `ROADMAP.md` updated to close this out fully.
+
 ## 2026-09-27
 
 ### Added — `backups-00/hosts/*` to the iDrive backup set (closes the ADR-005 scope-drift gap); decided against the old LynchMBP snapshots

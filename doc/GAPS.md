@@ -112,13 +112,20 @@ full `backups-00/saratoga` structure:
   excluded.
 - **Not covered — `tank/scratch` + `tank/staging`**: transient, reasonably
   excluded.
-- **`backups-00/hosts/*` — fixed 2026-09-27** (arrow-iii, pilatus, lynchmbp,
-  ldavis-dev-01): had contradicted ADR-005's own documented scope (which
-  explicitly included "hosts (~17GB estimated at design time)") — never
-  actually added to the live iDrive backup-set config. Added directly (all
-  4 host datasets are `canmount=on`, normally mounted — no ZFS workaround
-  needed, same as `data-00`). lynchmbp alone is 994GB; total quota use
-  after this add is well within the 5TB plan.
+- **`backups-00/hosts/*` — fixed 2026-09-27, confirmed landed 2026-09-29**
+  (arrow-iii, pilatus, lynchmbp, ldavis-dev-01): had contradicted ADR-005's
+  own documented scope (which explicitly included "hosts (~17GB estimated
+  at design time)") — never actually added to the live iDrive backup-set
+  config. Added directly (all 4 host datasets are `canmount=on`, normally
+  mounted — no ZFS workaround needed, same as `data-00`). The manual
+  trigger hit a CDP-conflict stall and was cancelled; the regular 03:30
+  cron picked it up cleanly instead — the 2026-09-28 run uploaded the full
+  ~1TB bulk (lynchmbp alone is 994GB), confirmed via the 2026-09-29 run
+  report (1,346,363 files already present, up from 195,325 pre-fix).
+  **2 files failed, consistently, both runs**: macOS's own regenerable
+  icon cache (`Library/Group Containers/group.com.apple.chronod/chronod/icons/...heic`,
+  unusual `::`-containing filenames iDrive's client can't parse). Not user
+  data, stable/narrow, not worth chasing — accepted as a known limitation.
 - Not covered — `backups-00/repos` (308MB): absent, but trivially
   recoverable from GitHub/Bitbucket regardless — doesn't matter in
   practice.
