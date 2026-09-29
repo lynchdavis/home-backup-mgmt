@@ -6,6 +6,40 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-29 (2)
+
+### Added — iDrive restore drill + `IDRIVE_RESTORE.md` walk-thru doc (closes the ADR-005 restore-verification gap)
+
+The last piece of ADR-005's original plan: "an automated/manual test that
+pulls a known file from the off-site copy and verifies it, PLUS a walk-thru
+doc for a real DR."
+
+- **No scriptable CLI exists** for iDrive restore — confirmed
+  `/opt/IDriveForLinux/bin/idrive --help` only exposes
+  `--about`/`--speed-test`. Restore has to go through the same interactive
+  terminal menu as the backup-set edits.
+- **Drove it via `tmux`** (same technique as the recent backup-set
+  changes): `7` Edit restore set → added
+  `tank/archive/writing/Personal/2020-08-JLD-Journal.pdf` (the same file
+  already used for the saratoga ZFS restore drill), `8` Restore now → 1
+  file restored, 0 failures, landed at the default restore location.
+  `sha256sum` matched the known-good hash exactly. Test artifact deleted
+  afterward.
+- Using the same file as the ZFS drill was deliberate — an exact hash
+  match across two completely independent restore mechanisms (local
+  `zfs send/recv` vs. a cloud pull) is stronger end-to-end proof than
+  either alone.
+- **New [`IDRIVE_RESTORE.md`](IDRIVE_RESTORE.md)** — scope (what's
+  actually up there vs. deliberately excluded), the "this is the last
+  resort" mental model, the verified single-file scenario with exact
+  menu steps, a bulk/directory-restore scenario flagged explicitly as
+  **untested** (don't assume it works the same way under real pressure),
+  a periodic restore-confidence-builder test, and the 2 known permanently-
+  failing files (macOS icon cache, see 2026-09-29's earlier entry).
+- `GAPS.md` §1.3 and `ROADMAP.md` updated. One thing spun out as a
+  deliberate follow-up, not done today: verifying bulk/directory restore
+  actually recurses (tested only a single file so far).
+
 ## 2026-09-29
 
 ### Confirmed — host backups fully landed on iDrive; 2 stable, harmless failures identified

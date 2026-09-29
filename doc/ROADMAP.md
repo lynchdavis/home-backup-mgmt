@@ -77,8 +77,21 @@ stale the way `GAPS.md` §2.1 did.
              snapshots in `data-00` (~1TB, see the coverage-gap entry
              below) will *not* be added — the live host mirror above is
              sufficient.
-       - [ ] **Follow-up**: restore drill from iDrive has never been
-             exercised (backing up ≠ restorable) — see `GAPS.md` §1.3.
+       - [x] **Follow-up: iDrive restore drill done, 2026-09-29.**
+             No scriptable CLI exists (`idrive --help` is minimal) — drove
+             the interactive menu via `tmux` (same technique as the
+             backup-set edits): `7` Edit restore set → added the path,
+             `8` Restore now → 1 file, 0 failures. sha256-verified an
+             exact match against the known-good hash (reused the same
+             file as the saratoga ZFS drill — matching hashes across two
+             independent restore mechanisms is stronger proof than
+             either alone). Test artifact deleted after. Walk-thru doc
+             written: [`IDRIVE_RESTORE.md`](../IDRIVE_RESTORE.md).
+             - [ ] **Sub-follow-up**: bulk/directory restore (needed for
+                   an actual full-host or full-archive DR, not just one
+                   file) is documented as an *assumption* in that doc, not
+                   verified. Worth testing deliberately (a small directory,
+                   not the full 2.9TB) before relying on it under pressure.
        - [ ] **Follow-up**: confirm the old workstation iDrive device was
              actually decommissioned per ADR-005's transition plan.
 

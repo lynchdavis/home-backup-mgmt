@@ -11,6 +11,7 @@ Backup-system playbook and configuration for the saratoga (TrueNAS NAS) → kodi
 - **[PLAYBOOK.md](PLAYBOOK.md)** — the operational playbook: what runs where, how to recreate from scratch, what to do when things change, gotchas captured the hard way.
 - **[SARATOGA_RESTORE.md](SARATOGA_RESTORE.md)** — restore scenarios (single-file → full DR), in priority order.
 - **[HOSTS_RESTORE.md](HOSTS_RESTORE.md)** — restore scenarios for the host-backup mirrors (multi-user linux + single-user Mac/Windows).
+- **[IDRIVE_RESTORE.md](IDRIVE_RESTORE.md)** — restoring from the off-site (cloud) tier — the last safety net, after saratoga and kodiak's local pool are both gone.
 - **[doc/GAPS.md](doc/GAPS.md)** — honest inventory of what this system doesn't do yet, tiered by severity. Living doc; review after major changes.
 - **[doc/ROADMAP.md](doc/ROADMAP.md)** — prioritized execution plan built from GAPS.md + the ADRs (bugs → Tier 1 → active threads → coverage gaps → backlog). Living doc; check items off as they land.
 - **[CHANGELOG.md](CHANGELOG.md)** — pragmatic record of functional changes (what shipped, when, what to remove later).

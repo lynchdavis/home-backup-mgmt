@@ -189,9 +189,23 @@ the whole array atomically: `pipe_rc=("${PIPESTATUS[@]}")`.
 4. sudo zfs destroy -r backups-00/restore-test
 ```
 
-**Still open for iDrive (off-site tier) side:** ADR-005 wires the off-site backup but no restore has been exercised. The eventual shape: an automated CLI-driven test (`idrive` CLI is the operational interface for restoration — that's the reality) that pulls a known file from the off-site copy and verifies it, PLUS a generated walk-thru doc the operator can actually follow in a real DR (fire / theft / ransomware) when they're not thinking clearly. Automation proves the path still works; the doc is what gets used at 2 AM. Until both exist, the off-site tier is unverified. Blocked on off-site execution itself (§1.2) happening first.
+**Update 2026-09-29: iDrive side done too.** Manual restore drill executed
+via `./idrive`'s interactive menu (no scriptable CLI exists — checked;
+`--help` only exposes `--about`/`--speed-test`). Restored
+`tank/archive/writing/Personal/2020-08-JLD-Journal.pdf` (the same file
+already used for the saratoga ZFS drill) to the default restore location,
+sha256-verified an exact match against the known-good hash, deleted the
+test artifact. 0 failures. Walk-thru doc written:
+[`IDRIVE_RESTORE.md`](../IDRIVE_RESTORE.md) — single-file restore is
+verified; bulk/directory restore (needed for an actual full-host or
+full-archive DR) is documented but **not yet tested** — flagged clearly in
+that doc as an assumption to verify before depending on it under real
+pressure.
 
-**Queued?** Saratoga drill: done — manual pass 2026-09-23, scripted + monthly cron 2026-09-26. iDrive drill + walk-thru doc: not started, no longer blocked on §1.2 (that's closed) but still needs doing.
+**Queued?** Saratoga drill: done — manual pass 2026-09-23, scripted +
+monthly cron 2026-09-26. iDrive single-file drill + walk-thru doc: done
+2026-09-29. iDrive bulk-restore verification: not started, tracked in
+`doc/ROADMAP.md`.
 
 ---
 
