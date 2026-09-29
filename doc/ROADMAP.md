@@ -143,11 +143,49 @@ stale the way `GAPS.md` §2.1 did.
             Initial upload triggered manually 2026-09-24 (rather than
             waiting for the next 03:30 cron) — **completed same day**:
             52,781 files, 177.07GB, 0 failures. Fully landed.
-      - [ ] **Parked for operator review**: `backups/{Alex Backup, Leigh
-            Backup, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state,
-            logs}` (~50GB old-machine backups) — operator wants to review
-            contents before adding, not a technical blocker this time
-            (same fix would apply — just add the paths).
+      - [x] **Reviewed + curated subset added, 2026-09-29.** The
+            "~50GB irreplaceable" label was substantially wrong — actual
+            breakdown:
+            - **`Leigh Backup 2015-08-16` (33GB) — 99.7% is a single
+              16-year-old Windows Acronis full-system-image**
+              (`System__8_5_2010.tib`). Every folder that would hold real
+              content (Pictures, Documents, Quicken, Outlook, Personal) is
+              completely empty — this "backup" never actually captured
+              personal data. **Excluded entirely** — both because it's
+              junk and because it's a former family member's data the
+              operator doesn't want in cloud storage regardless of
+              content value.
+            - **`Alex Backup` (14GB)** — 8.2GB is `Downloads/`, pure
+              software installers (Steam, Chrome, GIMP, antivirus, etc.),
+              0 personal value, excluded. The real content —
+              `OneDrive/` (4.5GB, school papers/essays) and
+              `Videos`/`3D Objects` (~650MB, personal video projects) —
+              **added to iDrive**.
+            - **`ldavis-FP-mbp` (822MB)** — only 20 of ~3300 files in
+              `Downloads/` are real personal photos (54MB); the rest is
+              AppleDouble (`._`) metadata junk plus a duplicate public
+              `iTerm2-Color-Schemes` GitHub-repo clone (29MB, also found
+              duplicated in `2018-05-06`). **The 20 real photos added
+              individually** (iDrive's backup-set format has no
+              exclude/filter syntax, so precise file-level entries were
+              the only way to include just the real content).
+            - **`2018-05-06` (1.1GB, operator's own old machine)** —
+              dominated by a `learn-react` tutorial project (596MB) and
+              the same duplicate `iTerm2-Color-Schemes` clone (62MB). The
+              handful of possibly-original scraps (~1.5MB) are 8-year-old
+              scratch work, likely superseded/already mirrored elsewhere.
+              **Not added** — not worth the noise for that little content.
+            - **`logs` (320MB)** — not personal data at all; these are
+              `data-organizer`'s own migration operational logs
+              (misclassified). **Not added.**
+            - **`saratoga-pre-migration-state` (1.1MB)** — already known,
+              OS/config reference material, not personal data. **Not
+              added** (trivial either way).
+            Net: added ~5.2GB of genuinely irreplaceable content out of
+            the ~50GB bucket; confirmed persisted ("Backupset is
+            updated," 42 total paths). Letting tonight's 03:30 cron
+            handle the upload (learned from the hosts-add: manual
+            triggers conflict with idrivecron's background CDP services).
       - [x] **Decided against, 2026-09-27**: `backups/host-backups/{2024-02-07-LynchMBP
             313G, 2026-05-19-LynchMBP 695G}` (~1TB) — operator's call: the
             live `backups-00/hosts/lynchmbp` mirror (added to iDrive the
@@ -182,6 +220,22 @@ stale the way `GAPS.md` §2.1 did.
 ---
 
 ## Backlog (unordered, lower priority — triage later)
+
+**Clean up `data-00`'s non-backed-up junk** — operator's stated intent
+(2026-09-29), not yet actioned. Now that the old-machine-backups bucket has
+been reviewed (see the Coverage gaps entry above), the junk is precisely
+identified and safe to delete locally whenever convenient, reclaiming real
+disk space:
+- `Leigh Backup 2015-08-16/AcronisBackups/System__8_5_2010.tib` — 33GB,
+  16-year-old Windows system image, unrestorable in practice.
+- `Alex Backup/Downloads/` — 8.2GB of software installers.
+- `ldavis-FP-mbp/Downloads/mbadolato-iTerm2-Color-Schemes-d6098c7/` +
+  `2018-05-06/.../iTerm2-Color-Schemes/` — a public GitHub repo cloned
+  twice, ~91MB combined, trivially re-clonable if ever wanted.
+- `2018-05-06/ldavis/development/learn-react/` — 596MB tutorial project.
+This is a deletion, not an exclude — see `data-organizer/HOST-HYGIENE.md`'s
+own bias-to-exclude-over-delete principle; low risk here since none of it
+is going anywhere valuable, but still the operator's call on timing.
 
 **Mirror the pool** (`GAPS.md` §1.1) — paused 2026-09-24 at the operator's
 request; drive-purchase decision on hold. `backups-00` is one drive, now at

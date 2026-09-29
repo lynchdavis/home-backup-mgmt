@@ -6,6 +6,52 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-29 (4)
+
+### Reviewed the "~50GB old-machine-backups" bucket; added a curated ~5.2GB subset to iDrive
+
+The label was substantially wrong. Actually inspecting contents (`du`,
+`find`) instead of trusting the old classification:
+
+- **`Leigh Backup 2015-08-16` (33GB) is 99.7% a single 16-year-old Windows
+  Acronis full-system-image** (`System__8_5_2010.tib`) — every folder that
+  would hold real content (Pictures, Documents, Quicken, Outlook,
+  Personal) is completely empty. This "backup" never actually captured
+  personal data. Also a former family member's data — excluded from
+  iDrive entirely, for personal reasons independent of the junk finding.
+- **`Alex Backup` (14GB)**: 8.2GB is `Downloads/`, pure software
+  installers (Steam, Chrome, GIMP, antivirus), 0 personal value. Real
+  content: `OneDrive/` (4.5GB, school papers/essays) + `Videos`/
+  `3D Objects` (~650MB, personal video projects).
+- **`ldavis-FP-mbp` (822MB)**: only 20 of ~3300 files in `Downloads/` are
+  real personal photos (54MB); the rest is AppleDouble (`._`) metadata
+  junk plus a duplicate public `iTerm2-Color-Schemes` GitHub-repo clone.
+- **`2018-05-06` (1.1GB, operator's own old machine)**: dominated by a
+  `learn-react` tutorial project (596MB) and the same duplicate repo
+  clone (62MB); ~1.5MB of possibly-original scratch work, likely
+  superseded. Not added.
+- **`logs` (320MB)**: not personal data — `data-organizer`'s own
+  migration operational logs, misclassified into this bucket. Not added.
+
+**Added to iDrive**: `Alex Backup/OneDrive/`, `Alex Backup/Videos/`,
+`Alex Backup/3D Objects/`, and the 20 individual real photo files from
+`ldavis-FP-mbp/Downloads/` (iDrive's backup-set format has no exclude
+syntax, so file-level entries were the only way to include just the real
+content without the surrounding junk). ~5.2GB total, confirmed persisted
+("Backupset is updated," 42 total paths). Letting tonight's 03:30 cron
+handle the upload rather than manually triggering (learned from the
+hosts-add: manual triggers conflict with idrivecron's background CDP
+services).
+
+**Not backed up, and now precisely identified as safe local-deletion
+candidates** (operator's stated future intent, not actioned today): the
+35GB Acronis image, Alex's 8.2GB of installers, the two duplicate
+`iTerm2-Color-Schemes` clones (~91MB), and the 596MB tutorial project.
+Tracked in `doc/ROADMAP.md`'s Backlog.
+
+`GAPS.md` §2.4 and `ROADMAP.md` updated — this closes out the last open
+item under the `data-00` coverage gap.
+
 ## 2026-09-29 (3)
 
 ### Confirmed — old iDrive workstation device decommissioned (closes ADR-005's last open item)

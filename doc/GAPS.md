@@ -304,23 +304,47 @@ Kodiak's *system* is rebuildable from PLAYBOOK. Anything *uncommitted* in `~ldav
 
 ---
 
-### 2.4 `/kodiak00/data-00/` historical bulk storage — mostly still unbacked up, corrected + partially fixed 2026-09-24
+### 2.4 `/kodiak00/data-00/` historical bulk storage — reviewed + irreplaceable content protected, 2026-09-24 through 2026-09-29
 
 Surfaced 2026-05-27 during the LynchMBP onboarding discussion. Kodiak has 21.8 TB of LVM-ext4 on `sdc` (`/kodiak00/data-00` + `/kodiak00/media-00`, the latter confirmed 2026-09-24 to be completely empty). As of 2026-09-24, `data-00` holds ~1.4 TB:
 
 - **`videos/` (99GB) + `archive/` (79GB) — irreplaceable, previously miscategorized as "replaceable bulk."** `videos/` is real family footage; `archive/` is per-person personal document archives. **Fixed 2026-09-24**: both added directly to the live iDrive backup set (no ZFS workaround needed — `data-00` is plain ext4, not subject to the `canmount=noauto` restriction saratoga's datasets have).
-- **~50GB irreplaceable, still unbacked up**: `backups/{Alex Backup, Leigh Backup 2015-08-16, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state, logs}`. Old-machine backups; those machines are gone. **Single copy on a single disk.**
-- **~1TB irreplaceable, still unbacked up, found 2026-09-24**: `backups/host-backups/{2024-02-07-LynchMBP, 2026-05-19-LynchMBP}` — two migration-era laptop snapshots. Larger than the other two buckets combined; needs a deliberate scope/cost decision before adding to iDrive (unlike videos/archive, which were small enough to just add).
+- **The "~50GB old-machine backups" label was substantially wrong — reviewed
+  and corrected 2026-09-29.** `backups/{Alex Backup, Leigh Backup
+  2015-08-16, 2018-05-06, ldavis-FP-mbp, saratoga-pre-migration-state,
+  logs}` turned out to be ~90% junk once actually inspected:
+  - `Leigh Backup 2015-08-16` (33GB) — 99.7% is a single 16-year-old
+    Windows Acronis full-system-image (`System__8_5_2010.tib`); every
+    folder that would hold real content is completely empty. Also a
+    former family member's data — excluded from iDrive for personal
+    reasons independent of the junk assessment.
+  - `Alex Backup` (14GB) — 8.2GB is pure software-installer junk in
+    `Downloads/`; the real content is `OneDrive/` (4.5GB, school papers)
+    and `Videos`/`3D Objects` (~650MB, personal videos).
+  - `ldavis-FP-mbp` (822MB) — only 20 of ~3300 files are real photos
+    (54MB); the rest is AppleDouble metadata junk plus a duplicate public
+    GitHub-repo clone.
+  - `2018-05-06` (1.1GB, operator's own old machine) — dominated by a
+    tutorial project and the same duplicate repo clone; ~1.5MB of
+    possibly-original scratch work, likely superseded.
+  - `logs` (320MB) — not personal data; `data-organizer`'s own migration
+    operational logs, misclassified into this bucket.
+  **Fixed 2026-09-29**: the genuinely irreplaceable ~5.2GB (Alex's
+  OneDrive + videos, the 20 real FP-mbp photos) added to iDrive. The
+  ~45GB of junk deliberately left out — see the Backlog in
+  `doc/ROADMAP.md` for the local-deletion candidates this review surfaced.
+- **~1TB irreplaceable, still unbacked up, found 2026-09-24**: `backups/host-backups/{2024-02-07-LynchMBP, 2026-05-19-LynchMBP}` — two migration-era laptop snapshots. **Decided against 2026-09-27** — the live `backups-00/hosts/lynchmbp` mirror is sufficient; accepted risk, not an open item.
 - **Genuinely reproducible, lower priority**: `applications/` (1.6GB), `iso/` + `G1000_sim_130-002.iso` (~33GB), `virtualbox/` (108GB). Not backed up, reasonably so.
 
-**Severity:** medium for the one remaining still-unbacked-up irreplaceable bucket (~50GB old-machine backups) — if `sdc` dies, those bytes are gone permanently. The LynchMBP snapshots are now an accepted risk (see decision above), not an open severity concern.
+**Severity:** low now — the only remaining unbacked-up content in this
+dataset is either already-decided-against (LynchMBP snapshots) or
+genuinely reproducible. The real irreplaceable material is now protected.
 
-**Fix options:**
+**Fix options:** none remaining for this section — see `doc/ROADMAP.md`'s
+Backlog for the local-cleanup opportunity this review surfaced (deleting
+the identified junk, not backing it up further).
 
-- **For the ~50GB old-machine-backups bucket**: same approach as videos/archive — just add the paths to the iDrive backup set directly. Small enough not to need a scope discussion. Still parked for operator review.
-- **Move into `backups-00/historical/`** (a new ZFS dataset under the managed pool) was the original fix idea here — now less relevant since direct iDrive inclusion is simpler and doesn't touch the already-95%-full `backups-00` pool at all.
-
-**Queued?** videos/archive: done 2026-09-24. LynchMBP snapshots: decided against 2026-09-27 (live host mirror sufficient) — closed, not parked. Old-machine-backups (~50GB): still parked, operator wants to review contents first.
+**Queued?** videos/archive: done 2026-09-24. LynchMBP snapshots: decided against 2026-09-27. Old-machine-backups: reviewed + curated subset added 2026-09-29. This section is closed.
 
 ### 3.1 No capacity-trending alarm
 
