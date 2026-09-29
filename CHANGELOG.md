@@ -6,6 +6,23 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-29 (3)
+
+### Confirmed — old iDrive workstation device decommissioned (closes ADR-005's last open item)
+
+Answers an operator question about what "the old workstation iDrive
+device" actually was: the operator's own Mac, pre-kodiak — it ran the
+iDrive Personal desktop client directly, SMB-mounted saratoga's shares
+locally, and pushed to iDrive from the Mac itself
+(`saratoga → SMB mount → workstation → iDrive Personal client → iDrive`,
+per ADR-005's own historical-flow diagram). ADR-005 step 8 called for
+deleting that device once kodiak took over the off-site push.
+
+Checked the live account (`13) Restore settings` → item 1's device list):
+**only `kodiak` (Linux) is registered.** Confirmed decommissioned, nothing
+left to clean up. `GAPS.md` §1.2 and `ROADMAP.md` updated — every follow-up
+under the off-site-copy item is now closed.
+
 ## 2026-09-29 (2)
 
 ### Added — iDrive restore drill + `IDRIVE_RESTORE.md` walk-thru doc (closes the ADR-005 restore-verification gap)

@@ -138,14 +138,21 @@ to iDrive. Operator's call: the live `backups-00/hosts/lynchmbp` mirror
 worth the extra ~1TB. Closes that "parked for operator review" item with a
 decision, not an oversight.
 
-**Still open:** the restore drill from iDrive (§1.3) has never been
-exercised — backing up is verified, restoring is not. The "decommission
-the workstation device" step from ADR-005's transition plan hasn't been
-explicitly confirmed done either.
+**Update 2026-09-29: workstation device confirmed decommissioned.** ADR-005
+step 8 called for deleting the old pre-kodiak workstation device (the
+operator's own Mac, which ran the iDrive Personal desktop client directly —
+SMB-mounted saratoga's shares locally and pushed to iDrive from the Mac
+itself, before kodiak/tourbillon existed) once kodiak took over. Checked
+the live account via `13) Restore settings` → device list: **only one
+device is registered — `kodiak` (Linux)**. Confirmed done; nothing left to
+clean up.
+
+(The restore drill itself is covered in §1.3, not duplicated here.)
 
 **Queued?** The "is anything reaching iDrive at all" catastrophic gap:
-closed 2026-09-24. The hosts-scope gap: closed 2026-09-27. The restore
-drill: not started, tracked in `doc/ROADMAP.md`.
+closed 2026-09-24. The hosts-scope gap: closed 2026-09-27. Workstation
+decommission: confirmed 2026-09-29. This section (§1.2) is now fully
+closed.
 
 ---
 

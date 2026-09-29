@@ -92,8 +92,16 @@ stale the way `GAPS.md` §2.1 did.
                    file) is documented as an *assumption* in that doc, not
                    verified. Worth testing deliberately (a small directory,
                    not the full 2.9TB) before relying on it under pressure.
-       - [ ] **Follow-up**: confirm the old workstation iDrive device was
-             actually decommissioned per ADR-005's transition plan.
+       - [x] **Follow-up: confirmed 2026-09-29.** The old pre-kodiak
+             "workstation" device (the operator's own Mac, which ran the
+             iDrive Personal desktop client directly — SMB-mounted
+             saratoga's shares, pushed to iDrive from the Mac itself,
+             before kodiak/tourbillon existed) is gone. Checked the live
+             account's device list (`13) Restore settings` → item 1):
+             **only `kodiak` (Linux) is registered.** Decommissioned per
+             ADR-005 step 8, nothing left to clean up. This closes out
+             Tier 1 item #2 entirely — every follow-up under the off-site
+             copy is now done.
 
 (Pool mirroring — moved to Backlog, 2026-09-24: operator wants to hold off on the drive-purchase decision for now.)
 
