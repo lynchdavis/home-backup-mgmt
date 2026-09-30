@@ -17,10 +17,13 @@ from . import auth
 from . import tourbillon_client as tb
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+_version_file = WEB_DIR.parent.parent / "VERSION"
+ASSET_VERSION = _version_file.read_text().strip() if _version_file.exists() else "dev"
 
 app = FastAPI(title="Tourbillon Dashboard")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
+templates.env.globals["ASSET_VERSION"] = ASSET_VERSION
 
 
 def _format_bytes(n) -> str:

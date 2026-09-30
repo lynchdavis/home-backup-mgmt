@@ -6,6 +6,35 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (7)
+
+### Dashboard: cache-bust static assets (v0.2.2)
+
+The v0.2.1 sidebar restyle looked broken in the operator's browser after
+deploying: nav rendered as a plain bulleted list with no sidebar
+styling, while the panel box and headings looked fine. Diagnosed from a
+screenshot as a stale cached `style.css` — the browser had the
+pre-sidebar stylesheet (which still styles `.panel`/`.subtitle`/`header
+h1` since those selectors existed in both versions) paired with the new
+post-sidebar HTML markup (`.layout`/`.sidebar`/`.nav-links`, which the
+old CSS has no rules for at all) — exactly the visual signature
+observed. A plain reload doesn't bypass cache, and clearing "site
+settings" clears cookies/permissions, not the disk cache, so neither
+step the operator tried actually forced a re-fetch.
+
+Fixed at the root instead of asking for another manual cache-clear:
+`dashboard/api/main.py` now reads the top-level `VERSION` file at
+startup and exposes it as a Jinja global (`ASSET_VERSION`);
+`base.html`/`index.html`/`config.html` append it as a `?v=` query
+string on `style.css` and `htmx.min.js`. Every version bump now
+produces URLs the browser has never seen, forcing a fresh fetch
+automatically — no more relying on the operator to hard-refresh after a
+UI change. `VERSION` itself wasn't previously packaged into
+`/opt/server-backups` at all; added to `Taskfile.yml`'s `package:deb`.
+
+Verified live: rendered page now requests `/static/style.css?v=0.2.2`,
+a URL that was never cached, so it always fetches fresh content.
+
 ## 2026-09-30 (6)
 
 ### Dashboard UI restyle: left sidebar nav + small inline logo (v0.2.1)

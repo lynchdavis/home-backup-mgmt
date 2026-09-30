@@ -55,6 +55,7 @@ tasks:
       - cp dashboard/config.toml dist/deb-staging/opt/server-backups/dashboard/
       - cp -r doc/. dist/deb-staging/opt/server-backups/doc/
       - cp -r tests/. dist/deb-staging/opt/server-backups/tests/
+      - cp VERSION dist/deb-staging/opt/server-backups/VERSION
       - find dist/deb-staging/opt/server-backups -name "__pycache__" -exec rm -rf {} +
 
       # Systemd unit
