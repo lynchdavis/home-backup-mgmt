@@ -328,8 +328,9 @@ later `zpool replace` of the original drive).
       `POST /api/hosts/{name}/mail` — all new, Phase 1's routes
       byte-for-byte unchanged. Shipped as v0.2.0, packaged, installed,
       verified live (login, toggle-persists-to-TOML, unauthenticated
-      write correctly 401's, logout clears session). One-time setup:
-      `sudo /opt/server-backups/bin/dashboard-set-password.sh`.
+      write correctly 401's, logout clears session). One-time setup
+      (`sudo /opt/server-backups/bin/dashboard-set-password.sh`) **done
+      2026-09-30** — `/config` is live and usable now.
       **Not yet verified**: an actual induced host-sync failure with
       `mail_enabled=false` confirming the exit code stays 0 end-to-end —
       the code path was reasoned through and unit-level-tested (TOML
