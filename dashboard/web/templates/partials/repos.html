@@ -9,19 +9,31 @@
     {{ rows | rejectattr('state', 'equalto', 'ok') | list | length }} not ok
     &nbsp;|&nbsp; {{ rows | sum(attribute='size') | bytes }} on disk
   </p>
-  <table>
-    <thead>
-      <tr><th>Repo</th><th>State</th><th>Last OK</th><th>Size</th></tr>
-    </thead>
-    <tbody>
-      {% for r in rows | sort(attribute='slug') %}
-      <tr>
-        <td>{{ r.slug }}</td>
-        <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state == 'due' else 'fail') }}">{{ r.state }}</span></td>
-        <td title="{{ r.error if r.error else '' }}">{{ r.last_ok | iso_age }}</td>
-        <td>{{ r.size | bytes }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% for group in rows | sort(attribute='slug') | groupby('provider') %}
+    {% set issues = group.list | rejectattr('state', 'equalto', 'ok') | list %}
+    <details class="repo-group"{{ ' open' if issues else '' }}>
+      <summary>
+        {{ group.grouper | capitalize }}
+        <span class="summary-count">
+          {{ group.list | length }} repos —
+          {{ group.list | length - issues | length }} ok{% if issues %}, {{ issues | length }} not ok{% endif %}
+        </span>
+      </summary>
+      <table>
+        <thead>
+          <tr><th>Repo</th><th>State</th><th>Last OK</th><th>Size</th></tr>
+        </thead>
+        <tbody>
+          {% for r in group.list %}
+          <tr>
+            <td>{{ r.slug.split('/', 1)[1] }}</td>
+            <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state == 'due' else 'fail') }}">{{ r.state }}</span></td>
+            <td title="{{ r.error if r.error else '' }}">{{ r.last_ok | iso_age }}</td>
+            <td>{{ r.size | bytes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endfor %}
 {% endif %}

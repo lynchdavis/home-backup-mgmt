@@ -6,6 +6,24 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (9)
+
+### Dashboard: repos panel grouped by provider, collapsible (v0.2.4)
+
+Grouped the 40-repo flat list from v0.2.3 by provider (GitHub/Bitbucket)
+into native `<details>`/`<summary>` disclosure sections — a real HTML
+element, not custom JS, so the expand/collapse and down-arrow come for
+free with no added script. Added a `provider` field to
+`repo_status_row()`'s output (`bin/tourbillon`) so the template doesn't
+need to re-parse the slug. Each group's `<summary>` shows a per-provider
+count; a group auto-opens by default if it has any non-ok repo, closed
+otherwise, so problems stay visible without clicking. Within each
+group, the provider prefix is stripped from the displayed slug (redundant
+once grouped).
+
+Verified live: 16 GitHub + 24 Bitbucket = 40, matching the top-line
+summary.
+
 ## 2026-09-30 (8)
 
 ### Dashboard: repo mirrors panel now lists individual repos (v0.2.3)

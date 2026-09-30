@@ -662,9 +662,10 @@ def repo_status_row(slug: str, config: dict, state: dict | None,
     'FAILED' — state has last_error set
     'NEVER'  — no state file (mirror has never been attempted)
     """
+    provider = slug.split("/", 1)[0]
     if state is None:
         return {
-            "slug": slug, "state": "NEVER",
+            "slug": slug, "provider": provider, "state": "NEVER",
             "last_ok": None, "size": 0, "error": None,
             "interval_s": interval_s,
         }
@@ -673,26 +674,26 @@ def repo_status_row(slug: str, config: dict, state: dict | None,
     size = state.get("last_size_bytes", 0)
     if last_error:
         return {
-            "slug": slug, "state": "FAILED",
+            "slug": slug, "provider": provider, "state": "FAILED",
             "last_ok": last_ok, "size": size, "error": last_error,
             "interval_s": interval_s,
         }
     if not last_ok:
         # state exists but no success yet (shouldn't normally happen)
         return {
-            "slug": slug, "state": "NEVER",
+            "slug": slug, "provider": provider, "state": "NEVER",
             "last_ok": None, "size": size, "error": None,
             "interval_s": interval_s,
         }
     age = now_ts - iso_parse(last_ok).timestamp()
     if age > interval_s:
         return {
-            "slug": slug, "state": "due",
+            "slug": slug, "provider": provider, "state": "due",
             "last_ok": last_ok, "size": size, "error": None,
             "interval_s": interval_s,
         }
     return {
-        "slug": slug, "state": "ok",
+        "slug": slug, "provider": provider, "state": "ok",
         "last_ok": last_ok, "size": size, "error": None,
         "interval_s": interval_s,
     }
