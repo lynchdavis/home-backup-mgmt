@@ -1,0 +1,6 @@
+# Auto-created by tourbillon on first discovery.
+# Per-repo settings override fields in ../../../defaults.toml.
+# Add overrides below as needed; common one is a tighter interval for
+# actively-developed repos:
+#
+#   interval = "1h"
