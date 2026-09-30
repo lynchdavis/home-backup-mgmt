@@ -20,6 +20,7 @@ None of these tokens or keys are stored in git. The repo only references their *
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
 | SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
 | Gmail app password (`kodiak msmtp`) | `~ldavis/.msmtprc` AND `~tourbillon/.msmtprc` → `password` line. Two copies; both mode 600. | 2026-05-27 | none (until revoked, or gmail account password changes) | — |
+| Dashboard shared password | `~tourbillon/.config/dashboard/env` → `DASHBOARD_PASSWORD_HASH` (bcrypt, never plaintext) | 2026-09-30 | none (until rotated) | — |
 
 ---
 
@@ -163,6 +164,30 @@ Same credential in both files. Per-user files keep the password to mode 600 in e
 If you change the gmail account password, all app passwords are auto-revoked — you'll need to regenerate.
 
 **Failure mode**: if the app password becomes invalid, cron mail fails to send (visible in `~/.msmtp.log` as a `535-5.7.8` auth error). The cron mail is then **lost** — msmtp doesn't queue or retry. So a stale app password = silent monitoring outage. Watching `~/.msmtp.log` (or wiring a check) is the only signal until something forces it.
+
+### Dashboard shared password
+
+Used for: gating the dashboard's Phase 2 write routes (`/config`, per-host
+mail toggle — see `doc/ADR-008-dashboard-config-write-phase2.md`). Phase
+1's read-only routes (`/`, `/api/*`, `/partials/status|hosts|repos`) need
+no auth and are unaffected by this credential existing or not.
+Type: a single shared password (not per-user accounts — this is a
+one-operator LAN tool). Stored as a bcrypt hash, never plaintext, alongside
+a random session-signing key (`DASHBOARD_SECRET_KEY`) used to sign the
+login session cookie (12h expiry).
+
+**No expiration** — rotate whenever you want, no external system involved.
+
+**Set (first time) or rotate**: `sudo /opt/server-backups/bin/dashboard-set-password.sh`
+— prompts for a new password (hidden input, confirmed twice), writes the
+hash to `~tourbillon/.config/dashboard/env`, restarts
+`tourbillon-dashboard.service`. Rotating keeps the existing signing key
+(no need to invalidate sessions on every password change).
+
+**Failure mode if never run**: `/config` shows "no password has been set
+up yet" instead of a login form — not a startup failure, not a security
+hole (write routes stay 401'd either way, `auth.configured()` gates them
+too), just an unset feature.
 
 ### SMTP relay choice (`smtp.gmail.com`)
 

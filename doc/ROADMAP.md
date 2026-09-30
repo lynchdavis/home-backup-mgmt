@@ -313,12 +313,30 @@ later `zpool replace` of the original drive).
   operator decision**, not just unprioritized. Revisit if the network's
   trust model ever changes.
 
-**Dashboard Phase 2** (`doc/ADR-007-backup-dashboard.md`):
-- Editable config: `schedule_when_up`, retry counts, include/exclude
-  exclude-file entries, cron timing
-- Per-host mail on/off toggle
-- Basic password auth (prerequisite for the above two)
-- Crontab-reinstall logic for any write endpoint that changes cron timing
-- (Discussed, not committed) a read-only "credential age" indicator
-  surfacing `doc/CREDENTIALS.md`'s rotation-date table — safe, no secret
-  handling, could jump the queue since it's small
+**Dashboard Phase 2** (`doc/ADR-008-dashboard-config-write-phase2.md`):
+- [x] **Basic password auth + per-host mail toggle — done 2026-09-30.**
+      Single shared password (bcrypt hash + signed session cookie,
+      `~tourbillon/.config/dashboard/env`, same secret pattern as ADR-004).
+      New `mail_enabled` host-TOML field (default true) — `cmd_hosts_sync`
+      now tracks alert-worthy failures (`failed_alerting`) separately from
+      all failures (`failed`); the exit code that `mail-on-output.sh`
+      keys off of only reflects `failed_alerting`, so a muted host's
+      failure still shows in `tourbillon status`/the dashboard but doesn't
+      trigger the shared cron alert. New CLI writer: `tourbillon hosts
+      set-mail <name> <on|off>`. New dashboard routes: `/login`,
+      `/logout`, `/config`, `/partials/config-hosts`,
+      `POST /api/hosts/{name}/mail` — all new, Phase 1's routes
+      byte-for-byte unchanged. Shipped as v0.2.0, packaged, installed,
+      verified live (login, toggle-persists-to-TOML, unauthenticated
+      write correctly 401's, logout clears session). One-time setup:
+      `sudo /opt/server-backups/bin/dashboard-set-password.sh`.
+      **Not yet verified**: an actual induced host-sync failure with
+      `mail_enabled=false` confirming the exit code stays 0 end-to-end —
+      the code path was reasoned through and unit-level-tested (TOML
+      write, auth flow) but not drilled against a real failing sync.
+- [ ] Editable config: `schedule_when_up`, retry counts, include/exclude
+      exclude-file entries, cron timing
+- [ ] Crontab-reinstall logic for any write endpoint that changes cron timing
+- [ ] (Discussed, not committed) a read-only "credential age" indicator
+      surfacing `doc/CREDENTIALS.md`'s rotation-date table — safe, no
+      secret handling, could jump the queue since it's small

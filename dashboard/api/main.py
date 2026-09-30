@@ -8,11 +8,12 @@ touching these.
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from . import auth
 from . import tourbillon_client as tb
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -124,4 +125,76 @@ def partial_repos(request: Request):
     rows, error = _fetch(tb.get_repos)
     return templates.TemplateResponse(
         request, "partials/repos.html", {"rows": rows, "error": error}
+    )
+
+
+# ---------- Phase 2: auth + config (see doc/ADR-008) ----------
+# Everything above this line is Phase 1: read-only, unauthenticated,
+# untouched by this addition. Everything below gates behind a session
+# cookie checked against auth.py's single shared password.
+
+def _page_authenticated(request: Request) -> bool:
+    return auth.is_authenticated(request.cookies.get(auth.SESSION_COOKIE))
+
+
+@app.get("/login")
+def login_page(request: Request):
+    if not auth.configured():
+        return templates.TemplateResponse(request, "login.html", {"not_configured": True})
+    return templates.TemplateResponse(request, "login.html", {})
+
+
+@app.post("/login")
+def login_submit(request: Request, password: str = Form(...)):
+    if not auth.configured():
+        return templates.TemplateResponse(
+            request, "login.html", {"not_configured": True}, status_code=503
+        )
+    if not auth.verify_password(password):
+        return templates.TemplateResponse(
+            request, "login.html", {"error": "Incorrect password"}, status_code=401
+        )
+    resp = RedirectResponse(url="/config", status_code=303)
+    resp.set_cookie(
+        auth.SESSION_COOKIE, auth.make_session_cookie(),
+        max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="strict",
+    )
+    return resp
+
+
+@app.post("/logout")
+def logout():
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.delete_cookie(auth.SESSION_COOKIE)
+    return resp
+
+
+@app.get("/config")
+def config_page(request: Request):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse(request, "config.html", {})
+
+
+@app.get("/partials/config-hosts")
+def partial_config_hosts(request: Request):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    rows, error = _fetch(tb.get_hosts)
+    return templates.TemplateResponse(
+        request, "partials/config-hosts.html", {"rows": rows, "error": error}
+    )
+
+
+@app.post("/api/hosts/{name}/mail")
+def api_set_host_mail(request: Request, name: str, enabled: bool = Form(...)):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    try:
+        tb.set_host_mail(name, enabled)
+    except tb.TourbillonError as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+    rows, error = _fetch(tb.get_hosts)
+    return templates.TemplateResponse(
+        request, "partials/config-hosts.html", {"rows": rows, "error": error}
     )

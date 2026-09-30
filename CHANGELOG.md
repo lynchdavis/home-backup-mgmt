@@ -6,6 +6,61 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (5)
+
+### Dashboard Phase 2, step 1: auth + per-host mail toggle (v0.2.0)
+
+First Phase 2 write capability, per ADR-008. ADR-007 required basic
+password auth before any write route ships — built that foundation and
+the first write route on top of it in one pass.
+
+**Auth**: single shared password (not per-user accounts — matches this
+tool's actual one-operator shape). Bcrypt hash + a random session-signing
+key in `~tourbillon/.config/dashboard/env`, same pattern ADR-004
+established for the saratoga/GitHub/Bitbucket tokens. Session is a
+signed cookie (`itsdangerous`, 12h expiry, httponly + samesite=strict) —
+no server-side session store. New one-time setup script:
+`bin/dashboard-set-password.sh` (postinst never generates this — same
+reasoning as every other secret in this codebase).
+
+**Design gap found while building this**: `hosts sync` runs every host
+in one cron firing, and `mail-on-output.sh` mails on that single
+process's exit code — there was no per-host granularity to toggle at
+all. Fixed by giving hosts a `mail_enabled` field (default true,
+`configs/hosts/defaults.toml`) and having `cmd_hosts_sync` track
+`failed_alerting` (only counts a host's failure if `mail_enabled` is
+true) separately from `failed` (all failures, unchanged, still visible
+everywhere). **The exit code — what actually drives the cron mail —
+now reflects `failed_alerting`, not `failed`.** A muted host's failure
+still lands in its state file and still shows FAILED in
+`tourbillon status`/the dashboard; it just won't page you for that host.
+
+New CLI writer: `tourbillon hosts set-mail <name> <on|off>` — a targeted
+TOML line replace/append (`set_host_toml_bool()`), not a general TOML
+writer, to avoid mangling the hand-commented config files. The dashboard
+just shells out to it, same principle as every read route already used.
+
+New routes, all auth-gated, all additive: `/login`, `/logout`, `/config`,
+`/partials/config-hosts`, `POST /api/hosts/{name}/mail`. Every Phase 1
+route (`/`, `/api/*`, `/partials/status|hosts|repos`) is byte-for-byte
+unchanged and still fully unauthenticated.
+
+New deps: `bcrypt`, `itsdangerous`, `python-multipart` (FastAPI's form
+parsing).
+
+Verified live end-to-end: wrong password rejected, correct password
+sets a working session, `/config` and the write endpoint both correctly
+401/redirect when unauthenticated, a real toggle persists to the actual
+host TOML file, logout clears the session, and Phase 1's routes
+(including the v0.1.1 Drive-panel fix) survived the upgrade untouched.
+**Gap**: didn't induce an actual host-sync failure to confirm the exit-
+code suppression end-to-end — reasoned through the code path and tested
+every other piece, but that specific scenario wasn't drilled live.
+
+Shipped as v0.2.0 (`task version:bump:minor`), packaged, installed.
+New ADR: `doc/ADR-008-dashboard-config-write-phase2.md`. `CREDENTIALS.md`
+and `README.md` updated.
+
 ## 2026-09-30 (4)
 
 ### Cleaned up `data-00`'s identified junk (~42GB reclaimed)

@@ -1,0 +1,31 @@
+<h2>Per-host mail alerts</h2>
+<p class="summary">Controls whether a host's sync failures trigger the
+  cron mail alert. Off doesn't hide anything — the failure still shows on
+  the status page — it just won't page you for that host.</p>
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% elif not rows %}
+  <p class="empty">no hosts configured</p>
+{% else %}
+  <table>
+    <thead><tr><th>Host</th><th>State</th><th>Mail on failure</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.name }}</td>
+        <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state in ('due', 'unreachable') else 'fail') }}">{{ r.state }}</span></td>
+        <td>
+          <label>
+            <input type="checkbox" {{ 'checked' if r.mail_enabled else '' }}
+                   hx-post="/api/hosts/{{ r.name }}/mail"
+                   hx-vals="js:{enabled: event.target.checked}"
+                   hx-trigger="change"
+                   hx-target="#config-hosts-panel" hx-swap="innerHTML">
+            {{ 'on' if r.mail_enabled else 'off' }}
+          </label>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}

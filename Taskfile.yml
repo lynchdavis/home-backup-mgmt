@@ -14,7 +14,7 @@ tasks:
   vet:
     desc: Syntax-check all first-party Python
     cmds:
-      - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py bin/dump-saratoga-config.py dashboard/api/main.py dashboard/api/tourbillon_client.py
+      - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py bin/dump-saratoga-config.py dashboard/api/main.py dashboard/api/tourbillon_client.py dashboard/api/auth.py
 
   test:
     desc: Run the existing test harness

@@ -65,3 +65,21 @@ def get_hosts():
 
 def get_repos():
     return run_json("repos", "status")
+
+
+def set_host_mail(name: str, enabled: bool) -> None:
+    """Write path -- shells out to `tourbillon hosts set-mail`, the actual
+    config writer (see bin/tourbillon's set_host_toml_bool()), never edits
+    configs/hosts/*.toml directly. Invalidates the cached `hosts status`
+    result so the /config page's own re-fetch reflects the change
+    immediately instead of waiting out CACHE_TTL."""
+    proc = subprocess.run(
+        [str(TOURBILLON_BIN), "hosts", "set-mail", name, "on" if enabled else "off"],
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
+        raise TourbillonError(
+            f"tourbillon hosts set-mail {name} {'on' if enabled else 'off'} "
+            f"failed: {proc.stderr.strip() or proc.stdout.strip()}"
+        )
+    _cache.pop("hosts status", None)

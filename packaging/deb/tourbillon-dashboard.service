@@ -16,6 +16,13 @@ WorkingDirectory=/opt/server-backups/dashboard
 # dashboard degrades gracefully (tourbillon's own saratoga_replication_summary()
 # already handles a missing token) rather than failing to start.
 EnvironmentFile=-/var/lib/tourbillon/.config/saratoga/env
+# Optional (leading '-'): DASHBOARD_PASSWORD_HASH + DASHBOARD_SECRET_KEY for
+# the /config write routes (ADR-008). Same reasoning as the line above --
+# set up once via bin/dashboard-set-password.sh, not by postinst. Absent
+# this file, /config shows "no password set up yet" (auth.configured() is
+# False) rather than failing to start; Phase 1's read-only routes are
+# completely unaffected either way.
+EnvironmentFile=-/var/lib/tourbillon/.config/dashboard/env
 ExecStart=/opt/server-backups/dashboard/.venv/bin/uvicorn api.main:app --host 192.168.1.61 --port 8000
 Restart=on-failure
 RestartSec=5

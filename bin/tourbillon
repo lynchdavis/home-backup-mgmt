@@ -22,6 +22,7 @@ import base64
 import fcntl
 import json
 import os
+import re
 import shutil
 import ssl
 import subprocess
@@ -867,6 +868,7 @@ def host_status_row(name: str, defaults: dict, now_ts: float) -> dict:
         "last_error": None,
         "size": 0,
         "interval_s": interval_s,
+        "mail_enabled": bool(cfg.get("mail_enabled", True)),
     }
     if state is None:
         return row
@@ -954,6 +956,45 @@ def cmd_hosts_ping(args: argparse.Namespace) -> int:
         return 0
     print(f"  UNREACHABLE  ({elapsed:.2f}s): {msg}", file=sys.stderr)
     return 1
+
+
+def set_host_toml_bool(name: str, key: str, value: bool) -> None:
+    """Replace or append a top-level `key = true/false` line in a host's own
+    TOML file (never defaults.toml). Deliberately not a general TOML writer
+    -- these files are simple, flat, hand-maintained configs (see
+    defaults.toml's own header), and round-tripping through a full TOML
+    library risks reformatting comments/layout the operator wrote by hand.
+    A targeted line replace/append is the same spirit as the exclude-file
+    edits done directly in this codebase's history."""
+    path = CONFIGS_HOSTS / f"{name}.toml"
+    literal = "true" if value else "false"
+    new_line = f"{key} = {literal}\n"
+    pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
+
+    if not path.exists():
+        path.write_text(new_line)
+        return
+
+    lines = path.read_text().splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if pattern.match(line):
+            lines[i] = new_line
+            path.write_text("".join(lines))
+            return
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    lines.append(new_line)
+    path.write_text("".join(lines))
+
+
+def cmd_hosts_set_mail(args: argparse.Namespace) -> int:
+    if args.name not in known_host_names():
+        print(f"unknown host: {args.name}  (no configs/hosts/{args.name}.toml)", file=sys.stderr)
+        return 2
+    enabled = args.state == "on"
+    set_host_toml_bool(args.name, "mail_enabled", enabled)
+    print(f"{args.name}: mail_enabled = {'true' if enabled else 'false'}")
+    return 0
 
 
 def cmd_hosts_status(args: argparse.Namespace) -> int:
@@ -1224,7 +1265,7 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
     quiet = bool(args.quiet)
     target_root = defaults.get("target_dataset", "backups-00/hosts")
     summary = {"ok": 0, "skipped": 0, "unreachable": 0, "failed": 0,
-               "total_bytes": 0, "total_seconds": 0.0}
+               "failed_alerting": 0, "total_bytes": 0, "total_seconds": 0.0}
 
     # Buffer per-host rows so the failure email (quiet mode + at least one
     # failure) can show the full roster, not just the FAILED line. In
@@ -1310,6 +1351,8 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
                 new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
                 save_host_state(name, new_state)
                 summary["failed"] += 1
+                if cfg.get("mail_enabled", True):
+                    summary["failed_alerting"] += 1
                 err = (result.get("reason") or "unknown")[:80]
                 emit(f"  {name:<{longest}}  FAILED        {err}", stream=sys.stderr)
         finally:
@@ -1354,7 +1397,11 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
         )
     # else: quiet + only skipped/unreachable → silent (current behavior).
 
-    return 0 if summary["failed"] == 0 else 1
+    # Exit code (not summary["failed"]) is what mail-on-output.sh's cron
+    # wrapper keys off of -- a host with mail_enabled=false doesn't count
+    # here, so its failures are recorded (state file, `hosts status`, the
+    # dashboard) but don't trigger the shared cron alert. See defaults.toml.
+    return 0 if summary["failed_alerting"] == 0 else 1
 
 
 # ---------- Top-level status sources ----------
@@ -1943,6 +1990,12 @@ def build_parser() -> argparse.ArgumentParser:
     hp.add_argument("--quiet", action="store_true",
                     help="silent when nothing happened (cron-friendly)")
     hp.set_defaults(func=cmd_hosts_sync)
+
+    hp = hsubs.add_parser("set-mail", help="toggle whether a host's failures trigger the cron mail alert")
+    hp.add_argument("name", help="configured host name (basename of configs/hosts/*.toml)")
+    hp.add_argument("state", choices=["on", "off"])
+    hp.set_defaults(func=cmd_hosts_set_mail)
+
     sp = subs.add_parser("perf", help="transfer-rate history (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("perf"))
 

@@ -94,6 +94,21 @@ ssh_probe_timeout = "5s"
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Alerting
+# ──────────────────────────────────────────────────────────────────────
+
+# Whether this host's sync failures trigger the mail-on-output.sh cron
+# alert. `hosts sync` runs every configured host in one shot and mails
+# once if ANY host fails — this field lets a specific host's failures be
+# muted from that shared alert (e.g. a known-flaky host you don't want to
+# be paged for) without hiding it: the failure still lands in this host's
+# state file and shows as FAILED in `tourbillon status` / the dashboard,
+# it just won't be why the cron email fires. Set false only for a host
+# whose failures you've deliberately decided not to be alerted on.
+mail_enabled = true
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Destination (kodiak side)
 # ──────────────────────────────────────────────────────────────────────
 
