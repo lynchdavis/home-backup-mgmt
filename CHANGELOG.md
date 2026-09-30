@@ -6,6 +6,33 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (4)
+
+### Cleaned up `data-00`'s identified junk (~42GB reclaimed)
+
+Followed through on the local-deletion backlog item from the 2026-09-29
+old-machine-backups review. Before deleting anything described as a
+"tutorial" or "cloned repo," verified the actual public/upstream source
+via `git remote -v` and README inspection rather than trusting the
+earlier classification at face value:
+
+- `iTerm2-Color-Schemes` (both copies) — confirmed
+  `github.com/mbadolato/iTerm2-Color-Schemes.git`.
+- `learn-react` — 8 of 9 sub-projects confirmed as clones of distinct
+  public GitHub repos via their own remotes; the 9th
+  (`old_portal_elements`) has no `.git` but every piece cites its own
+  tutorial/template source in its README.
+
+Deleted: `Leigh Backup 2015-08-16/AcronisBackups/System__8_5_2010.tib`
+(33GB, 16-year-old Windows Acronis image, already confirmed empty of
+real content), `Alex Backup/Downloads/` (8.2GB software installers),
+both `iTerm2-Color-Schemes` copies (91MB), and all of `learn-react`
+(596MB). ~42GB reclaimed immediately — `data-00` is plain ext4, so
+unlike the lynchmbp ZFS cleanup there's no snapshot-retention delay;
+`df` confirms the drop right away (36% → 35% used).
+
+`doc/ROADMAP.md`'s backlog item marked done.
+
 ## 2026-09-30 (3)
 
 ### Dashboard: fixed the Drive health panel (v0.1.1)

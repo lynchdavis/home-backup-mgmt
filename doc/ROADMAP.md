@@ -249,21 +249,40 @@ stale the way `GAPS.md` §2.1 did.
 
 ## Backlog (unordered, lower priority — triage later)
 
-**Clean up `data-00`'s non-backed-up junk** — operator's stated intent
-(2026-09-29), not yet actioned. Now that the old-machine-backups bucket has
-been reviewed (see the Coverage gaps entry above), the junk is precisely
-identified and safe to delete locally whenever convenient, reclaiming real
-disk space:
-- `Leigh Backup 2015-08-16/AcronisBackups/System__8_5_2010.tib` — 33GB,
-  16-year-old Windows system image, unrestorable in practice.
-- `Alex Backup/Downloads/` — 8.2GB of software installers.
-- `ldavis-FP-mbp/Downloads/mbadolato-iTerm2-Color-Schemes-d6098c7/` +
-  `2018-05-06/.../iTerm2-Color-Schemes/` — a public GitHub repo cloned
-  twice, ~91MB combined, trivially re-clonable if ever wanted.
-- `2018-05-06/ldavis/development/learn-react/` — 596MB tutorial project.
-This is a deletion, not an exclude — see `data-organizer/HOST-HYGIENE.md`'s
-own bias-to-exclude-over-delete principle; low risk here since none of it
-is going anywhere valuable, but still the operator's call on timing.
+- [x] **Clean up `data-00`'s non-backed-up junk — done 2026-09-30.**
+      Before deleting, verified every "tutorial/repo" candidate actually
+      has a public upstream (operator's explicit ask) via `git remote -v`
+      and README inspection rather than assuming from the earlier review:
+      - `iTerm2-Color-Schemes` (both copies) — confirmed
+        `github.com/mbadolato/iTerm2-Color-Schemes.git` via the
+        `2018-05-06` copy's git remote (the `ldavis-FP-mbp` copy has no
+        `.git` — it's a GitHub "Download ZIP" extract, folder name
+        `mbadolato-iTerm2-Color-Schemes-d6098c7` is GitHub's own
+        owner-repo-shorthash ZIP-naming convention — but identical
+        content from the same repo).
+      - `learn-react` — 8 of 9 sub-projects confirmed via `git remote -v`
+        on each: `reactjs/redux`, `reactjs/react-redux`,
+        `omnidan/redux-undo`, `wesbos/Learn-Redux-Starter-Files`,
+        `stowball/dummys-guide-to-redux-and-thunk-react`,
+        `dustinchang/React_Learning_LearnCode.Academy`,
+        `brandiqa/redux-crud-example`, `catalin-luntraru/redux-minimal`.
+        The 9th (`old_portal_elements`, 25MB) has no `.git` but every
+        piece documents its own tutorial/template origin in its own
+        README (Create React App bootstrap, a named "login flow"
+        tutorial, a Bootstrapious template) — practice work, not
+        original/irreplaceable content. Two loose files
+        (`login.js`/`login.css`, 188 lines total) match the same
+        tutorial-snippet style.
+      Deleted: the 33GB Acronis `.tib`, Alex's 8.2GB of installers, both
+      `iTerm2-Color-Schemes` copies (91MB), and all of `learn-react`
+      (596MB). ~42GB reclaimed immediately (plain ext4, not ZFS — no
+      snapshot-retention delay like the lynchmbp cleanup). Confirmed via
+      `df`: `data-00` dropped from 36% to 35% used.
+      This was a deletion, not an exclude — see
+      `data-organizer/HOST-HYGIENE.md`'s bias-to-exclude-over-delete
+      principle; acceptable here since every candidate was independently
+      re-verified as either reproducible-from-public-upstream or a
+      genuinely empty/valueless disk image, not just "probably fine."
 
 **Mirror the pool** (`GAPS.md` §1.1) — paused 2026-09-24 at the operator's
 request; drive-purchase decision on hold. `backups-00` is one drive, now at
