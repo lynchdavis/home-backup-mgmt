@@ -7,4 +7,4 @@ Description: Home backup system — tourbillon CLI + read-only status dashboard
  git repo mirroring) plus a LAN-only web dashboard for status.
 Section: admin
 Priority: optional
-Depends: python3, python3-venv
+Depends: python3, python3-venv, acl

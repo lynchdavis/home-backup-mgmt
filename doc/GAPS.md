@@ -550,6 +550,45 @@ session) and re-sync `~tourbillon`'s copy.
 
 ---
 
+### 4.6 GitHub/Bitbucket tokens repeated §4.5's exact exposure — same mistake, twice
+
+2026-09-30, while wiring the dashboard's new repos-discover write route
+(ADR-009): added `EnvironmentFile=-/var/lib/tourbillon/.config/tourbillon/env`
+to `tourbillon-dashboard.service`, assuming systemd's `export KEY=value`
+support (it exists in general) would parse that file correctly. It
+didn't, on this system — systemd rejected every line as an invalid
+environment assignment **and logged the full rejected line, including
+the literal `GITHUB_TOKEN` and `BITBUCKET_TOKEN` values, to the
+journal** — the identical failure shape §4.5 already documented for the
+TrueNAS token exposure a week earlier. That precedent should have been
+checked before touching `EnvironmentFile=` again; it wasn't.
+
+**Fixed properly this time**: rather than reformatting the shared
+`tourbillon/env` file (its `export` prefix is required elsewhere — it's
+`. sourced` directly in crontabs, where `export` is what makes the
+values visible to the subprocess), `ExecStart` now wraps the dashboard
+launch in `bash -c 'source .../tourbillon/env 2>/dev/null || true; exec
+uvicorn ...'` — real shell `source` handles `export` natively, and
+never goes through systemd's stricter `EnvironmentFile=` parser for this
+specific file. Verified: no journal entries on restart, tokens present
+in the running process's environment.
+
+**Operator decision needed**: same as §4.5 — rotate `GITHUB_TOKEN` and
+`BITBUCKET_TOKEN` (now sitting in plaintext in kodiak's journal), or
+accept the risk on the same "closed home network" reasoning already
+applied there. Not rotated yet; this entry exists so it isn't silently
+dropped, per `doc/CREDENTIALS.md`'s rotation-path convention.
+
+**Broader lesson, now proven twice**: never point `EnvironmentFile=` at
+a file written for shell-sourcing (`export` prefix, `#` comments meant
+for humans) without testing the actual parse — verify contents land in
+`/proc/<pid>/environ`, don't assume the format is compatible.
+
+**Queued?** Fix: done. Rotation: no — same deferred-risk decision as
+§4.5, pending operator confirmation it still holds.
+
+---
+
 ## Recommended next moves, in priority order
 
 1. ~~**Restore drill (host side)** (§1.3).~~ ✓ done 2026-05-27 — scripted + wired to monthly cron.

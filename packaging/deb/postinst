@@ -15,6 +15,22 @@ ln -sfn "$REPO_CHECKOUT/configs" /opt/server-backups/configs
 # explicitly for the tourbillon user.
 sudo -u tourbillon git config --global --add safe.directory "$REPO_CHECKOUT"
 
+# safe.directory above only stops git's ownership-mismatch refusal -- it
+# doesn't grant actual filesystem write access. configs/ and .git/ are
+# ldavis:ldavis-owned; tourbillon needs write access for the dashboard's
+# write routes (hosts set-mail, repos add/discover -- ADR-008/ADR-009) and
+# for repos discover's own auto-commit. POSIX ACL, not group membership,
+# to keep the grant scoped to exactly these two trees rather than
+# tourbillon's whole home-directory-tree reach via a shared group.
+# -d applies the same grant as a default ACL so files/dirs *created later*
+# (a brand-new repo config, a commit's objects) inherit it too. Found the
+# hard way, 2026-09-30: both the mail-toggle write and the repos-discover
+# auto-commit silently failed with PermissionError against these exact
+# paths until this was added -- verified only via a local dev server
+# running as ldavis, never against tourbillon's real permissions.
+setfacl -R -m u:tourbillon:rwX -d -m u:tourbillon:rwX "$REPO_CHECKOUT/configs"
+setfacl -R -m u:tourbillon:rwX -d -m u:tourbillon:rwX "$REPO_CHECKOUT/.git"
+
 # Both venvs are built here, not shipped in the package — venvs pin
 # absolute interpreter paths and aren't portably relocatable.
 python3 -m venv /opt/server-backups/dashboard/.venv

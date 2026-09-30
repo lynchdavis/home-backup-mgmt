@@ -146,6 +146,23 @@ body {
   margin-top: 20px;
 }
 
+.panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.panel ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.panel ul li { margin-bottom: 2px; }
+
+.result-block { margin-top: 12px; }
+.section-gap { margin-top: 24px; }
+
 .repo-group { margin-top: 4px; }
 .repo-group + .repo-group { margin-top: 10px; }
 

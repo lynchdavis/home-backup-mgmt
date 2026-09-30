@@ -83,3 +83,37 @@ def set_host_mail(name: str, enabled: bool) -> None:
             f"failed: {proc.stderr.strip() or proc.stdout.strip()}"
         )
     _cache.pop("hosts status", None)
+
+
+def discover_repos() -> dict:
+    """Write path -- shells out to `tourbillon repos discover`. Network
+    calls to GitHub/Bitbucket, so a longer timeout than the read routes.
+    Always commits (matches the CLI's own default) -- invalidates the
+    cached `repos status` result so newly-discovered repos show up
+    immediately instead of waiting out CACHE_TTL."""
+    proc = subprocess.run(
+        [str(TOURBILLON_BIN), "repos", "discover", "--json"],
+        capture_output=True, text=True, timeout=60,
+    )
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        raise TourbillonError(
+            f"tourbillon repos discover produced invalid JSON: {proc.stderr.strip() or e}"
+        ) from e
+    _cache.pop("repos status", None)
+    return data
+
+
+def add_repo(slug: str, clone_url: str) -> str:
+    """Write path -- shells out to `tourbillon repos add`. That command has
+    no --json mode (a single human-readable confirmation line is all there
+    is), so this just returns stdout on success and raises on failure."""
+    proc = subprocess.run(
+        [str(TOURBILLON_BIN), "repos", "add", slug, clone_url],
+        capture_output=True, text=True, timeout=20,
+    )
+    if proc.returncode != 0:
+        raise TourbillonError(proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")
+    _cache.pop("repos status", None)
+    return proc.stdout.strip()

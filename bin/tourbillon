@@ -160,12 +160,23 @@ def github_list_owned(token: str) -> Iterator[Repo]:
 def bitbucket_list_workspace_repos(
     workspace: str, email: str, token: str,
 ) -> Iterator[Repo]:
-    """Paginated list of repos in a Bitbucket workspace, role=owner."""
+    """Paginated list of every repo in a Bitbucket workspace.
+
+    No `role=owner` filter -- confirmed 2026-09-30 that this account's
+    Atlassian API token (ATAT-prefixed, scoped) silently returns zero
+    results with that filter (API replies 200, size=0, no error) even
+    though the same token can list every repo in the workspace with no
+    role filter at all. A known-shape quirk from the Bitbucket app-
+    password -> API-token migration: the role/permission model behind
+    `role=owner` doesn't recognize a scoped token's caller the same way
+    full basic-auth did. Since BITBUCKET_WORKSPACE is already the
+    operator's own personal workspace, every repo returned here already
+    belongs to them -- no role filter needed to establish that."""
     auth = base64.b64encode(f"{email}:{token}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}"}
     url = (
         f"https://api.bitbucket.org/2.0/repositories/{workspace}"
-        "?role=owner&pagelen=100"
+        "?pagelen=100"
     )
     while url:
         data = http_get_json(url, headers)
@@ -525,15 +536,27 @@ def is_due(state: dict | None, interval_s: int, now_ts: float) -> tuple[bool, st
 
 def sync_one_repo(slug: str, config: dict, dry_run: bool = False) -> dict:
     """Clone or update a single repo. Returns a result dict; never raises for
-    repo-specific failures (those go into the result)."""
+    repo-specific failures (those go into the result).
+
+    A config with an explicit `clone_url` (set by `tourbillon repos add`, for
+    a provider outside the two with built-in API discovery) is used as-is,
+    with no `http.extraHeader` injection -- any credentials needed are
+    expected to be embedded in the URL itself (`https://user:token@host/...`),
+    since there's no generic magic-username auth convention across arbitrary
+    git hosts the way there is for GitHub/Bitbucket specifically."""
     provider, owner, name = slug_split(slug)
     dest = repo_destination(provider, owner, name)
-    url = public_clone_url(provider, owner, name)
+    manual_url = config.get("clone_url")
 
-    try:
-        header = git_auth_header_for(provider)
-    except RuntimeError as e:
-        return {"slug": slug, "ok": False, "action": "skip", "reason": str(e)}
+    if manual_url:
+        url = manual_url
+        header = None
+    else:
+        url = public_clone_url(provider, owner, name)
+        try:
+            header = git_auth_header_for(provider)
+        except RuntimeError as e:
+            return {"slug": slug, "ok": False, "action": "skip", "reason": str(e)}
 
     if dry_run:
         action = "clone" if not dest.exists() else "update"
@@ -544,20 +567,14 @@ def sync_one_repo(slug: str, config: dict, dry_run: bool = False) -> dict:
     env = os.environ.copy()
     env.setdefault("GIT_TERMINAL_PROMPT", "0")  # don't hang on auth prompts
 
+    auth_flags = ["-c", f"http.extraHeader={header}"] if header else []
     if not dest.exists():
         # First-time clone (--mirror)
-        cmd = [
-            "git", "-c", f"http.extraHeader={header}",
-            "clone", "--mirror", url, str(dest),
-        ]
+        cmd = ["git", *auth_flags, "clone", "--mirror", url, str(dest)]
         action = "cloned"
     else:
         # Incremental update; --prune drops refs deleted upstream
-        cmd = [
-            "git", "-C", str(dest),
-            "-c", f"http.extraHeader={header}",
-            "remote", "update", "--prune",
-        ]
+        cmd = ["git", "-C", str(dest), *auth_flags, "remote", "update", "--prune"]
         action = "updated"
 
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
@@ -577,15 +594,111 @@ def sync_one_repo(slug: str, config: dict, dry_run: bool = False) -> dict:
     }
 
 
+MANUAL_REPO_TEMPLATE = """\
+# Manually added via `tourbillon repos add` — not from GitHub/Bitbucket
+# API discovery, so `repos discover` will never touch this file (it only
+# creates/orphan-checks configs for the two providers it knows how to
+# enumerate). The label in this path ({provider}) is just an organizing
+# name, not a provider tourbillon has API integration with.
+#
+# clone_url embeds any needed credentials directly
+# (https://user:token@host/owner/repo.git) — there's no generic magic-
+# username auth convention across arbitrary git hosts the way there is
+# for GitHub/Bitbucket specifically. Use a read-only/least-privilege
+# credential if the host supports scoping one.
+clone_url = "{clone_url}"
+"""
+
+
+def cmd_repos_add(args: argparse.Namespace) -> int:
+    try:
+        provider, owner, name = slug_split(args.slug)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    path = CONFIGS_REPOS / provider / owner / f"{name}.toml"
+    if path.exists():
+        print(f"ERROR: {path.relative_to(REPO_ROOT)} already exists — "
+              f"edit it directly to change clone_url", file=sys.stderr)
+        return 1
+
+    ensure_defaults()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(MANUAL_REPO_TEMPLATE.format(provider=provider, clone_url=args.clone_url))
+
+    if args.no_commit:
+        print(f"created {path.relative_to(REPO_ROOT)} (--no-commit: not committing)")
+        return 0
+
+    msg = (
+        f"configs/repos: manually add {args.slug}\n\n"
+        f"Added by `tourbillon repos add` (not API-discovered).\n"
+    )
+    try:
+        short = git_commit_paths([path], msg)
+    except subprocess.CalledProcessError as e:
+        print(f"created {path.relative_to(REPO_ROOT)} but git commit failed: {e}", file=sys.stderr)
+        return 1
+    print(f"created {path.relative_to(REPO_ROOT)}, committed locally as {short} (not pushed)")
+    return 0
+
+
 # ---------- Subcommands ----------
 
 def cmd_repos_discover(args: argparse.Namespace) -> int:
-    if ensure_defaults():
-        rel = DEFAULTS_PATH.relative_to(REPO_ROOT)
-        print(f"created {rel}")
+    as_json = getattr(args, "json", False)
+    created_defaults = ensure_defaults()
+    if created_defaults and not as_json:
+        print(f"created {DEFAULTS_PATH.relative_to(REPO_ROOT)}")
 
-    print("discovering...")
+    if not as_json:
+        print("discovering...")
     result = discover_all()
+
+    new_slugs = [slug_from_config_path(p) for p in result.new_config_paths]
+    committed_hash = None
+    commit_error = None
+
+    if result.new_config_paths and not args.no_commit:
+        n = len(result.new_config_paths)
+        slug_lines = "\n".join(f"  - {s}" for s in new_slugs)
+        msg = (
+            f"configs/repos: discover {n} new repo(s)\n\n"
+            f"Auto-created by `tourbillon repos discover`.\n"
+            f"Repos newly catalogued:\n{slug_lines}\n"
+        )
+        paths_to_commit = list(result.new_config_paths)
+        # Also stage defaults.toml if it was newly created
+        if (CONFIGS_REPOS / "defaults.toml").exists() and (
+            "defaults.toml" not in [p.name for p in paths_to_commit]
+        ):
+            # only include defaults.toml if it's git-untracked currently
+            status = subprocess.run(
+                ["git", "-C", str(REPO_ROOT), "status", "--porcelain",
+                 str((DEFAULTS_PATH).relative_to(REPO_ROOT))],
+                capture_output=True, text=True, check=False,
+            )
+            if status.stdout.strip().startswith("??"):
+                paths_to_commit.append(DEFAULTS_PATH)
+        try:
+            committed_hash = git_commit_paths(paths_to_commit, msg)
+        except subprocess.CalledProcessError as e:
+            commit_error = str(e)
+
+    if as_json:
+        import json
+        payload = {
+            "created_defaults": created_defaults,
+            "github": {"count": len(result.github_repos), "error": result.github_error},
+            "bitbucket": {"count": len(result.bitbucket_repos), "error": result.bitbucket_error},
+            "new_slugs": new_slugs,
+            "committed_hash": committed_hash,
+            "commit_error": commit_error,
+            "no_commit": bool(args.no_commit),
+            "orphan_slugs": result.orphan_slugs,
+        }
+        print(json.dumps(payload, indent=2, default=str))
+        return 1 if (result.has_any_error or commit_error) else 0
 
     print()
     for name, repos, err in [
@@ -605,40 +718,14 @@ def cmd_repos_discover(args: argparse.Namespace) -> int:
         for p in result.new_config_paths:
             print(f"  + {p.relative_to(REPO_ROOT)}")
 
-        # Auto-commit (per ADR-001: local-only, never pushed)
         if args.no_commit:
             print()
             print("(--no-commit: not committing; review with `git status`)")
+        elif commit_error:
+            print(f"  git commit failed: {commit_error}", file=sys.stderr)
+            return 1
         else:
-            n = len(result.new_config_paths)
-            new_slugs = [
-                slug_from_config_path(p) for p in result.new_config_paths
-            ]
-            slug_lines = "\n".join(f"  - {s}" for s in new_slugs)
-            msg = (
-                f"configs/repos: discover {n} new repo(s)\n\n"
-                f"Auto-created by `tourbillon repos discover`.\n"
-                f"Repos newly catalogued:\n{slug_lines}\n"
-            )
-            paths_to_commit = list(result.new_config_paths)
-            # Also stage defaults.toml if it was newly created
-            if (CONFIGS_REPOS / "defaults.toml").exists() and (
-                "defaults.toml" not in [p.name for p in paths_to_commit]
-            ):
-                # only include defaults.toml if it's git-untracked currently
-                status = subprocess.run(
-                    ["git", "-C", str(REPO_ROOT), "status", "--porcelain",
-                     str((DEFAULTS_PATH).relative_to(REPO_ROOT))],
-                    capture_output=True, text=True, check=False,
-                )
-                if status.stdout.strip().startswith("??"):
-                    paths_to_commit.append(DEFAULTS_PATH)
-            try:
-                short = git_commit_paths(paths_to_commit, msg)
-                print(f"committed locally as {short} (not pushed)")
-            except subprocess.CalledProcessError as e:
-                print(f"  git commit failed: {e}", file=sys.stderr)
-                return 1
+            print(f"committed locally as {committed_hash} (not pushed)")
     else:
         print()
         print("(no new configs — all upstream repos already catalogued)")
@@ -2012,7 +2099,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-commit", action="store_true",
         help="don't auto-commit newly-created config files (default: do commit)",
     )
+    rp.add_argument("--json", action="store_true", help="emit structured JSON instead of formatted text")
     rp.set_defaults(func=cmd_repos_discover)
+
+    rp = rsubs.add_parser(
+        "add",
+        help="manually register a repo outside github/bitbucket API discovery",
+    )
+    rp.add_argument("slug", help="label/owner/name -- label is just an organizing name, not necessarily 'github' or 'bitbucket'")
+    rp.add_argument("clone_url", help="full clone URL; embed credentials directly if the repo is private (https://user:token@host/owner/repo.git)")
+    rp.add_argument("--no-commit", action="store_true", help="don't auto-commit the new config file")
+    rp.set_defaults(func=cmd_repos_add)
 
     rp = rsubs.add_parser("status", help="per-repo last-run state, age, size")
     rp.add_argument("--name", metavar="SLUG", help="show one specific repo")

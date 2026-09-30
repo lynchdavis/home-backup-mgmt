@@ -326,15 +326,44 @@ later `zpool replace` of the original drive).
       set-mail <name> <on|off>`. New dashboard routes: `/login`,
       `/logout`, `/config`, `/partials/config-hosts`,
       `POST /api/hosts/{name}/mail` — all new, Phase 1's routes
-      byte-for-byte unchanged. Shipped as v0.2.0, packaged, installed,
-      verified live (login, toggle-persists-to-TOML, unauthenticated
-      write correctly 401's, logout clears session). One-time setup
+      byte-for-byte unchanged. Shipped as v0.2.0. One-time setup
       (`sudo /opt/server-backups/bin/dashboard-set-password.sh`) **done
       2026-09-30** — `/config` is live and usable now.
-      **Not yet verified**: an actual induced host-sync failure with
+      **Correction, 2026-09-30**: the original "verified live" claim was
+      wrong — testing was done via a local dev server running as
+      `ldavis`, which has full write access to `configs/`. The real
+      dashboard runs as `tourbillon`, which didn't, so this write route
+      silently failed with `PermissionError` in actual production from
+      the day it shipped until the ACL fix below landed. Genuinely
+      verified as `tourbillon` now (see the repo-management entry).
+      **Still not verified**: an actual induced host-sync failure with
       `mail_enabled=false` confirming the exit code stays 0 end-to-end —
       the code path was reasoned through and unit-level-tested (TOML
       write, auth flow) but not drilled against a real failing sync.
+- [x] **Repo management: Discover button + manual add — done 2026-09-30**
+      (`doc/ADR-009-dashboard-repo-management.md`). New `POST
+      /api/repos/discover` (auth-gated) runs `tourbillon repos discover
+      --json` — same GitHub/Bitbucket API enumeration the CLI always did,
+      now reachable from `/config`. New `tourbillon repos add <slug>
+      <clone_url>` handles a repo discover can't find (a different git
+      host, or a private instance) via an explicit `clone_url` config
+      field — no third hardcoded provider, credentials embed directly in
+      the URL if needed. A genuinely local-only repo (no remote at all)
+      is explicitly out of scope — that's an A2 host-backup path problem,
+      not a repos-mirror one.
+      **Found and fixed while building this** (see `GAPS.md` §4.6 for the
+      credential-exposure half): `configs/` and `.git/` had no write
+      grant for `tourbillon` at all — the mail-toggle write above was
+      never actually verified against real production permissions until
+      now (fixed via a scoped POSIX ACL, added to `postinst`). Also found
+      Bitbucket's `role=owner` API filter silently returning zero results
+      with this account's current token, making `repos discover` report
+      all 24 real Bitbucket repos as false-positive orphans — fixed by
+      dropping the filter. Wiring GitHub/Bitbucket tokens into the
+      dashboard's environment repeated `GAPS.md` §4.5's exact
+      credential-exposure incident (systemd logging full token values to
+      the journal) — fixed the same way, and `GAPS.md` §4.6 documents it
+      so the pattern doesn't repeat a third time.
 - [ ] Editable config: `schedule_when_up`, retry counts, include/exclude
       exclude-file entries, cron timing
 - [ ] Crontab-reinstall logic for any write endpoint that changes cron timing

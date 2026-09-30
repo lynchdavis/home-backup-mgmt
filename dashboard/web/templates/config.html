@@ -10,6 +10,11 @@
            hx-get="/partials/config-hosts" hx-trigger="load" hx-swap="innerHTML">
     <p class="loading">Loading…</p>
   </section>
+
+  <section class="panel" id="config-repos-panel"
+           hx-get="/partials/config-repos" hx-trigger="load" hx-swap="innerHTML">
+    <p class="loading">Loading…</p>
+  </section>
 {% endblock %}
 {% block scripts %}
   <script src="/static/htmx.min.js?v={{ ASSET_VERSION }}"></script>

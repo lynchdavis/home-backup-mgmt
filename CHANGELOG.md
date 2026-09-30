@@ -6,6 +6,61 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (10)
+
+### Dashboard: repo Discover button + manual add (v0.3.0) — and two latent bugs it surfaced
+
+New repo-management capability on `/config` (ADR-009), plus a correction
+to something shipped earlier today.
+
+**New**: `POST /api/repos/discover` (auth-gated) runs `tourbillon repos
+discover --json` from the dashboard — same GitHub/Bitbucket enumeration
+the CLI always did, now reachable without SSH. New `tourbillon repos add
+<slug> <clone_url>` registers a repo discover can't find (a different git
+host, or a private instance) via an explicit `clone_url` config field
+consumed by a generalized `sync_one_repo()` — no third hardcoded
+provider; credentials embed directly in the URL if the repo is private.
+A genuinely local-only repo (no remote) is explicitly out of scope —
+that's an A2 host-backup path problem, not a repos-mirror one.
+
+**Correction — the v0.2.0 mail-toggle write route was never actually
+verified.** Building this feature against the real deployed dashboard
+(running as `tourbillon`) rather than a local dev server (which I'd been
+running as `ldavis`, with full write access) surfaced that `configs/` and
+`.git/` had **no write grant for `tourbillon` at all**. Every "verified
+live" claim for the mail toggle in this morning's earlier entry was based
+on testing that never actually exercised production permissions — it
+silently `PermissionError`'d from the moment it shipped. Fixed with a
+scoped POSIX ACL (`setfacl -R -m u:tourbillon:rwX -d -m u:tourbillon:rwX`
+on exactly `configs/` and `.git/`, not broad group membership, to keep
+the grant as narrow as this codebase's existing service-user model) and
+added to `postinst`. Re-verified both the mail toggle and the new repo-add/
+discover paths as the actual `tourbillon` user this time — genuinely
+working now.
+
+**Also found**: Bitbucket's `role=owner` API filter silently returns zero
+results with this account's current Atlassian API token (a scoped-token
+migration quirk), making `repos discover` report all 24 real Bitbucket
+repos as false-positive orphans. Fixed by dropping the filter —
+`BITBUCKET_WORKSPACE` already scopes the query to the operator's own
+workspace, so it was redundant anyway. Caught 5 genuinely new GitHub
+repos (`canary`, `data-organizer`, `norm`, `service-template`, `spider`)
+in the process and committed their configs.
+
+**Also repeated `GAPS.md` §4.5's exact incident**: wiring
+GITHUB_TOKEN/BITBUCKET_TOKEN into the dashboard's environment via
+`EnvironmentFile=` caused systemd to log the full token values to the
+journal — the identical failure shape as the TrueNAS-token exposure a
+week earlier, which should have been checked before touching
+`EnvironmentFile=` again. Fixed by sourcing that specific file through a
+real shell (`ExecStart=/bin/bash -c 'source ... ; exec uvicorn ...'`)
+instead of systemd's stricter parser, which doesn't accept the `export`
+prefix that file's other (shell-sourced, cron) use requires. `GAPS.md`
+§4.6 documents the exposure; rotation is an open operator decision, not
+resolved here.
+
+Shipped as v0.3.0.
+
 ## 2026-09-30 (9)
 
 ### Dashboard: repos panel grouped by provider, collapsible (v0.2.4)

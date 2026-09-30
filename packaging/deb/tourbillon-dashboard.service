@@ -23,7 +23,18 @@ EnvironmentFile=-/var/lib/tourbillon/.config/saratoga/env
 # False) rather than failing to start; Phase 1's read-only routes are
 # completely unaffected either way.
 EnvironmentFile=-/var/lib/tourbillon/.config/dashboard/env
-ExecStart=/opt/server-backups/dashboard/.venv/bin/uvicorn api.main:app --host 192.168.1.61 --port 8000
+# GITHUB_TOKEN/BITBUCKET_TOKEN/etc (ADR-004), needed for the /config
+# "Discover repos" write route (ADR-009), which shells out to
+# `tourbillon repos discover` -- the same API-hitting command tourbillon's
+# own cron already runs. NOT loaded via EnvironmentFile=: that file uses
+# `export KEY=value` lines (required for its other use as a shell-sourced
+# file, ". ~/.config/tourbillon/env && ..." in crontabs) -- systemd's
+# EnvironmentFile parser does NOT accept the `export ` prefix and, worse,
+# logs the full rejected line -- INCLUDING THE SECRET VALUE -- to the
+# journal on every start. Confirmed the hard way, 2026-09-30. Sourcing it
+# with a real shell instead (which understands `export` natively) avoids
+# both problems; `|| true` keeps a missing file from failing the service.
+ExecStart=/bin/bash -c 'source /var/lib/tourbillon/.config/tourbillon/env 2>/dev/null || true; exec /opt/server-backups/dashboard/.venv/bin/uvicorn api.main:app --host 192.168.1.61 --port 8000'
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

@@ -207,3 +207,40 @@ def api_set_host_mail(request: Request, name: str, enabled: bool = Form(...)):
     return templates.TemplateResponse(
         request, "partials/config-hosts.html", {"rows": rows, "error": error}
     )
+
+
+@app.get("/partials/config-repos")
+def partial_config_repos(request: Request):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse(request, "partials/config-repos.html", {})
+
+
+@app.post("/api/repos/discover")
+def api_repos_discover(request: Request):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    try:
+        result = tb.discover_repos()
+    except tb.TourbillonError as e:
+        return templates.TemplateResponse(
+            request, "partials/config-repos.html", {"discover_error": str(e)}
+        )
+    return templates.TemplateResponse(
+        request, "partials/config-repos.html", {"discover_result": result}
+    )
+
+
+@app.post("/api/repos/add")
+def api_repos_add(request: Request, slug: str = Form(...), clone_url: str = Form(...)):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    try:
+        message = tb.add_repo(slug.strip(), clone_url.strip())
+    except tb.TourbillonError as e:
+        return templates.TemplateResponse(
+            request, "partials/config-repos.html", {"add_error": str(e)}
+        )
+    return templates.TemplateResponse(
+        request, "partials/config-repos.html", {"add_message": message}
+    )

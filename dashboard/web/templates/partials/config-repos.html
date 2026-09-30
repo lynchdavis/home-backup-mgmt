@@ -1,0 +1,60 @@
+<h2>Repo mirrors</h2>
+
+<h3>Discover</h3>
+<p class="summary">Scans your GitHub account and configured Bitbucket
+  workspace for repos not yet mirrored, and creates a config for each new
+  one it finds (auto-committed locally, never pushed).</p>
+<button hx-post="/api/repos/discover" hx-target="#config-repos-panel" hx-swap="innerHTML">
+  Discover now
+</button>
+
+{% if discover_error %}
+  <p class="error">{{ discover_error }}</p>
+{% elif discover_result %}
+  <div class="kv-grid result-block">
+    <div><span class="label">GitHub</span>
+      <span>{% if discover_result.github.error %}<span class="error">{{ discover_result.github.error }}</span>{% else %}{{ discover_result.github.count }} repos{% endif %}</span>
+    </div>
+    <div><span class="label">Bitbucket</span>
+      <span>{% if discover_result.bitbucket.error %}<span class="error">{{ discover_result.bitbucket.error }}</span>{% else %}{{ discover_result.bitbucket.count }} repos{% endif %}</span>
+    </div>
+  </div>
+  {% if discover_result.new_slugs %}
+    <p class="summary result-block">
+      Found {{ discover_result.new_slugs | length }} new repo(s){% if discover_result.committed_hash %}, committed as {{ discover_result.committed_hash }}{% endif %}:
+    </p>
+    <ul>
+      {% for s in discover_result.new_slugs %}<li>{{ s }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty result-block">no new repos — everything upstream is already catalogued</p>
+  {% endif %}
+  {% if discover_result.orphan_slugs %}
+    <p class="summary">{{ discover_result.orphan_slugs | length }} orphaned (config exists, no longer found upstream) — not deleted automatically:</p>
+    <ul>
+      {% for s in discover_result.orphan_slugs %}<li>{{ s }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+{% endif %}
+
+<h3 class="section-gap">Add a repo manually</h3>
+<p class="summary">For a repo Discover can't find — a different git host,
+  or a private instance. Embed credentials directly in the clone URL if
+  needed (<code>https://user:token@host/owner/repo.git</code>); a public
+  repo needs none.</p>
+{% if add_error %}
+  <p class="error">{{ add_error }}</p>
+{% elif add_message %}
+  <p class="summary">{{ add_message }}</p>
+{% endif %}
+<form hx-post="/api/repos/add" hx-target="#config-repos-panel" hx-swap="innerHTML">
+  <p>
+    <label for="slug">Slug (label/owner/name)</label><br>
+    <input type="text" id="slug" name="slug" placeholder="gitlab/myuser/myproject" required>
+  </p>
+  <p>
+    <label for="clone_url">Clone URL</label><br>
+    <input type="text" id="clone_url" name="clone_url" placeholder="https://gitlab.com/myuser/myproject.git" required>
+  </p>
+  <button type="submit">Add repo</button>
+</form>
