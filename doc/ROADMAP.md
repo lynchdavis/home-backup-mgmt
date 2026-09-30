@@ -305,7 +305,9 @@ later `zpool replace` of the original drive).
 **Small / monitoring** (`GAPS.md` Tier 3-4):
 - No capacity-trending alarm (pool at ~88%, no proactive alert)
 - No stale-mirror detection on the repo side (`tourbillon repos audit`)
-- Token rotation reminders/automation (Bitbucket expires 2027-05-24)
+- Token rotation reminders/automation (GitHub + Bitbucket rotated
+  2026-09-30 after a credential exposure, `GAPS.md` §4.6 — no automated
+  reminder exists yet for either's next rotation)
 - `last_size_bytes` cosmetic display bug (sums only the last path, not cumulative)
 - No host-retirement procedure (`bin/retire-host.sh`)
 - ZFS not encrypted at rest (pool-create-time property; would need a rebuild)

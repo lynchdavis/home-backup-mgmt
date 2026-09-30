@@ -550,7 +550,7 @@ session) and re-sync `~tourbillon`'s copy.
 
 ---
 
-### 4.6 GitHub/Bitbucket tokens repeated §4.5's exact exposure — same mistake, twice
+### 4.6 GitHub/Bitbucket tokens repeated §4.5's exact exposure — found, fixed, rotated same day
 
 2026-09-30, while wiring the dashboard's new repos-discover write route
 (ADR-009): added `EnvironmentFile=-/var/lib/tourbillon/.config/tourbillon/env`
@@ -573,19 +573,22 @@ never goes through systemd's stricter `EnvironmentFile=` parser for this
 specific file. Verified: no journal entries on restart, tokens present
 in the running process's environment.
 
-**Operator decision needed**: same as §4.5 — rotate `GITHUB_TOKEN` and
-`BITBUCKET_TOKEN` (now sitting in plaintext in kodiak's journal), or
-accept the risk on the same "closed home network" reasoning already
-applied there. Not rotated yet; this entry exists so it isn't silently
-dropped, per `doc/CREDENTIALS.md`'s rotation-path convention.
+**Rotated same day, 2026-09-30** — unlike §4.5's TrueNAS token (deferred,
+still outstanding), the operator chose to rotate here immediately. Both
+`GITHUB_TOKEN` and `BITBUCKET_TOKEN` replaced and old ones revoked. See
+`doc/CREDENTIALS.md`'s rotation-history notes on each token for the
+scope-picker gotchas hit along the way (Bitbucket took three attempts —
+no scopes, then Admin instead of Read, then correct). Verified via both
+the discovery listing API and an actual `repos sync --force` clone/fetch
+for one repo per provider before revoking the old tokens.
 
 **Broader lesson, now proven twice**: never point `EnvironmentFile=` at
 a file written for shell-sourcing (`export` prefix, `#` comments meant
 for humans) without testing the actual parse — verify contents land in
 `/proc/<pid>/environ`, don't assume the format is compatible.
 
-**Queued?** Fix: done. Rotation: no — same deferred-risk decision as
-§4.5, pending operator confirmation it still holds.
+**Queued?** No — fix done, tokens rotated and verified working end-to-end,
+old ones revoked. Closed.
 
 ---
 

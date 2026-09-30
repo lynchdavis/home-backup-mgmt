@@ -14,8 +14,8 @@ None of these tokens or keys are stored in git. The repo only references their *
 
 | Credential | Where | Created | Expires | Last rotated |
 |---|---|---|---|---|
-| Bitbucket / Atlassian API token (`kodiak-tourbillon-mirror`) | `~tourbillon/.config/tourbillon/env` → `BITBUCKET_TOKEN` | 2026-05-25 | **2027-05-24** | — |
-| GitHub PAT (`kodiak-tourbillon-mirror`) | `~tourbillon/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-05-25 | none (until revoked) | — |
+| Bitbucket / Atlassian API token (`kodiak-tourbillon-mirror-v2`) | `~tourbillon/.config/tourbillon/env` → `BITBUCKET_TOKEN` | 2026-09-30 | check id.atlassian.com token list | 2026-09-30 |
+| GitHub PAT (`kodiak-tourbillon-mirror-v2`) | `~tourbillon/.config/tourbillon/env` → `GITHUB_TOKEN` | 2026-09-30 | none (until revoked) | 2026-09-30 |
 | TrueNAS API token (`kodiak-dump`) | `~/.config/saratoga/env` → `TRUENAS_API_TOKEN` | 2026-05-24 | none (until revoked) | — |
 | SSH keypair `kodiak-tnreplicate` | TrueNAS Credentials → SSH Keypairs (id=1); receiving side on kodiak at `/var/lib/tnreplicate/.ssh/authorized_keys` | 2026-05-24 | none | — |
 | SSH keypair `kodiak → tourbillon@<host>` (per-host, outbound) | kodiak: `~tourbillon/.ssh/id_ed25519_tourbillon_<hostname>` (one per host, mode 600); target side at `~tourbillon/.ssh/authorized_keys` | 2026-05-26+ | none | — |
@@ -33,10 +33,15 @@ Type: Atlassian Cloud API token (ATAT-prefixed, 192 chars, scoped).
 Scopes: `read:project:bitbucket`, `read:snippet:bitbucket`, `read:pullrequest:bitbucket`, `read:pipeline:bitbucket`, `read:permission:bitbucket`, `read:workspace:bitbucket`, `read:repository:bitbucket`, `read:package:bitbucket`, `read:wiki:bitbucket`. Notably **missing** `account` — `/2.0/user` endpoint returns 403, but we don't need that endpoint for mirroring.
 Auth shape: BASIC `${ATLASSIAN_EMAIL}:${BITBUCKET_TOKEN}` against `api.bitbucket.org`. Same shape for `git clone` over HTTPS.
 
-**Regenerate** at `id.atlassian.com` → Account settings → Security → API tokens.
-- Use "Create API token with scopes," pick **Bitbucket** as the app, check the same nine read-only scopes as above (or just `read:workspace:bitbucket` + `read:repository:bitbucket` + `read:account` if the use case stays narrow).
+**Regenerate** at `id.atlassian.com` → click your **avatar** (top right) → **Manage account** → **Security** tab → **API tokens**.
+- **Do not** go looking under a Bitbucket workspace's own "Access Tokens" settings — that's a different, workspace-level feature gated behind a paid plan. This is your *personal* Atlassian account token, a separate (normally free) feature. The settings-gear icon in the top nav also leads to a different personal-settings page that doesn't have this either — it has to be the avatar menu.
+- Use **"Create API token with scopes"** specifically (not the plain "Create API token" button — that makes an old-style unscoped token that won't authorize anything here). Pick **Bitbucket** as the app.
+- **Check the *Read* checkboxes, not Admin.** These are two separate, non-hierarchical grants in Atlassian's scope picker — checking Admin does NOT include Read. Check exactly: `read:project:bitbucket`, `read:snippet:bitbucket`, `read:pullrequest:bitbucket`, `read:pipeline:bitbucket`, `read:permission:bitbucket`, `read:workspace:bitbucket`, `read:repository:bitbucket`, `read:package:bitbucket`, `read:wiki:bitbucket`. Leave every Admin/Write box unchecked.
 - Paste the new value into `~tourbillon/.config/tourbillon/env` (e.g. `sudo -u tourbillon vim ~tourbillon/.config/tourbillon/env`) replacing the existing `BITBUCKET_TOKEN`.
+- Verify before revoking the old one: `sudo -u tourbillon bash -c 'source ~tourbillon/.config/tourbillon/env && /opt/server-backups/bin/tourbillon repos discover --no-commit --json'` should report the full repo count with no error and no false orphans.
 - **Don't forget the rotation reminder** in CHANGELOG.md.
+
+**Rotation history**: 2026-09-30 (see CHANGELOG.md same date) — took three attempts to get the scope picker right: first token had no scopes selected at all (`401: no Bitbucket scopes`), second had Admin-tier scopes instead of Read (`403: credentials lack required privilege scopes`, `granted: admin:*`, `required: read:*`), third attempt with the Read checkboxes worked. Triggered by a credential exposure (GAPS.md §4.6), not routine rotation.
 
 Atlassian app passwords are deprecated (full removal 2026-07-28). Don't go back to those.
 
@@ -53,6 +58,8 @@ Auth shape: `Authorization: Bearer ${GITHUB_TOKEN}` for the API; `https://x-acce
 - Generate new (classic), name `kodiak-tourbillon-mirror-vN` (so we can tell old vs new during rotation).
 - **The top-level `repo` checkbox** is the one that matters. Don't pick sub-scopes individually — you'll lose private-repo access.
 - Replace the value in `~tourbillon/.config/tourbillon/env` (via `sudo -u tourbillon vim …`). Revoke the old one once new is verified.
+
+**Rotation history**: 2026-09-30 (see CHANGELOG.md same date) — went smoothly, no gotchas (unlike Bitbucket's same-day rotation). Triggered by a credential exposure (GAPS.md §4.6), not routine rotation.
 
 ### TrueNAS API token
 

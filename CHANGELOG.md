@@ -6,6 +6,50 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (11)
+
+### Rotated GitHub + Bitbucket tokens (closing GAPS.md §4.6's exposure)
+
+Following up on the credential exposure from the dashboard repo-
+management work earlier today (§4.6 — `GITHUB_TOKEN`/`BITBUCKET_TOKEN`
+logged in plaintext to kodiak's journal via a systemd `EnvironmentFile=`
+format mismatch). Unlike the still-outstanding TrueNAS token exposure
+from a week earlier (§4.5, deferred by operator decision), the operator
+chose to rotate immediately here.
+
+GitHub's new PAT (`kodiak-tourbillon-mirror-v2`) rotated cleanly, no
+issues. Bitbucket took three attempts to get right — worth recording
+since it'll bite whoever rotates this token next:
+1. First new token had **no scopes selected at all** — `401: API Token
+   provided has no Bitbucket scopes`.
+2. Second had **Admin-tier scopes instead of Read** — `403: credentials
+   lack required privilege scopes` (`granted: admin:project/workspace/
+   repository:bitbucket`, `required: read:repository:bitbucket`).
+   Atlassian's scope picker isn't hierarchical — checking Admin does not
+   include Read; they're separate checkboxes.
+3. Third attempt, with the Read checkboxes explicitly checked instead of
+   Admin, worked.
+
+Also worth recording: the operator initially couldn't find personal API
+tokens at all — Bitbucket *workspace* settings has its own "Access
+Tokens" feature that's gated behind a paid plan, a red herring for what
+we actually needed (the *personal* Atlassian-account API token, a
+separate and normally-free feature reachable only via the avatar menu →
+Manage account → Security, not the workspace settings gear icon).
+
+Verified before revoking anything: both the discovery listing API
+(`repos discover --no-commit --json`, confirming exact previous counts —
+21 GitHub, 24 Bitbucket, 0 orphans) and an actual `repos sync --force`
+clone/fetch for one repo per provider succeeded with the new tokens.
+Old tokens (both the original leaked ones and the two failed rotation
+attempts) revoked after that confirmation.
+
+`doc/CREDENTIALS.md` updated: rotation-history notes on both tokens
+(recording the scope-picker gotchas for next time), corrected/expanded
+navigation instructions for finding Bitbucket's personal API token
+settings, and refreshed Created/Last-rotated dates. `doc/GAPS.md` §4.6
+closed.
+
 ## 2026-09-30 (10)
 
 ### Dashboard: repo Discover button + manual add (v0.3.0) — and two latent bugs it surfaced
