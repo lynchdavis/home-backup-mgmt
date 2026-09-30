@@ -6,6 +6,36 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30
+
+### Verified iDrive bulk/directory restore (was an untested assumption)
+
+`IDRIVE_RESTORE.md`'s Scenario 2 (bulk restore) documented directory-path
+restore as *assumed, not verified* — the single-file drill on 2026-09-29
+only proved one file round-trips correctly, not that a directory path in
+the restore set recurses the full tree.
+
+Tested deliberately with a small-but-genuinely-nested directory:
+`hosts/lynchmbp/ldavis/.gk6xplus/` (160 files, 4 levels deep, 1.2MB).
+Edited the restore set via the same `tmux`-driven interactive menu, added
+the directory path, ran restore. Result: 160/160 restored, 0 failed,
+every file's `sha256sum` matched the live copy exactly, and the full
+nested directory structure was preserved on disk under `Restore_Data/`
+(unlike the single-file case, which flattens to just the basename).
+
+This confirms the restore *mechanism* handles recursion correctly.
+Remaining unknown is purely scale (a multi-hundred-GB restore's
+throughput/memory behavior) — not a correctness question anymore.
+
+Also reconfirmed while in the restore-settings menu: still only `kodiak`
+registered as a restore source (the old pre-kodiak workstation device
+stays decommissioned) — `IDRIVE_RESTORE.md`'s "Known limitations" bullet
+on this was stale (said "hasn't been explicitly reconfirmed" despite this
+being confirmed 2026-09-29) and has been corrected.
+
+Test artifacts deleted after verification. `IDRIVE_RESTORE.md` and
+`doc/ROADMAP.md` updated.
+
 ## 2026-09-29 (4)
 
 ### Reviewed the "~50GB old-machine-backups" bucket; added a curated ~5.2GB subset to iDrive

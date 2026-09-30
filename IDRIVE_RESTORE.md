@@ -99,19 +99,26 @@ proof than either alone). Exact hash match, 0 failures.
 
 ---
 
-## Scenario 2 — bulk restore (host, or the whole archive) — untested, plan before you need it
+## Scenario 2 — bulk restore (host, or the whole archive) — directory recursion verified, scale untested
 
 For an actual DR where a full host mirror or the whole saratoga archive
 needs pulling back:
 
 1. Same flow as Scenario 1, but populate the restore set with a directory
    path (e.g. `/kodiak00/backups-00/hosts/lynchmbp/`) instead of one file.
-   **This directory-path behavior is assumed, not verified** — confirm it
-   restores the full tree (not just top-level files) before depending on
-   it under real pressure.
-2. Expect this to take a long time — the equivalent upload of `lynchmbp`
-   alone was ~994GB; a full download back is bound by your downlink, not
-   iDrive's upload throttle setting.
+   **Directory-path recursion confirmed working, 2026-09-30**: restored
+   `/kodiak00/backups-00/hosts/lynchmbp/ldavis/.gk6xplus/` (160 files, 4
+   levels deep) — all 160 restored, 0 failed, every file's `sha256sum`
+   matched the live copy exactly, and the full nested directory structure
+   (`Account/0/Devices/<id>/*.cmf`, etc.) was preserved under
+   `Restore_Data/.gk6xplus/` — not flattened like the single-file case in
+   Scenario 1. What's still unverified is only **scale**: this proves the
+   *mechanism* recurses correctly, not that a multi-hundred-GB directory
+   behaves identically (throughput, memory, whether the restore-set editor
+   or restore engine has a practical size ceiling).
+2. Expect this to take a long time at real DR scale — the equivalent
+   upload of `lynchmbp` alone was ~994GB; a full download back is bound by
+   your downlink, not iDrive's upload throttle setting.
 3. Restore location fills up fast at this scale — make sure wherever
    `13) Restore settings` points has room (check `df -h` on that
    filesystem first), or change it to a dataset with headroom before
@@ -155,10 +162,10 @@ direction.
   `backups-00/hosts/lynchmbp` itself (or the live Mac), not in the
   off-site tier. See `doc/GAPS.md` §1.2.
 - **The old workstation's iDrive device** (pre-dating the kodiak-driven
-  setup) — whether it was actually decommissioned per ADR-005's transition
-  plan hasn't been explicitly reconfirmed. If it's still active, check
-  `13) Restore settings` → item 1/2 ("Data will be restored from") for
-  more than one device name before assuming `kodiak` is the only source.
+  setup) — confirmed decommissioned (checked 2026-09-29, reconfirmed
+  2026-09-30 via `13) Restore settings` → item 1: "Data will be restored
+  from" lists only `kodiak`). If this ever shows more than one device
+  name, re-check before assuming `kodiak` is the only source.
 
 ---
 

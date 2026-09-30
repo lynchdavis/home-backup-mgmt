@@ -87,11 +87,16 @@ stale the way `GAPS.md` §2.1 did.
              independent restore mechanisms is stronger proof than
              either alone). Test artifact deleted after. Walk-thru doc
              written: [`IDRIVE_RESTORE.md`](../IDRIVE_RESTORE.md).
-             - [ ] **Sub-follow-up**: bulk/directory restore (needed for
-                   an actual full-host or full-archive DR, not just one
-                   file) is documented as an *assumption* in that doc, not
-                   verified. Worth testing deliberately (a small directory,
-                   not the full 2.9TB) before relying on it under pressure.
+       - [x] **Sub-follow-up: bulk/directory restore verified, 2026-09-30.**
+             Restored `hosts/lynchmbp/ldavis/.gk6xplus/` (160 files, 4
+             levels deep) via the restore-set editor with a directory path
+             instead of a single file. 160/160 restored, 0 failed, every
+             file's sha256 matched the live copy exactly, and the full
+             nested structure was preserved on disk (not flattened like
+             the single-file case). Confirms the *mechanism* recurses
+             correctly — scale (multi-hundred-GB) remains untested but
+             is a throughput question, not a correctness one. Test
+             artifacts deleted after. `IDRIVE_RESTORE.md` updated.
        - [x] **Follow-up: confirmed 2026-09-29.** The old pre-kodiak
              "workstation" device (the operator's own Mac, which ran the
              iDrive Personal desktop client directly — SMB-mounted
