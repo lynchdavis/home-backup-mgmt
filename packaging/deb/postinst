@@ -31,6 +31,11 @@ python3 -m venv /opt/server-backups/bin/.venv
 # creating a new one.
 chown -R tourbillon:tourbillon /opt/server-backups
 
+# /dev/sdb is root:disk, mode 660 -- tourbillon needs group membership to
+# even open the device node before the dashboard's CAP_SYS_RAWIO ambient
+# capability (see tourbillon-dashboard.service) can read SMART data from it.
+usermod -aG disk tourbillon
+
 systemctl daemon-reload
 systemctl enable tourbillon-dashboard
 systemctl restart tourbillon-dashboard || systemctl start tourbillon-dashboard

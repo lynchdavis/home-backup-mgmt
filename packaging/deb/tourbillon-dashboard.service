@@ -21,6 +21,14 @@ Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
+# Drive-health panel needs smartctl's raw SATA ioctls (SMART attributes).
+# Granting the capability directly (rather than sudo) keeps NoNewPrivileges
+# intact -- ambient capabilities are set by systemd at process start, not
+# gained via a setuid exec, so they aren't blocked by that flag. tourbillon
+# also needs `disk` group membership to open /dev/sdb (mode 660, root:disk)
+# in the first place -- see postinst.
+AmbientCapabilities=CAP_SYS_RAWIO
+CapabilityBoundingSet=CAP_SYS_RAWIO
 
 [Install]
 WantedBy=multi-user.target

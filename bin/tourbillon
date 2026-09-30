@@ -1528,14 +1528,32 @@ def next_scrub_dict() -> dict | None:
     return None
 
 
+def _run_smartctl(args: list[str]) -> subprocess.CompletedProcess:
+    """Run smartctl, preferring a direct call (works when the caller already
+    has raw-disk access — e.g. the dashboard service's CAP_SYS_RAWIO ambient
+    capability, see tourbillon-dashboard.service), falling back to `sudo -n`
+    for interactive CLI use by an operator with sudo rights. A hardened
+    systemd unit with NoNewPrivileges=true can't use the sudo path at all
+    (the setuid escalation is blocked at the kernel level), which is exactly
+    why the direct-call attempt comes first.
+    """
+    direct = subprocess.run(
+        ["/usr/sbin/smartctl", *args], capture_output=True, text=True, check=False,
+    )
+    if direct.returncode not in (0, 4):  # 4 = some SMART attrs failed, still readable
+        sudo_attempt = subprocess.run(
+            ["sudo", "-n", "/usr/sbin/smartctl", *args], capture_output=True, text=True, check=False,
+        )
+        if sudo_attempt.stdout:
+            return sudo_attempt
+    return direct
+
+
 def smart_attrs_dict(device: str = "/dev/sdb") -> dict:
     """smartctl -A + selftest; condense to key attributes. Never raises."""
     out: dict = {"device": device}
     try:
-        proc = subprocess.run(
-            ["sudo", "-n", "/usr/sbin/smartctl", "-A", "-i", device],
-            capture_output=True, text=True, check=False,
-        )
+        proc = _run_smartctl(["-A", "-i", device])
         for line in proc.stdout.splitlines():
             if line.startswith("Device Model:"):
                 out["model"] = line.split(":", 1)[1].strip()
@@ -1553,10 +1571,7 @@ def smart_attrs_dict(device: str = "/dev/sdb") -> dict:
         out["error"] = str(e)
 
     try:
-        proc = subprocess.run(
-            ["sudo", "-n", "/usr/sbin/smartctl", "-l", "selftest", device],
-            capture_output=True, text=True, check=False,
-        )
+        proc = _run_smartctl(["-l", "selftest", device])
         for line in proc.stdout.splitlines():
             stripped = line.strip()
             if stripped.startswith("# 1 "):

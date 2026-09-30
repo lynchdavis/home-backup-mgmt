@@ -6,6 +6,47 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (3)
+
+### Dashboard: fixed the Drive health panel (v0.1.1)
+
+Checked in on the dashboard built earlier this session — pool capacity
+was already fully wired end-to-end (`pool_status_dict()` →
+`gather_status_data()` → `/api/status` → `status.html`) and rendering
+correctly (95%, 3.5TB/3.6TB). The adjacent Drive health panel, however,
+was silently blank: `smart_attrs_dict()` shells out via `sudo -n
+smartctl`, and the `tourbillon` service user had no passwordless sudo
+rule for it.
+
+Added a narrow sudoers entry
+(`tourbillon ALL=(root) NOPASSWD: /usr/sbin/smartctl -A -i /dev/sdb` +
+`-l selftest /dev/sdb`) — necessary but not sufficient. The dashboard's
+systemd unit sets `NoNewPrivileges=true`, which blocks *any* setuid-based
+privilege escalation (sudo included) at the kernel level, regardless of
+sudoers config. Confirmed via `sudo -u tourbillon smartctl ...` working
+fine from a normal shell but still failing from inside the actual
+running service.
+
+Real fix: granted the service `AmbientCapabilities=CAP_SYS_RAWIO` +
+`CapabilityBoundingSet=CAP_SYS_RAWIO` directly in
+`tourbillon-dashboard.service` — ambient capabilities are set by systemd
+at process start, not gained via exec, so they aren't blocked by
+`NoNewPrivileges`. Also needed `tourbillon` added to the `disk` group
+(`postinst`, `usermod -aG disk tourbillon`) since `/dev/sdb` is
+`root:disk` mode 660 — the capability alone doesn't bypass the file-open
+permission check.
+
+`bin/tourbillon`'s `smart_attrs_dict()` now tries `smartctl` directly
+first (works via the ambient capability under the dashboard service, or
+trivially as root) and falls back to `sudo -n smartctl` only if that
+fails (covers interactive CLI use by an operator with sudo rights, e.g.
+running `tourbillon status` by hand — that path doesn't have the
+capability and still needs the sudoers rule kept in place).
+
+Bumped to v0.1.1, repackaged, reinstalled. Verified live: Drive panel
+now shows model, serial, power-on hours, and reallocated/pending/
+uncorrectable counts correctly.
+
 ## 2026-09-30 (2)
 
 ### First host triage pass (hondajet/lynchmbp): found + fixed a real exclude-file bug worth 767GB
