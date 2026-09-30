@@ -35,7 +35,8 @@ Icon?
 .Spotlight-V100/
 .fseventsd/
 .TemporaryItems/
-.Trashes/                                # external-volume trash; user ~/.Trash/ NOT excluded
+# external-volume trash; user ~/.Trash/ NOT excluded
+.Trashes/
 
 # ──────────────────────────────────────────────────────────────────────
 # Language toolchain caches & build artifacts
@@ -54,7 +55,8 @@ Icon?
 **/node_modules/
 .npm/_cacache/
 .yarn/cache/
-**/target/                               # Rust build output
+# Rust build output
+**/target/
 .cargo/registry/
 .cargo/git/
 go/pkg/mod/
@@ -87,7 +89,13 @@ go/pkg/cache/
 Library/Caches/
 Library/Logs/
 Library/Application Support/CrashReporter/
-Library/Application Support/MobileSync/   # iOS device backups, often huge
+# iOS device backups, often huge in general (see mac-user.txt base
+# template) -- but LynchMBP-specific override below: operator decision
+# 2026-09-30 keeps this syncing to kodiak's local mirror (plenty of
+# local disk headroom), only blocking it from the iDrive cloud copy
+# (done via iDrive's own Exclude options, not here). NOT excluded here,
+# intentionally -- do not re-add without checking with the operator
+# first, since the local sync intentionally differs from the template.
 Library/Application Support/*/Cache*/
 Library/Application Support/*/cache*/
 Library/Containers/*/Data/Library/Caches/
@@ -144,9 +152,11 @@ Downloads/.localized
 #   - ~/Downloads/  (minus the .partial junk above)
 #   - ~/Desktop/    (usually has working files; per-host override if
 #                    a particular Desktop subdir is huge/regenerable)
-#   - ~/Library/  minus Caches/Logs/MobileSync (Notes, Stickies,
-#                 Safari bookmarks, Mail if Full Disk Access is
-#                 granted to sshd)
+#   - ~/Library/  minus Caches/Logs (Notes, Stickies, Safari bookmarks,
+#                 Mail if Full Disk Access is granted to sshd) --
+#                 MobileSync (iOS device backups) is INCLUDED here for
+#                 this host specifically, unlike the base template; see
+#                 the LynchMBP-specific override note above.
 #   - ~/development/, ~/go/, ~/bin/, etc.  (minus build caches)
 #   - ~/.Trash/   (INCLUDED — see Trash policy at top)
 # ──────────────────────────────────────────────────────────────────────

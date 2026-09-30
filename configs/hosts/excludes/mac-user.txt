@@ -7,6 +7,15 @@
 # Patterns are matched anywhere in the source tree unless explicitly
 # anchored with a leading '/'.
 #
+# IMPORTANT: rsync's --exclude-from only treats '#' as a comment when it's
+# the FIRST character of a line. A trailing "pattern   # comment" on one
+# line is NOT a comment -- the whole line, comment text included, becomes
+# the literal (non-matching) pattern. Found 2026-09-30: three patterns in
+# this exact file (.Trashes/, **/target/, MobileSync/) had trailing inline
+# comments and silently matched nothing for 4+ months, letting ~770GB of
+# excluded-by-policy iOS device backups sync anyway. Always put a comment
+# on its own line above the pattern, never after it on the same line.
+#
 # Per-host extras can be added at configs/hosts/excludes/<hostname>-extras.txt
 # and chained via the per-host config's excludes_file field.
 
@@ -29,7 +38,8 @@ Icon?
 .Spotlight-V100/
 .fseventsd/
 .TemporaryItems/
-.Trashes/                                # external-volume trash; user ~/.Trash/ NOT excluded
+# external-volume trash; user ~/.Trash/ NOT excluded
+.Trashes/
 
 # ──────────────────────────────────────────────────────────────────────
 # Language toolchain caches & build artifacts
@@ -48,7 +58,8 @@ Icon?
 **/node_modules/
 .npm/_cacache/
 .yarn/cache/
-**/target/                               # Rust build output
+# Rust build output
+**/target/
 .cargo/registry/
 .cargo/git/
 go/pkg/mod/
@@ -81,7 +92,8 @@ go/pkg/cache/
 Library/Caches/
 Library/Logs/
 Library/Application Support/CrashReporter/
-Library/Application Support/MobileSync/   # iOS device backups, often huge
+# iOS device backups, often huge
+Library/Application Support/MobileSync/
 Library/Application Support/*/Cache*/
 Library/Application Support/*/cache*/
 Library/Containers/*/Data/Library/Caches/

@@ -217,10 +217,33 @@ stale the way `GAPS.md` §2.1 did.
       always-on target exists.
 - [ ] **Windows host not bootstrapped** (`GAPS.md` §2.2). Blocked on an
       actual Windows machine joining the fleet — no action until then.
-- [ ] **First host triage pass** (`data-organizer/HOST-HYGIENE.md`):
-      `ldavis-dev-01` or hondajet. Feeds the exclude files from the
-      organization side; heaviest payoff on hondajet given its size
-      (526GB mirrored) but coupled to the sync-reliability work above.
+- [x] **First host triage pass: hondajet/lynchmbp, done 2026-09-30**
+      (`data-organizer/HOST-HYGIENE.md`, `GAPS.md` §2.5). Inventoried the
+      989GB mirror (`du --max-depth=2`) — found `Library/Application
+      Support/` was 79% of the total, and that a real bug (not cruft) was
+      the cause: three exclude patterns in `mac-user.txt`/`lynchmbp.txt`
+      had trailing inline comments that rsync's `--exclude-from` never
+      treats as comments, so they silently matched nothing since May
+      2026. `MobileSync/` (iOS device backups, 767GB — 5 generations of
+      the operator's phone + 2 copies of a family member's, one an exact
+      duplicate) was the big one; `**/target/` (~8.4GB Rust build dirs)
+      and `.Trashes/` (0 actual impact) the other two. Fixed in both the
+      shared template and the deployed copy.
+      **Operator decisions on the content**: keep `MobileSync/` syncing
+      to kodiak locally (disk headroom is fine) but block it from iDrive
+      via iDrive's own `15) Exclude options` (a real exclude mechanism,
+      separate from the backup-set include list — not previously known
+      to exist). Deleted the duplicate "Alex Copy" folder from kodiak
+      outright (239GB, reclaims from the pool gradually as the ~9 days of
+      snapshots already covering it age out over the sanoid dataset's
+      30-day retention). Full triage note:
+      [`data-organizer/manifests/lynchmbp-host-triage-2026-09-30.md`](../../data-organizer/manifests/lynchmbp-host-triage-2026-09-30.md).
+      **This bug is almost certainly the real driver of `backups-00`
+      sitting at 95% full** (see Backlog's "Mirror the pool" entry) —
+      worth re-checking actual pool usage once the snapshot-retention
+      window clears, before spending money on a second drive.
+      `ldavis-dev-01`'s triage pass remains untouched — lower priority,
+      not blocked on anything.
 
 ---
 
@@ -245,7 +268,13 @@ is going anywhere valuable, but still the operator's call on timing.
 **Mirror the pool** (`GAPS.md` §1.1) — paused 2026-09-24 at the operator's
 request; drive-purchase decision on hold. `backups-00` is one drive, now at
 **95% full (181GB free)**, up from 88% two days ago (hondajet's 468GB
-catch-up sync landing, not a leak). Confirmed via `lsblk`/`dmesg`: no spare
+catch-up sync landing — **update 2026-09-30: substantially explained by
+the MobileSync exclude bug, see `GAPS.md` §2.5, not organic growth**).
+239GB of that (a duplicate iPhone backup) has since been deleted, though
+it reclaims gradually as sanoid snapshots age out over ~3 weeks, not
+immediately. **Worth re-checking actual capacity pressure once that
+settles, before committing to a drive purchase** — the real headroom
+picture may look meaningfully better than 95%. Confirmed via `lsblk`/`dmesg`: no spare
 drive exists anywhere on kodiak (`sdb` is the live OS boot disk — HDD, not
 SSD, contrary to a hallway-memory check that turned out stale; `sdc` is the
 already-in-use `data-00`/`media-00` MegaRAID array) and there's free SATA

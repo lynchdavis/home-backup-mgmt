@@ -346,6 +346,62 @@ the identified junk, not backing it up further).
 
 **Queued?** videos/archive: done 2026-09-24. LynchMBP snapshots: decided against 2026-09-27. Old-machine-backups: reviewed + curated subset added 2026-09-29. This section is closed.
 
+### 2.5 LynchMBP exclude-file bug — MobileSync (767GB) synced despite being "excluded" since May 2026 — found + fixed 2026-09-30
+
+First host triage pass (`data-organizer/HOST-HYGIENE.md`'s open item)
+turned up a real bug, not just cruft: `configs/hosts/excludes/mac-user.txt`
+and `lynchmbp.txt` had three patterns written with a **trailing inline
+comment** (`Library/Application Support/MobileSync/   # iOS device backups...`).
+rsync's `--exclude-from` only honors `#` as a comment when it's the first
+character of a line — a trailing comment becomes part of the literal
+pattern and matches nothing. This affected `MobileSync/` (iOS device
+backups, 767GB), `**/target/` (Rust build dirs, ~8.4GB), and `.Trashes/`
+(0 actual impact — nothing to match on this host).
+
+`MobileSync/` was the real cost: 7 device-backup folders had accumulated
+since May 2026 — 5 generations of the operator's own phone ("Skynet II,"
+2019→2026) plus 2 copies of "Alex's iPhone" (one an exact byte-identical
+duplicate, both 239GB). New device backups kept landing as recently as
+2026-09-23, during the same catch-up sync the roadmap had attributed to
+organic growth — this bug is almost certainly the dominant contributor
+to `backups-00` sitting at 95% full (see §1.1), not real capacity
+pressure. The same content had also already synced to iDrive (404,131
+`MobileSync` file lines in one day's success log alone — a meaningful
+fraction of the account's 2.9TB/5TB cloud usage).
+
+**Fixed**: moved all three comments onto their own line, in both the
+shared template (`mac-user.txt`, protects any future Mac host) and the
+deployed `lynchmbp.txt`. Verified via synthetic rsync dry-run
+reproduction before/after.
+
+**Operator decision on the content itself** (2026-09-30, after actually
+inspecting device names/dates via `Info.plist`): not a blanket exclude.
+`**/target/` and `.Trashes/` stay excluded everywhere, no override.
+`MobileSync/` — deliberately **left included** for `lynchmbp.txt`
+specifically (local disk headroom is fine; wants to keep local phone-
+backup history) but blocked from the iDrive cloud copy via iDrive's own
+`15) Exclude options` global exclude list (a genuine exclude mechanism,
+separate from the backup-set include list — previously believed not to
+exist, see §1.2's restore/backup-set work). The duplicate "Alex Copy"
+folder was deleted from kodiak outright (239GB) per explicit instruction.
+
+**Caveat**: `rm -rf` on a ZFS host-mirror dataset with 30 days of daily
+sanoid snapshots doesn't free pool space immediately — the deleted
+duplicate is still referenced by ~9 days of existing snapshots and will
+reclaim gradually as those age out (~3 weeks), not instantly. The
+already-uploaded MobileSync bytes sitting in iDrive's cloud storage are
+similarly not auto-removed by the new exclude — that only stops future
+uploads; no cloud-side deletion mechanism was found (iDrive's "Archive
+cleanup" is about old-version retention, not backup-set reconciliation,
+and was left unexecuted).
+
+**Severity:** was effectively Tier 1-adjacent (silently eating the
+single-disk pool's remaining headroom) — now closed as a bug, with the
+residual capacity-reclaim timeline understood and accepted.
+
+**Queued?** No further action — full triage note at
+`data-organizer/manifests/lynchmbp-host-triage-2026-09-30.md`.
+
 ### 3.1 No capacity-trending alarm
 
 `tourbillon status` reports `capacity_pct` (today 66%). No proactive alert when it crosses, say, 80% or 90%. Saratoga DR dominates and grows with your live data — if you take a lot of new photos, this number moves.

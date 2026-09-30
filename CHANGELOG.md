@@ -6,6 +6,78 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (2)
+
+### First host triage pass (hondajet/lynchmbp): found + fixed a real exclude-file bug worth 767GB
+
+Ran the first host triage pass called for in `data-organizer/HOST-HYGIENE.md`,
+starting with lynchmbp given its size. Inventoried the 989GB mirror
+(`du --max-depth=2`) and found `Library/Application Support/` was 79% of
+the total.
+
+Root cause: `configs/hosts/excludes/mac-user.txt` and `lynchmbp.txt` had
+three patterns written with a **trailing inline comment**
+(`Library/Application Support/MobileSync/   # iOS device backups, often huge`).
+rsync's `--exclude-from` only treats `#` as a comment when it's the
+*first* character of a line — a trailing comment becomes part of the
+literal pattern and matches nothing. Confirmed via a synthetic rsync
+`--exclude-from` dry-run reproduction, both before (all three patterns
+transferred) and after the fix (all three correctly excluded).
+
+Affected patterns: `MobileSync/` (iOS device backups — the big one,
+767GB), `**/target/` (Rust build dirs, ~8.4GB across 7 projects), and
+`.Trashes/` (0 actual impact on this host). New device backups had kept
+landing as recently as 2026-09-23 — the exact date of the "hondajet
+468GB catch-up sync" the roadmap had attributed to organic growth. This
+bug is almost certainly the real driver of `backups-00` sitting at 95%
+full, not genuine capacity pressure.
+
+Inspected `MobileSync/`'s actual contents (device name/model/date via
+each backup's `Info.plist`) before deciding what to do with it: 7 device
+folders — 5 generations of the operator's own phone ("Skynet II,"
+2019→2026) and 2 copies of "Alex's iPhone" (one an exact byte-identical
+duplicate of the other, both 239GB, one literally named "... Alex Copy").
+
+**Fixed going forward**: moved all three comments onto their own line
+(matching every other pattern in the file), in both the shared
+`mac-user.txt` template (protects any future Mac host) and the deployed
+`lynchmbp.txt`.
+
+**Operator decisions on the content** (not a blanket exclude):
+- `**/target/`, `.Trashes/` — stay excluded everywhere, no override.
+- `MobileSync/` — deliberately **reverted for `lynchmbp.txt`
+  specifically** (kept in `mac-user.txt`'s default for future hosts).
+  Operator wants iOS device backups to keep syncing to kodiak locally
+  (disk headroom is fine) but not to iDrive. Implemented via iDrive's
+  `15) Exclude options` → user exclude list — a real, separate exclude
+  mechanism distinct from the backup-set include list. (Earlier sessions'
+  "iDrive has no exclude/filter syntax" conclusion was correct for the
+  backup-set editor specifically, but incomplete for the tool as a
+  whole — this menu had gone unexplored until now.) Added the MobileSync
+  path to that list; confirmed "exclude is updated," applies globally on
+  top of the existing single-directory `hosts/lynchmbp/` backup-set
+  entry with no restructuring needed.
+- The duplicate "Alex Copy" folder — deleted from kodiak outright
+  (239GB), per explicit instruction.
+
+**Caveat surfaced**: `rm -rf` on this dataset doesn't free pool space
+immediately — 30 days of daily sanoid snapshots mean the deleted
+duplicate (present since 2026-09-21) is still referenced by ~9 days of
+existing snapshots and reclaims gradually over the next ~3 weeks, not
+instantly. The already-uploaded MobileSync bytes sitting in iDrive's
+cloud storage are similarly not auto-removed by the new exclude — that
+only stops future uploads. iDrive's "Archive cleanup" menu looked like a
+candidate for reclaiming that cloud quota but turned out to govern
+old-file-version retention, not backup-set/exclude reconciliation — left
+unexecuted, scope unclear.
+
+Full triage note:
+`data-organizer/manifests/lynchmbp-host-triage-2026-09-30.md`.
+`GAPS.md` §2.5 (new) and `ROADMAP.md` updated, including a flag on the
+parked "mirror the pool" backlog item to re-check real capacity pressure
+once the snapshot-retention window clears, before committing to a drive
+purchase.
+
 ## 2026-09-30
 
 ### Verified iDrive bulk/directory restore (was an untested assumption)
