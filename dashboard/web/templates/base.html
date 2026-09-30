@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Tourbillon{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+          <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="16" cy="16" r="2.2" fill="currentColor"/>
+          <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <line x1="16" y1="16" x2="16" y2="6.5"/>
+            <line x1="16" y1="16" x2="21.5" y2="19.5"/>
+          </g>
+          <circle cx="16" cy="4.5" r="1.4" fill="currentColor"/>
+          <circle cx="16" cy="27.5" r="1.4" fill="currentColor"/>
+          <circle cx="4.5" cy="16" r="1.4" fill="currentColor"/>
+          <circle cx="27.5" cy="16" r="1.4" fill="currentColor"/>
+        </svg>
+        <span class="brand-name">Tourbillon</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/" class="{{ 'active' if active == 'status' else '' }}">Status</a></li>
+        <li><a href="/config" class="{{ 'active' if active == 'config' else '' }}">Config</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        {% if authenticated %}
+        <form method="post" action="/logout"><button type="submit" class="link-button">Log out</button></form>
+        {% else %}
+        <a href="/login">Sign in</a>
+        {% endif %}
+      </div>
+    </nav>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

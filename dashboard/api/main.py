@@ -77,7 +77,10 @@ def _fetch(fn):
 
 @app.get("/")
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {})
+    return templates.TemplateResponse(request, "index.html", {
+        "active": "status",
+        "authenticated": _page_authenticated(request),
+    })
 
 
 @app.get("/api/status")
@@ -173,7 +176,10 @@ def logout():
 def config_page(request: Request):
     if not _page_authenticated(request):
         return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse(request, "config.html", {})
+    return templates.TemplateResponse(request, "config.html", {
+        "active": "config",
+        "authenticated": True,
+    })
 
 
 @app.get("/partials/config-hosts")

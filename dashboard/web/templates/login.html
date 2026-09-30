@@ -1,35 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tourbillon Dashboard — Login</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  <header>
-    <h1>Tourbillon</h1>
-    <p class="subtitle">sign in to edit configuration</p>
+{% extends "base.html" %}
+{% block title %}Tourbillon — Sign in{% endblock %}
+{% block content %}
+  <header class="page-header">
+    <h1>Sign in</h1>
+    <p class="subtitle">config changes require a password; status stays open</p>
   </header>
 
-  <main>
-    <section class="panel">
-      {% if not_configured %}
-        <p class="error">No password has been set up yet. On kodiak, run
-          <code>sudo /opt/server-backups/bin/dashboard-set-password.sh</code>
-          first.</p>
-      {% else %}
-        {% if error %}<p class="error">{{ error }}</p>{% endif %}
-        <form method="post" action="/login">
-          <p>
-            <label for="password">Password</label><br>
-            <input type="password" id="password" name="password" autofocus>
-          </p>
-          <button type="submit">Sign in</button>
-        </form>
-      {% endif %}
-      <p class="summary"><a href="/">&larr; back to status</a></p>
-    </section>
-  </main>
-</body>
-</html>
+  <section class="panel">
+    {% if not_configured %}
+      <p class="error">No password has been set up yet. On kodiak, run
+        <code>sudo /opt/server-backups/bin/dashboard-set-password.sh</code>
+        first.</p>
+    {% else %}
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post" action="/login" class="login-form">
+        <p>
+          <label for="password">Password</label><br>
+          <input type="password" id="password" name="password" autofocus>
+        </p>
+        <button type="submit">Sign in</button>
+      </form>
+    {% endif %}
+  </section>
+{% endblock %}

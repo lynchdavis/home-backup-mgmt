@@ -6,6 +6,38 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (6)
+
+### Dashboard UI restyle: left sidebar nav + small inline logo (v0.2.1)
+
+Cosmetic pass, no functional change. The dashboard had grown a second
+page (`/config`, added this session) with no shared chrome between it
+and the status page — each was a standalone HTML file with its own
+`<head>`/header, so navigating between them felt like two different
+apps.
+
+Factored a `base.html` layout (Jinja2 `{% extends %}`/`{% block %}`)
+that every page now extends: a persistent left sidebar with a small
+inline SVG mark (a simple tourbillon-esque rotating-cage motif, drawn
+directly in the template — no icon font, no CDN, consistent with
+ADR-007's vendored-htmx/no-CDN principle), two nav links (Status,
+Config) with an active-page highlight, and a footer showing "Sign in"
+or "Log out" depending on session state. `index.html`, `config.html`,
+and `login.html` all now extend this base instead of duplicating a full
+`<html>` document each.
+
+`style.css` gained the sidebar/layout rules (responsive — collapses to
+a top bar under 700px), form/button styling (there was none before;
+`<input>`/`<button>` were unstyled browser defaults), and cleaned up a
+couple of duplicate `.panel` spacing rules along the way.
+
+Verified live: nav highlights the correct page, Sign in/Log out state
+tracks the session cookie correctly, and every existing panel
+(status/hosts/repos, and the v0.2.0 config-hosts toggle) still renders
+and functions identically.
+
+Shipped as v0.2.1 (patch — no new capability, just presentation).
+
 ## 2026-09-30 (5)
 
 ### Dashboard Phase 2, step 1: auth + per-host mail toggle (v0.2.0)
