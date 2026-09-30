@@ -6,6 +6,22 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-09-30 (8)
+
+### Dashboard: repo mirrors panel now lists individual repos (v0.2.3)
+
+The repos panel was collapsing to a one-line "all repos ok — 40 total,
+281.7 MB" summary whenever nothing was broken, only showing per-repo
+rows for failures. `/api/repos` already returns all 40 repos' full
+data (`tourbillon repos status --json` was never filtered) — the
+collapsing was purely a template choice in `partials/repos.html`.
+
+Changed it to always render the full per-repo table (slug, state,
+last-OK age, size), sorted alphabetically, same as the hosts panel
+already does — no backend change needed. Kept the one-line summary at
+top for an at-a-glance count. Verified live: all 40 repos now render
+as individual rows.
+
 ## 2026-09-30 (7)
 
 ### Dashboard: cache-bust static assets (v0.2.2)

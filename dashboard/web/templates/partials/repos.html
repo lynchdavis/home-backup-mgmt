@@ -7,23 +7,21 @@
   <p class="summary">{{ rows | length }} repos —
     {{ rows | selectattr('state', 'equalto', 'ok') | list | length }} ok,
     {{ rows | rejectattr('state', 'equalto', 'ok') | list | length }} not ok
+    &nbsp;|&nbsp; {{ rows | sum(attribute='size') | bytes }} on disk
   </p>
   <table>
     <thead>
       <tr><th>Repo</th><th>State</th><th>Last OK</th><th>Size</th></tr>
     </thead>
     <tbody>
-      {% for r in rows if r.state != 'ok' %}
+      {% for r in rows | sort(attribute='slug') %}
       <tr>
         <td>{{ r.slug }}</td>
-        <td><span class="badge fail">{{ r.state }}</span></td>
-        <td>{{ r.last_ok | iso_age }}</td>
+        <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state == 'due' else 'fail') }}">{{ r.state }}</span></td>
+        <td title="{{ r.error if r.error else '' }}">{{ r.last_ok | iso_age }}</td>
         <td>{{ r.size | bytes }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {% if rows | rejectattr('state', 'equalto', 'ok') | list | length == 0 %}
-    <p class="empty">all repos ok — {{ rows | length }} total, {{ rows | sum(attribute='size') | bytes }}</p>
-  {% endif %}
 {% endif %}
