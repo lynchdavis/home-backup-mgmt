@@ -1,0 +1,14 @@
+[Unit]
+Description=Watch for dashboard-requested manual backups (ADR-010)
+Documentation={{REPO_URL}}
+
+[Path]
+# The dashboard (via `tourbillon hosts request` / `repos request`) drops one
+# JSON file per request here; the runner claims and removes them. The
+# directory is created tourbillon-owned by postinst — deliberately not
+# MakeDirectory=, which would create it root-owned.
+DirectoryNotEmpty=/var/lib/tourbillon/.local/state/tourbillon/requests
+Unit=tourbillon-requests.service
+
+[Install]
+WantedBy=multi-user.target

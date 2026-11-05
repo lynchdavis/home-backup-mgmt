@@ -11,6 +11,11 @@
     <p class="loading">Loading…</p>
   </section>
 
+  <section class="panel" id="config-snapshots-panel"
+           hx-get="/partials/config-snapshots" hx-trigger="load, snapshots-changed from:body" hx-swap="innerHTML">
+    <p class="loading">Loading…</p>
+  </section>
+
   <section class="panel" id="config-repos-panel"
            hx-get="/partials/config-repos" hx-trigger="load" hx-swap="innerHTML">
     <p class="loading">Loading…</p>

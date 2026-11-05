@@ -117,3 +117,52 @@ def add_repo(slug: str, clone_url: str) -> str:
         raise TourbillonError(proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")
     _cache.pop("repos status", None)
     return proc.stdout.strip()
+
+
+# ---------- Manual backups (ADR-010) ----------
+# The dashboard never runs a sync itself: its unit has NoNewPrivileges=true,
+# which blocks the `sudo -n rsync` a host sync needs. These only queue a
+# request (`tourbillon hosts request` / `repos request`) for
+# tourbillon-requests.service to drain, and read back its status files.
+
+def _run_cli(*args: str, timeout: int = 20) -> str:
+    proc = subprocess.run(
+        [str(TOURBILLON_BIN), *args], capture_output=True, text=True, timeout=timeout,
+    )
+    if proc.returncode != 0:
+        raise TourbillonError(proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")
+    return proc.stdout
+
+
+def request_host_backup(name: str, label: str) -> dict:
+    """Queue a forced sync + manual snapshot for one host. Idempotent while
+    one is already queued/running (the result says `already_active`)."""
+    data = json.loads(_run_cli("hosts", "request", name, "--label", label, "--json"))
+    _cache.pop("hosts status", None)
+    return data
+
+
+def request_repos_sync(slug: str | None) -> dict:
+    args = ["repos", "request", "--json"] + (["--name", slug] if slug else [])
+    return json.loads(_run_cli(*args))
+
+
+def get_request_status(kind: str, target: str | None):
+    """Uncached -- it's a small state-file read, and the polling cells need
+    to see a status change within one poll, not one CACHE_TTL."""
+    args = ["requests", "status", "--kind", kind, "--json"]
+    args += ["--target", target] if target else ["--all"]
+    return json.loads(_run_cli(*args))
+
+
+def get_latest_repos_request():
+    rows = json.loads(_run_cli("requests", "status", "--kind", "repos", "--json"))
+    return rows[0] if rows else None
+
+
+def get_manual_snapshots() -> list:
+    return json.loads(_run_cli("hosts", "snapshots", "--json"))
+
+
+def delete_manual_snapshot(name: str, snapshot: str) -> None:
+    _run_cli("hosts", "snapshot-rm", name, snapshot, timeout=60)

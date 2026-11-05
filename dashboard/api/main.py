@@ -244,3 +244,94 @@ def api_repos_add(request: Request, slug: str = Form(...), clone_url: str = Form
     return templates.TemplateResponse(
         request, "partials/config-repos.html", {"add_message": message}
     )
+
+
+# ---------- Manual backups (see doc/ADR-010) ----------
+# Same auth gate as every other write route. Routes only *queue* work --
+# tourbillon-requests.service runs it, outside this (NoNewPrivileges)
+# process. The per-host cell and repo-sync block poll while a request is
+# active and stop on their own once it finishes.
+
+ACTIVE_STATES = ("queued", "waiting", "running")
+
+
+def _render_backup_cell(request: Request, name: str, st, error=None, polling=False):
+    active = bool(st and st.get("status") in ACTIVE_STATES)
+    resp = templates.TemplateResponse(request, "partials/host-backup.html", {
+        "name": name, "st": st, "active": active, "error": error,
+    })
+    if polling and not active:
+        # Just finished -- tell the snapshots panel to refresh itself.
+        resp.headers["HX-Trigger"] = "snapshots-changed"
+    return resp
+
+
+@app.post("/api/hosts/{name}/backup")
+def api_host_backup(request: Request, name: str, label: str = Form("")):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    try:
+        st = tb.request_host_backup(name, label.strip())
+    except tb.TourbillonError as e:
+        return _render_backup_cell(request, name, None, error=str(e))
+    return _render_backup_cell(request, name, st)
+
+
+@app.get("/partials/host-backup/{name}")
+def partial_host_backup(request: Request, name: str, polling: bool = False):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    st, error = _fetch(lambda: tb.get_request_status("host", name))
+    return _render_backup_cell(request, name, st, error=error, polling=polling)
+
+
+@app.get("/partials/config-snapshots")
+def partial_config_snapshots(request: Request):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    rows, error = _fetch(tb.get_manual_snapshots)
+    return templates.TemplateResponse(
+        request, "partials/config-snapshots.html", {"rows": rows, "error": error}
+    )
+
+
+@app.post("/api/hosts/{name}/snapshots/{snapshot}/delete")
+def api_delete_snapshot(request: Request, name: str, snapshot: str):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    delete_error = None
+    try:
+        tb.delete_manual_snapshot(name, snapshot)
+    except tb.TourbillonError as e:
+        delete_error = str(e)
+    rows, error = _fetch(tb.get_manual_snapshots)
+    return templates.TemplateResponse(request, "partials/config-snapshots.html", {
+        "rows": rows, "error": error, "delete_error": delete_error,
+    })
+
+
+def _render_repo_sync(request: Request, st, error=None):
+    slugs = [r["slug"] for r in (_fetch(tb.get_repos)[0] or [])]
+    return templates.TemplateResponse(request, "partials/repo-sync.html", {
+        "st": st, "error": error, "slugs": sorted(slugs),
+        "active": bool(st and st.get("status") in ACTIVE_STATES),
+    })
+
+
+@app.get("/partials/repo-sync")
+def partial_repo_sync(request: Request):
+    if not _page_authenticated(request):
+        return RedirectResponse(url="/login", status_code=303)
+    st, error = _fetch(tb.get_latest_repos_request)
+    return _render_repo_sync(request, st, error)
+
+
+@app.post("/api/repos/sync")
+def api_repos_sync(request: Request, slug: str = Form("")):
+    if not _page_authenticated(request):
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+    try:
+        st = tb.request_repos_sync(slug.strip() or None)
+    except tb.TourbillonError as e:
+        return _render_repo_sync(request, None, str(e))
+    return _render_repo_sync(request, st)

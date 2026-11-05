@@ -6,6 +6,44 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-05 (1)
+
+### v0.4.0: dashboard "Back up now", repo "Sync now", package-list capture (ADR-010)
+
+Prompted by wanting a backup right after a host update — and, more to the
+point, right *before* a distro upgrade.
+
+- **`/config` → Hosts → Back up now** (auth-gated): forced sync of one host,
+  then a pinned snapshot `backups-00/hosts/<host>@manual-<UTC ts>[-label]`.
+  Kept until deleted from the new **Manual snapshots** panel (or
+  `tourbillon hosts snapshot-rm`); sanoid's autoprune never touches them.
+  Without the snapshot a "pre-upgrade backup" would be overwritten by the
+  next `rsync --delete` mirror of a broken host.
+- **`/config` → Repo mirrors → Sync now**: forced sync of all repos or one.
+- **Package lists on every host sync** (`capture_packages = true` in
+  `configs/hosts/defaults.toml`): `apt-mark showmanual`, dpkg
+  selections/versions, rpm, pacman, brew formulae/casks/leaves, flatpak,
+  snap, os-release / sw_vers → `<host dataset>/_packages/`. Unprivileged
+  over the existing SSH key; best-effort (warning, never failure).
+- **How it runs:** the dashboard can't run syncs (its `NoNewPrivileges=true`
+  blocks the kodiak-side `sudo -n rsync`), so it only queues a request;
+  `tourbillon-requests.path` → `tourbillon-requests.service` drains it as
+  `tourbillon`, under `mail-on-output.sh "manual backup"` — **mail on
+  failure only**. Reuses the per-host sync lock (a request waits while cron
+  is mid-sync on that host); repos gained the same per-repo lock, which
+  cron's `repos sync` now honors too.
+- **New root grant:** `/usr/lib/server-backups/zfs-manual-snapshot`
+  (root-owned, validates `create|destroy <host> manual-…`) via
+  `/etc/sudoers.d/server-backups` — not a `zfs destroy …*` sudoers
+  wildcard, whose `*` would also match injected arguments.
+- New CLI: `hosts request`, `hosts snapshots`, `hosts snapshot-rm`,
+  `hosts sync --snapshot [LABEL]`, `repos request`, `requests run|status`.
+  `hosts status --json` gains `running`, `manual`, `last_packages_at`.
+- HUD shows a `syncing` / `queued` badge per host.
+
+Found while testing: the macOS `sw_vers` section was silently dropped
+(underscore failed the section-name check) — renamed `sw-vers`.
+
 ## 2026-09-30 (11)
 
 ### Rotated GitHub + Bitbucket tokens (closing GAPS.md §4.6's exposure)

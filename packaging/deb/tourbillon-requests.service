@@ -1,0 +1,24 @@
+[Unit]
+Description=Run dashboard-requested manual backups (tourbillon requests run)
+Documentation={{REPO_URL}}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tourbillon
+Group=tourbillon
+# A host's first real sync can run for hours, and a request may wait on a
+# cron-held host lock before it even starts.
+TimeoutStartSec=infinity
+# Deliberately NO NoNewPrivileges=true (unlike tourbillon-dashboard.service):
+# host syncs need the same narrow `sudo -n rsync` / zfs-manual-snapshot
+# grants cron uses. This is why the dashboard queues requests instead of
+# running syncs itself — the web process stays unprivileged (ADR-010).
+PrivateTmp=true
+# Sourced with a real shell, not EnvironmentFile= — the env file uses
+# `export KEY=value` lines, which systemd's parser rejects AND logs, secret
+# value included, to the journal (GAPS.md §4.6). Repo syncs need the
+# GitHub/Bitbucket tokens. mail-on-output.sh mails only on a non-zero exit,
+# which the runner returns only for an alerting failure.
+ExecStart=/bin/bash -c 'source /var/lib/tourbillon/.config/tourbillon/env 2>/dev/null || true; exec /opt/server-backups/bin/mail-on-output.sh "manual backup" /opt/server-backups/bin/tourbillon requests run'

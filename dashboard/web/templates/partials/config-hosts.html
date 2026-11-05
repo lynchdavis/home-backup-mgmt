@@ -1,14 +1,18 @@
-<h2>Per-host mail alerts</h2>
-<p class="summary">Controls whether a host's sync failures trigger the
-  cron mail alert. Off doesn't hide anything — the failure still shows on
-  the status page — it just won't page you for that host.</p>
+<h2>Hosts</h2>
+<p class="summary"><strong>Mail on failure</strong> controls whether a
+  host's sync failures trigger the cron mail alert. Off doesn't hide
+  anything — the failure still shows on the status page — it just won't
+  page you for that host. <strong>Back up now</strong> runs a full sync
+  immediately (handy right before or after a distro upgrade) and pins a
+  snapshot of the result; you're mailed only if it fails.</p>
 {% if error %}
   <p class="error">{{ error }}</p>
 {% elif not rows %}
   <p class="empty">no hosts configured</p>
 {% else %}
+  <div class="table-scroll">
   <table>
-    <thead><tr><th>Host</th><th>State</th><th>Mail on failure</th></tr></thead>
+    <thead><tr><th>Host</th><th>State</th><th>Mail on failure</th><th>Back up now</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -24,8 +28,12 @@
             {{ 'on' if r.mail_enabled else 'off' }}
           </label>
         </td>
+        {% with name=r.name, st=r.manual, active=(r.manual and r.manual.status in ('queued', 'waiting', 'running')), error=None %}
+          {% include "partials/host-backup.html" %}
+        {% endwith %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 {% endif %}

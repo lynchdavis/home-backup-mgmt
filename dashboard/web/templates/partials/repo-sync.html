@@ -1,0 +1,27 @@
+{# Repo "Sync now" block (ADR-010) -- polls itself while a request is active. #}
+<div id="repo-sync"
+     {% if active %}hx-get="/partials/repo-sync" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if active %}
+    <p><span class="badge info">{{ st.status }}</span>
+      <span class="cell-note">{{ st.target or 'all repos' }} — {{ st.message or '' }}</span></p>
+  {% else %}
+    <form class="inline-form" hx-post="/api/repos/sync" hx-target="#repo-sync" hx-swap="outerHTML">
+      <select name="slug">
+        <option value="">All repos</option>
+        {% for s in slugs %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+      <button type="submit">Sync now</button>
+    </form>
+    {% if st %}
+      <p class="cell-note">
+        last manual sync ({{ st.target or 'all repos' }}):
+        <span class="badge {{ 'ok' if st.status == 'ok' else 'fail' }}">{{ st.status }}</span>
+        {{ st.finished_at | iso_age }} ago — {{ st.message or '' }}
+      </p>
+      {% if st.failures %}
+        <ul>{% for f in st.failures %}<li>{{ f }}</li>{% endfor %}</ul>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+</div>

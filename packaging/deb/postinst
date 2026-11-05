@@ -52,6 +52,25 @@ chown -R tourbillon:tourbillon /opt/server-backups
 # capability (see tourbillon-dashboard.service) can read SMART data from it.
 usermod -aG disk tourbillon
 
+# ADR-010 manual-backup queue. Created tourbillon-owned here (not via the
+# .path unit's MakeDirectory=, which would make it root-owned and
+# unwritable by the dashboard). manual/ holds per-request status files.
+install -d -m 755 -o tourbillon -g tourbillon \
+    /var/lib/tourbillon/.local/state/tourbillon/requests \
+    /var/lib/tourbillon/.local/state/tourbillon/manual
+
+# Shipped 0440 root:root; refuse to leave a sudoers file sudo can't parse
+# (a broken drop-in can break sudo for everyone on the box).
+if ! visudo -cf /etc/sudoers.d/server-backups >/dev/null; then
+    echo "ERROR: /etc/sudoers.d/server-backups failed visudo -- removing it" >&2
+    rm -f /etc/sudoers.d/server-backups
+    exit 1
+fi
+
 systemctl daemon-reload
 systemctl enable tourbillon-dashboard
 systemctl restart tourbillon-dashboard || systemctl start tourbillon-dashboard
+# The .path unit starts tourbillon-requests.service whenever the queue is
+# non-empty; the service itself is never enabled directly.
+systemctl enable tourbillon-requests.path
+systemctl restart tourbillon-requests.path || systemctl start tourbillon-requests.path

@@ -1,0 +1,44 @@
+#!/bin/bash
+# zfs-manual-snapshot — the ONLY snapshot operation tourbillon may sudo
+# (ADR-010). Installed root-owned at /usr/lib/server-backups/, outside the
+# tourbillon-owned /opt/server-backups tree, and granted via
+# /etc/sudoers.d/server-backups.
+#
+# Why a helper instead of a sudoers line like
+#   zfs destroy backups-00/hosts/*@manual-*
+# — sudoers `*` in arguments matches spaces, so extra arguments (-R, a
+# second dataset) would ride along. This accepts exactly:
+#
+#   zfs-manual-snapshot create  <host> manual-<YYYYMMDDTHHMMSSZ>[-<label>]
+#   zfs-manual-snapshot destroy <host> manual-<YYYYMMDDTHHMMSSZ>[-<label>]
+#
+# under the fixed backups-00/hosts/ parent, and nothing else.
+set -euo pipefail
+
+PARENT="backups-00/hosts"
+ZFS=/usr/sbin/zfs
+
+die() { echo "zfs-manual-snapshot: $*" >&2; exit 2; }
+
+[ $# -eq 3 ] || die "usage: $0 create|destroy <host> manual-<ts>[-label]"
+op="$1" host="$2" snap="$3"
+
+[[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || die "invalid host: $host"
+[[ "$snap" =~ ^manual-[0-9]{8}T[0-9]{6}Z(-[a-z0-9][a-z0-9-]{0,39})?$ ]] || die "invalid snapshot name: $snap"
+
+dataset="$PARENT/$host"
+"$ZFS" list -H -t filesystem -o name "$dataset" >/dev/null 2>&1 || die "no such dataset: $dataset"
+
+case "$op" in
+    create)
+        exec "$ZFS" snapshot "$dataset@$snap"
+        ;;
+    destroy)
+        "$ZFS" list -H -t snapshot -o name "$dataset@$snap" >/dev/null 2>&1 \
+            || die "no such snapshot: $dataset@$snap"
+        exec "$ZFS" destroy "$dataset@$snap"
+        ;;
+    *)
+        die "unknown operation: $op"
+        ;;
+esac

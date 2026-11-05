@@ -11,7 +11,14 @@
 #      argument auto-adds an /etc/hosts entry since ldavis-dev-01
 #      does not resolve via DNS yet.
 
-host = "192.168.1.58"
+# DHCP moved this host from .58 to .241 (seen 2026-11-05, after its trixie
+# upgrade). Both kept as candidates, current lease first — tourbillon
+# probes each in order (see host_candidates()). A DHCP reservation on the
+# router would make this a single fixed address again.
+host = [
+    "192.168.1.241",   # current lease
+    "192.168.1.58",    # previous lease
+]
 
 # Mirror /home + /etc — linux is rebuildable from a fresh install;
 # /etc retains the host-specific drift worth keeping; everything

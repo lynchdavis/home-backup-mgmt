@@ -1,0 +1,25 @@
+{# One host's "Back up now" cell (ADR-010). Swaps itself (outerHTML) so
+   polling never clobbers another row's half-typed label. #}
+<td id="backup-{{ name }}" class="backup-cell"
+    {% if active %}hx-get="/partials/host-backup/{{ name }}?polling=true" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if active %}
+    <span class="badge info">{{ st.status }}</span>
+    <span class="cell-note">{{ st.message or '' }}{% if st.label %} · {{ st.label }}{% endif %}</span>
+  {% else %}
+    <form class="inline-form" hx-post="/api/hosts/{{ name }}/backup"
+          hx-target="#backup-{{ name }}" hx-swap="outerHTML"
+          hx-confirm="Back up {{ name }} now (full sync) and pin a snapshot that's kept until you delete it?">
+      <input type="text" name="label" class="small-input" maxlength="40" placeholder="label, e.g. pre-upgrade">
+      <button type="submit">Back up now</button>
+    </form>
+    {% if st %}
+      <div class="cell-note">
+        last manual run:
+        <span class="badge {{ 'ok' if st.status == 'ok' else ('warn' if st.status == 'unreachable' else 'fail') }}">{{ st.status }}</span>
+        {{ st.finished_at | iso_age }} ago — {{ st.message or '' }}
+        {% if st.warnings %}<span title="{{ st.warnings | join('\n') }}">({{ st.warnings | length }} warning{{ 's' if st.warnings | length != 1 }})</span>{% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+</td>

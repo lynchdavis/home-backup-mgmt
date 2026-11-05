@@ -78,6 +78,15 @@ rsync_archive_flags = "-avHAX"
 # stall rather than cleanly disconnect.
 rsync_timeout = "300s"
 
+# After the rsync paths, capture the target's installed-package lists
+# (apt-mark showmanual, dpkg selections/versions, rpm, pacman, brew
+# formulae/casks/leaves, flatpak, snap — whichever exist) plus os-release /
+# sw_vers into <mountpoint>/_packages/, so every snapshot carries what was
+# installed — the missing piece for rebuilding after a bad distro upgrade.
+# Runs unprivileged over the same SSH key; a capture problem is a sync
+# warning, never a failure. See doc/ADR-010-dashboard-manual-backups.md.
+capture_packages = true
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Schedule + reachability

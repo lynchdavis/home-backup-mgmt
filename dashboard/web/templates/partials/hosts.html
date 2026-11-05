@@ -12,7 +12,10 @@
       {% for r in rows %}
       <tr>
         <td>{{ r.name }}</td>
-        <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state in ('due', 'unreachable') else 'fail') }}">{{ r.state }}</span></td>
+        <td><span class="badge {{ 'ok' if r.state == 'ok' else ('warn' if r.state in ('due', 'unreachable') else 'fail') }}">{{ r.state }}</span>
+          {% if r.running %}<span class="badge info">syncing</span>
+          {% elif r.manual and r.manual.status in ('queued', 'waiting') %}<span class="badge info">{{ r.manual.status }}</span>{% endif %}
+        </td>
         <td>{{ r.last_success_at | iso_age }}</td>
         <td>{{ r.last_reachable_at | iso_age }}</td>
         <td>{{ r.size | bytes }}</td>

@@ -1,0 +1,29 @@
+<h2>Manual snapshots</h2>
+<p class="summary">Pinned by "Back up now" after a successful sync, each
+  with that sync's package lists in <code>_packages/</code>. Kept until you
+  delete them here — sanoid's daily pruning never touches these.</p>
+{% if delete_error %}<p class="error">{{ delete_error }}</p>{% endif %}
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% elif not rows %}
+  <p class="empty">no manual snapshots yet</p>
+{% else %}
+  <table>
+    <thead><tr><th>Host</th><th>Label</th><th>Created</th><th>Space held</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.host }}</td>
+        <td title="{{ r.full_name }}">{{ r.label or '—' }}</td>
+        <td title="{{ r.created_at }}">{{ r.created_at | iso_age }} ago</td>
+        <td title="space freed if deleted (grows as the live mirror diverges)">{{ r.used_bytes | bytes }}</td>
+        <td>
+          <button class="danger small" hx-post="/api/hosts/{{ r.host }}/snapshots/{{ r.snapshot }}/delete"
+                  hx-target="#config-snapshots-panel" hx-swap="innerHTML"
+                  hx-confirm="Permanently destroy {{ r.full_name }}? This can't be undone.">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}

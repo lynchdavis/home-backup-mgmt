@@ -957,9 +957,14 @@ def host_status_row(name: str, defaults: dict, now_ts: float) -> dict:
         "size": 0,
         "interval_s": interval_s,
         "mail_enabled": bool(cfg.get("mail_enabled", True)),
+        # ADR-010: live sync-in-progress + the last dashboard/CLI manual request.
+        "running": host_lock_held(name),
+        "manual": manual_status(request_id("host", name)),
+        "last_packages_at": None,
     }
     if state is None:
         return row
+    row["last_packages_at"] = state.get("last_packages_at")
 
     row["last_success_at"] = state.get("last_success_at")
     row["last_unreachable_at"] = state.get("last_unreachable_at")
@@ -1323,6 +1328,13 @@ def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
     bytes_xfer = sum(r.get("bytes_xfer", 0) for r in path_results)
     warnings = [r["warning"] for r in path_results if r.get("warning")]
 
+    # Package-list capture (ADR-010) — best-effort, a warning never a failure.
+    packages = None
+    if cfg.get("capture_packages", True):
+        packages = capture_packages(cfg, mountpoint)
+        if packages.get("warning"):
+            warnings.append(packages["warning"])
+
     return {
         "name": name, "ok": all_ok, "reachable": True,
         "action": "synced" if all_ok else "FAILED",
@@ -1332,7 +1344,46 @@ def sync_one_host(name: str, cfg: dict, dry_run: bool = False) -> dict:
         "bytes_xfer": bytes_xfer,
         "dataset_used": dataset_used_bytes(dataset),
         "paths": path_results,
+        "packages": packages,
     }
+
+
+def record_host_sync(name: str, state: dict | None, result: dict) -> str:
+    """Persist a (non-dry-run) sync_one_host() result to the host's state
+    file. Returns the outcome bucket: 'unreachable' | 'ok' | 'failed'.
+
+    Shared by cron's `hosts sync` and the manual-request runner (ADR-010) so
+    a manual run is recorded exactly like a scheduled one."""
+    new_state = dict(state) if state else {"first_seen_at": iso_now()}
+    new_state["last_attempt_at"] = iso_now()
+    if result.get("reachable"):
+        new_state["last_reachable_at"] = iso_now()
+    else:
+        new_state["last_unreachable_at"] = iso_now()
+
+    if not result.get("reachable", True):
+        # Unreachable is a soft case — not an error
+        new_state["last_error"] = None
+        save_host_state(name, new_state)
+        return "unreachable"
+
+    pk = result.get("packages")
+    if pk and pk.get("files"):
+        new_state["last_packages_at"] = iso_now()
+        new_state["last_packages"] = pk["files"]
+
+    if result["ok"]:
+        new_state["last_success_at"] = iso_now()
+        new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+        new_state["last_size_bytes"] = result.get("dataset_used", 0)
+        new_state["last_error"] = None
+        save_host_state(name, new_state)
+        return "ok"
+
+    new_state["last_error"] = result.get("reason", "unknown")
+    new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+    save_host_state(name, new_state)
+    return "failed"
 
 
 def cmd_hosts_sync(args: argparse.Namespace) -> int:
@@ -1406,26 +1457,12 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
                 emit(f"  {name:<{longest}}  {tag:<14}  {result.get('reason', '')}")
                 continue
 
-            # Persist state
-            new_state = dict(state) if state else {"first_seen_at": iso_now()}
-            new_state["last_attempt_at"] = iso_now()
-            if result.get("reachable"):
-                new_state["last_reachable_at"] = iso_now()
-            else:
-                new_state["last_unreachable_at"] = iso_now()
+            outcome = record_host_sync(name, state, result)
 
-            if not result.get("reachable", True):
-                # Unreachable is a soft case — not an error
-                new_state["last_error"] = None
-                save_host_state(name, new_state)
+            if outcome == "unreachable":
                 summary["unreachable"] += 1
                 emit(f"  {name:<{longest}}  unreachable   ({result.get('reason', '')})")
-            elif result["ok"]:
-                new_state["last_success_at"] = iso_now()
-                new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
-                new_state["last_size_bytes"] = result.get("dataset_used", 0)
-                new_state["last_error"] = None
-                save_host_state(name, new_state)
+            elif outcome == "ok":
                 summary["ok"] += 1
                 summary["total_bytes"] += result.get("bytes_xfer", 0)
                 summary["total_seconds"] += result.get("duration_s", 0)
@@ -1434,10 +1471,18 @@ def cmd_hosts_sync(args: argparse.Namespace) -> int:
                 w = result.get("warnings") or []
                 w_note = f"  (warnings: {len(w)})" if w else ""
                 emit(f"  {name:<{longest}}  synced        {size_str:>9} xfer  in {dur_str}{w_note}")
+                if args.snapshot is not None:
+                    try:
+                        snap = create_manual_snapshot(name, args.snapshot)
+                        emit(f"  {name:<{longest}}  snapshot      {snap}")
+                    except TourbillonCmdError as e:
+                        # The mirror is fine but the checkpoint asked for
+                        # doesn't exist — that's a failure, not a footnote.
+                        summary["failed"] += 1
+                        if cfg.get("mail_enabled", True):
+                            summary["failed_alerting"] += 1
+                        emit(f"  {name:<{longest}}  FAILED        snapshot: {str(e)[:70]}", stream=sys.stderr)
             else:
-                new_state["last_error"] = result.get("reason", "unknown")
-                new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
-                save_host_state(name, new_state)
                 summary["failed"] += 1
                 if cfg.get("mail_enabled", True):
                     summary["failed_alerting"] += 1
@@ -1965,23 +2010,28 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
                 print(f"  {slug:<{longest}}  skipped     ({why})")
             continue
 
-        result = sync_one_repo(slug, config, dry_run=args.dry_run)
-
         if args.dry_run:
+            result = sync_one_repo(slug, config, dry_run=True)
             if not quiet:
                 print(f"  {slug:<{longest}}  {result['action']:<14} ({why})")
             continue
 
-        # Update state and print summary line
-        new_state = dict(state) if state else {"first_seen_at": iso_now()}
-        new_state["last_attempt_at"] = iso_now()
+        # Per-repo lock (ADR-010): a dashboard-requested manual sync and the
+        # */30 cron pass must never run `git remote update` on the same
+        # mirror at once. Locked = in progress elsewhere, same as hosts.
+        lock_fh = acquire_repo_lock(slug)
+        if lock_fh is None:
+            summary["skipped"] += 1
+            if not quiet:
+                print(f"  {slug:<{longest}}  skipped     (sync already in progress)")
+            continue
+        try:
+            result = sync_one_repo(slug, config)
+            record_repo_sync(slug, state, result)
+        finally:
+            lock_fh.close()
+
         if result["ok"]:
-            new_state["last_success_at"] = iso_now()
-            new_state["last_duration_s"] = round(result["duration_s"], 1)
-            new_state["last_size_bytes"] = result.get("size_bytes", 0)
-            new_state["last_error"] = None
-            new_state["upstream_present"] = True
-            save_state(slug, new_state)
             summary["ok"] += 1
             summary["total_bytes"] += result.get("size_bytes", 0)
             summary["total_seconds"] += result["duration_s"]
@@ -1990,9 +2040,6 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
                 dur_str = format_duration(result["duration_s"])
                 print(f"  {slug:<{longest}}  {result['action']:<14}  {size_str:>9}  in {dur_str}")
         else:
-            new_state["last_error"] = result["reason"]
-            new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
-            save_state(slug, new_state)
             summary["failed"] += 1
             # Failures always print, even in quiet mode (cron mails this).
             dur_str = format_duration(result.get("duration_s", 0))
@@ -2023,6 +2070,506 @@ def cmd_repos_sync(args: argparse.Namespace) -> int:
         )
 
     return 0 if summary["failed"] == 0 else 1
+
+
+def record_repo_sync(slug: str, state: dict | None, result: dict) -> None:
+    """Persist a (non-dry-run) sync_one_repo() result. Shared by cron's
+    `repos sync` and the manual-request runner (ADR-010)."""
+    new_state = dict(state) if state else {"first_seen_at": iso_now()}
+    new_state["last_attempt_at"] = iso_now()
+    if result["ok"]:
+        new_state["last_success_at"] = iso_now()
+        new_state["last_duration_s"] = round(result["duration_s"], 1)
+        new_state["last_size_bytes"] = result.get("size_bytes", 0)
+        new_state["last_error"] = None
+        new_state["upstream_present"] = True
+    else:
+        new_state["last_error"] = result["reason"]
+        new_state["last_duration_s"] = round(result.get("duration_s", 0), 1)
+    save_state(slug, new_state)
+
+
+# ---------- Manual backups: locks, snapshots, package capture (ADR-010) ----------
+
+STATE_REQUESTS = TOURBILLON_STATE_DIR / "requests"   # queue the .path unit watches
+STATE_MANUAL = TOURBILLON_STATE_DIR / "manual"       # per-request status files
+REQUEST_RETRY_S = 20
+
+# Root-owned validating helper (packaging/zfs-manual-snapshot), the only
+# thing tourbillon may sudo for snapshots — see ADR-010 for why this isn't
+# a `zfs snapshot|destroy` sudoers wildcard.
+SNAPSHOT_HELPER = os.environ.get(
+    "TOURBILLON_SNAPSHOT_HELPER", "/usr/lib/server-backups/zfs-manual-snapshot",
+)
+MANUAL_SNAPSHOT_PARENT = "backups-00/hosts"   # the helper hardcodes the same
+MANUAL_SNAPSHOT_RE = re.compile(r"^manual-[0-9]{8}T[0-9]{6}Z(-[a-z0-9][a-z0-9-]{0,39})?$")
+
+ACTIVE_REQUEST_STATES = ("queued", "waiting", "running")
+
+
+class TourbillonCmdError(RuntimeError):
+    pass
+
+
+def _try_flock(path: Path):
+    """Non-blocking exclusive lock on `path`; open handle or None if held."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "w")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    return fh
+
+
+def acquire_repo_lock(slug: str):
+    """Per-repo counterpart of acquire_host_lock()."""
+    return _try_flock(STATE_ROOT / f"{slug}.lock")
+
+
+def host_lock_held(name: str) -> bool:
+    """True if some process holds the host's sync lock right now. Opens the
+    lock file read-only (so this works as the operator, too) and takes a
+    momentary shared lock — never creates the file."""
+    try:
+        fh = open(STATE_HOSTS / f"{name}.lock", "r")
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+    finally:
+        fh.close()
+
+
+def sanitize_label(label: str | None) -> str:
+    """'Pre Trixie upgrade!' -> 'pre-trixie-upgrade' (<=40 chars, may be '')."""
+    s = re.sub(r"[^a-z0-9]+", "-", (label or "").lower()).strip("-")
+    return s[:40].rstrip("-")
+
+
+def _run_snapshot_helper(op: str, name: str, snap: str) -> None:
+    proc = subprocess.run(
+        ["sudo", "-n", SNAPSHOT_HELPER, op, name, snap],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        raise TourbillonCmdError(
+            (proc.stderr or proc.stdout or "").strip() or f"{op} exited {proc.returncode}"
+        )
+
+
+def create_manual_snapshot(name: str, label: str | None) -> str:
+    """Snapshot backups-00/hosts/<name>@manual-<UTC ts>[-<label>]. Returns
+    the full snapshot name. Raises TourbillonCmdError."""
+    cfg = load_host_config(name)
+    if cfg.get("target_dataset", MANUAL_SNAPSHOT_PARENT) != MANUAL_SNAPSHOT_PARENT:
+        raise TourbillonCmdError(
+            f"manual snapshots only supported under {MANUAL_SNAPSHOT_PARENT}"
+        )
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    clean = sanitize_label(label)
+    snap = f"manual-{ts}-{clean}" if clean else f"manual-{ts}"
+    _run_snapshot_helper("create", name, snap)
+    return f"{MANUAL_SNAPSHOT_PARENT}/{name}@{snap}"
+
+
+def list_manual_snapshots(name: str | None = None) -> list[dict]:
+    """Every @manual-* snapshot under backups-00/hosts, newest first."""
+    proc = subprocess.run(
+        ["zfs", "list", "-H", "-p", "-t", "snapshot", "-r",
+         "-o", "name,creation,used,referenced", MANUAL_SNAPSHOT_PARENT],
+        capture_output=True, text=True,
+    )
+    out = []
+    if proc.returncode != 0:
+        return out
+    for line in proc.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 4 or "@" not in parts[0]:
+            continue
+        dataset, snap = parts[0].split("@", 1)
+        host = dataset.rsplit("/", 1)[-1]
+        if not MANUAL_SNAPSHOT_RE.match(snap) or dataset != f"{MANUAL_SNAPSHOT_PARENT}/{host}":
+            continue
+        if name and host != name:
+            continue
+        m = re.match(r"^manual-[0-9TZ]+-?(.*)$", snap)
+        out.append({
+            "host": host, "snapshot": snap, "full_name": parts[0],
+            "label": m.group(1) if m else "",
+            "created_at": datetime.fromtimestamp(int(parts[1]), timezone.utc)
+                          .isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "used_bytes": int(parts[2]), "referenced_bytes": int(parts[3]),
+        })
+    out.sort(key=lambda r: r["created_at"], reverse=True)
+    return out
+
+
+# Probe run on the target over the host's existing SSH key. Everything here
+# works unprivileged, so no target-side sudoers change. PATH is widened
+# because a non-interactive SSH session doesn't load the user's profile
+# (brew lives in /opt/homebrew/bin or /usr/local/bin on macOS).
+PACKAGE_PROBE_SCRIPT = r"""
+exec 2>/dev/null
+PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/sbin:/snap/bin"; export PATH
+HOMEBREW_NO_AUTO_UPDATE=1; HOMEBREW_NO_ANALYTICS=1; export HOMEBREW_NO_AUTO_UPDATE HOMEBREW_NO_ANALYTICS
+have() { command -v "$1" >/dev/null 2>&1; }
+sec() { echo "@@tourbillon-section $1"; }
+sec uname; uname -a
+if [ -r /etc/os-release ]; then sec os-release; cat /etc/os-release; fi
+if have sw_vers; then sec sw-vers; sw_vers; fi
+if have dpkg-query; then
+  sec dpkg-selections; dpkg --get-selections
+  sec dpkg-versions; dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n'
+  if have apt-mark; then sec apt-manual; apt-mark showmanual; fi
+elif have rpm; then
+  sec rpm; rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\n' | sort
+fi
+if have pacman; then sec pacman-explicit; pacman -Qe; fi
+if have brew; then
+  sec brew-formulae; brew list --formula --versions
+  sec brew-casks; brew list --cask --versions
+  sec brew-leaves; brew leaves
+fi
+if have flatpak; then sec flatpak; flatpak list --app --columns=application,version,origin; fi
+if have snap; then sec snap; snap list; fi
+exit 0
+"""
+
+
+def capture_packages(cfg: dict, mountpoint: Path) -> dict:
+    """Write the target's installed-package lists to <mountpoint>/_packages/.
+    Returns {files: {section: line_count}, warning}. Never raises — a
+    capture problem is a sync warning, never a sync failure (ADR-010)."""
+    user = cfg.get("ssh_user", "tourbillon")
+    key = resolve_ssh_key(cfg)
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new"]
+    if key:
+        cmd += ["-i", key]
+    cmd += [f"{user}@{cfg['host']}", "sh -s"]
+    try:
+        proc = subprocess.run(cmd, input=PACKAGE_PROBE_SCRIPT,
+                              capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"files": {}, "warning": f"package capture: {e}"[:200]}
+
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in proc.stdout.splitlines():
+        if line.startswith("@@tourbillon-section "):
+            current = line.split(" ", 1)[1].strip()
+            if re.fullmatch(r"[a-z0-9-]+", current):
+                sections.setdefault(current, [])
+            else:
+                current = None
+            continue
+        if current:
+            sections[current].append(line)
+    if "uname" not in sections:
+        return {"files": {}, "warning": f"package capture: no output (ssh exit {proc.returncode})"}
+
+    out_dir = mountpoint / "_packages"
+    try:
+        out_dir.mkdir(exist_ok=True)
+        for sec, lines in sections.items():
+            tmp = out_dir / f".{sec}.txt.tmp"
+            tmp.write_text("\n".join(lines) + "\n")
+            os.replace(tmp, out_dir / f"{sec}.txt")
+        # A package manager that disappeared (e.g. snap removed) shouldn't
+        # leave a stale list looking current.
+        for p in out_dir.glob("*.txt"):
+            if p.stem not in sections and p.stem != "captured_at":
+                p.unlink()
+        (out_dir / "captured_at.txt").write_text(iso_now() + "\n")
+    except OSError as e:
+        return {"files": {}, "warning": f"package capture: {e}"[:200]}
+    return {"files": {s: len(l) for s, l in sections.items()}, "warning": None}
+
+
+# ---------- Manual backups: request queue + runner (ADR-010) ----------
+
+def request_id(kind: str, target: str | None) -> str:
+    key = "_all_" if target is None else target.replace("/", "__")
+    return f"{kind}--{key}"
+
+
+def _write_json_atomic(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
+def manual_status(rid: str) -> dict | None:
+    """A request's status file, with stale running/waiting statuses (runner
+    pid gone) reported as failed instead of spinning forever."""
+    p = STATE_MANUAL / f"{rid}.json"
+    try:
+        st = json.loads(p.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    pid = st.get("pid")
+    if st.get("status") in ("running", "waiting") and pid and not Path(f"/proc/{pid}").exists():
+        st["status"] = "failed"
+        st["message"] = "runner exited before finishing"
+    return st
+
+
+def _update_status(rid: str, **fields) -> dict:
+    st = manual_status(rid) or {}
+    st.update(fields)
+    _write_json_atomic(STATE_MANUAL / f"{rid}.json", st)
+    return st
+
+
+def enqueue_request(kind: str, target: str | None, label: str = "") -> dict:
+    """Queue a manual run for the requests runner. Idempotent while one is
+    already queued/waiting/running for the same target."""
+    rid = request_id(kind, target)
+    st = manual_status(rid)
+    if st and st.get("status") in ACTIVE_REQUEST_STATES:
+        return {**st, "id": rid, "already_active": True}
+    req = {"id": rid, "kind": kind, "target": target, "label": label,
+           "requested_at": iso_now()}
+    _write_json_atomic(STATE_MANUAL / f"{rid}.json", {**req, "status": "queued"})
+    _write_json_atomic(STATE_REQUESTS / f"{rid}.json", req)
+    return {**req, "status": "queued", "already_active": False}
+
+
+def _finish(rid: str, status: str, message: str, **extra) -> dict:
+    return _update_status(rid, status=status, message=message,
+                          finished_at=iso_now(), pid=None, **extra)
+
+
+def run_host_request(rid: str, req: dict) -> dict | None:
+    """One manual host run: forced sync + snapshot. None = host locked
+    (cron mid-sync); caller retries. Otherwise returns the final status
+    plus `alert` (whether this counts toward the runner's mail exit code)."""
+    name = req["target"]
+    if name not in known_host_names():
+        return {**_finish(rid, "failed", f"{name} is no longer configured"), "alert": True}
+    lock_fh = acquire_host_lock(name)
+    if lock_fh is None:
+        if (manual_status(rid) or {}).get("status") != "waiting":
+            _update_status(rid, status="waiting", pid=os.getpid(),
+                           message="a scheduled sync is in progress; will start when it finishes")
+        return None
+    try:
+        cfg = load_host_config(name)
+        alert = bool(cfg.get("mail_enabled", True))
+        _update_status(rid, status="running", started_at=iso_now(), pid=os.getpid(),
+                       message="syncing")
+        result = sync_one_host(name, cfg)
+        outcome = record_host_sync(name, load_host_state(name), result)
+        extra = {"bytes_xfer": result.get("bytes_xfer", 0),
+                 "duration_s": round(result.get("duration_s", 0), 1),
+                 "warnings": result.get("warnings") or [],
+                 "packages": (result.get("packages") or {}).get("files") or {}}
+        if outcome == "unreachable":
+            return {**_finish(rid, "unreachable", result.get("reason") or "unreachable", **extra),
+                    "alert": False}
+        if outcome == "failed":
+            return {**_finish(rid, "failed", result.get("reason") or "unknown", **extra),
+                    "alert": alert}
+        try:
+            snap = create_manual_snapshot(name, req.get("label"))
+        except TourbillonCmdError as e:
+            return {**_finish(rid, "failed", f"synced, but snapshot failed: {e}", **extra),
+                    "alert": alert}
+        return {**_finish(rid, "ok", f"synced {format_size(extra['bytes_xfer'])}; snapshot {snap}",
+                          snapshot=snap, **extra), "alert": False}
+    finally:
+        lock_fh.close()
+
+
+def run_repo_request(rid: str, req: dict) -> dict | None:
+    """One manual repo run: a single slug (waits on its lock) or every
+    known repo (skips any a cron pass is mid-sync on)."""
+    defaults = load_defaults_config()
+    slug = req.get("target")
+    if slug is not None:
+        if slug not in known_slugs():
+            return {**_finish(rid, "failed", f"{slug} is no longer configured"), "alert": True}
+        lock_fh = acquire_repo_lock(slug)
+        if lock_fh is None:
+            if (manual_status(rid) or {}).get("status") != "waiting":
+                _update_status(rid, status="waiting", pid=os.getpid(),
+                               message="a scheduled sync is in progress; will start when it finishes")
+            return None
+        try:
+            _update_status(rid, status="running", started_at=iso_now(), pid=os.getpid(),
+                           message="syncing")
+            result = sync_one_repo(slug, load_repo_config(slug, defaults))
+            record_repo_sync(slug, load_state(slug), result)
+        finally:
+            lock_fh.close()
+        if result["ok"]:
+            return {**_finish(rid, "ok", f"{result['action']} in {format_duration(result['duration_s'])}"),
+                    "alert": False}
+        return {**_finish(rid, "failed", result["reason"]), "alert": True}
+
+    slugs = known_slugs()
+    _update_status(rid, status="running", started_at=iso_now(), pid=os.getpid(),
+                   message=f"0/{len(slugs)}")
+    failed, skipped = [], []
+    for i, s in enumerate(slugs, 1):
+        lock_fh = acquire_repo_lock(s)
+        if lock_fh is None:
+            skipped.append(s)
+            continue
+        try:
+            result = sync_one_repo(s, load_repo_config(s, defaults))
+            record_repo_sync(s, load_state(s), result)
+        finally:
+            lock_fh.close()
+        if not result["ok"]:
+            failed.append(f"{s}: {result['reason'][:80]}")
+        _update_status(rid, message=f"{i}/{len(slugs)}" + (f", {len(failed)} failed" if failed else ""))
+    msg = f"{len(slugs) - len(failed) - len(skipped)} ok, {len(failed)} failed"
+    if skipped:
+        msg += f", {len(skipped)} skipped (already syncing)"
+    if failed:
+        return {**_finish(rid, "failed", msg, failures=failed), "alert": True}
+    return {**_finish(rid, "ok", msg), "alert": False}
+
+
+def cmd_requests_run(args: argparse.Namespace) -> int:
+    """Drain the manual-request queue. Started by tourbillon-requests.path
+    (systemd); safe to run by hand as tourbillon. Exit 1 iff an alerting
+    failure happened — mail-on-output.sh mails on that alone."""
+    STATE_REQUESTS.mkdir(parents=True, exist_ok=True)
+    runner_lock = _try_flock(TOURBILLON_STATE_DIR / "requests-runner.lock")
+    if runner_lock is None:
+        print("another requests runner is active; it will pick these up.")
+        return 0
+
+    pending: dict[str, dict] = {}
+    alerting = 0
+    try:
+        while True:
+            # Re-scan every pass so requests made mid-run (e.g. while waiting
+            # on a cron-held host lock) are picked up by this same runner.
+            for p in sorted(STATE_REQUESTS.glob("*.json")):
+                try:
+                    req = json.loads(p.read_text())
+                except (OSError, json.JSONDecodeError):
+                    print(f"discarding unreadable request {p.name}", file=sys.stderr)
+                    p.unlink(missing_ok=True)
+                    continue
+                p.unlink(missing_ok=True)
+                pending[p.stem] = req
+            if not pending:
+                break
+            progressed = False
+            for rid, req in list(pending.items()):
+                kind = req.get("kind")
+                if kind == "host":
+                    res = run_host_request(rid, req)
+                elif kind == "repos":
+                    res = run_repo_request(rid, req)
+                else:
+                    res = {**_finish(rid, "failed", f"unknown request kind {kind!r}"), "alert": True}
+                if res is None:
+                    continue
+                del pending[rid]
+                progressed = True
+                target = req.get("target") or "(all)"
+                line = f"{kind} {target}: {res['status']} — {res.get('message', '')}"
+                if res["alert"]:
+                    alerting += 1
+                    print(line, file=sys.stderr)
+                    for f in res.get("failures") or []:
+                        print(f"    {f}", file=sys.stderr)
+                else:
+                    print(line)
+            if pending and not progressed:
+                time.sleep(REQUEST_RETRY_S)
+    finally:
+        runner_lock.close()
+    return 1 if alerting else 0
+
+
+def cmd_requests_status(args: argparse.Namespace) -> int:
+    if args.kind and (args.target or args.all):
+        rid = request_id(args.kind, None if args.all else args.target)
+        print(json.dumps(manual_status(rid), indent=2))
+        return 0
+    rows = []
+    for p in sorted(STATE_MANUAL.glob("*.json")):
+        st = manual_status(p.stem)
+        if st and (not args.kind or st.get("kind") == args.kind):
+            rows.append(st)
+    rows.sort(key=lambda r: r.get("requested_at") or "", reverse=True)
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    if not rows:
+        print("(no manual requests yet)")
+    for r in rows:
+        print(f"  {r.get('kind', '?'):<6} {r.get('target') or '(all)':<28} "
+              f"{r.get('status', '?'):<12} {r.get('requested_at', '')}  {r.get('message', '')}")
+    return 0
+
+
+def cmd_hosts_request(args: argparse.Namespace) -> int:
+    if args.name not in known_host_names():
+        print(f"unknown host: {args.name}  (no configs/hosts/{args.name}.toml)", file=sys.stderr)
+        return 2
+    st = enqueue_request("host", args.name, sanitize_label(args.label))
+    if args.json:
+        print(json.dumps(st, indent=2))
+    elif st["already_active"]:
+        print(f"{args.name}: a manual backup is already {st['status']}")
+    else:
+        print(f"{args.name}: manual backup queued ({st['id']})")
+    return 0
+
+
+def cmd_repos_request(args: argparse.Namespace) -> int:
+    if args.name and args.name not in known_slugs():
+        print(f"unknown repo: {args.name}", file=sys.stderr)
+        return 2
+    st = enqueue_request("repos", args.name)
+    if args.json:
+        print(json.dumps(st, indent=2))
+    elif st["already_active"]:
+        print(f"{args.name or 'all repos'}: a manual sync is already {st['status']}")
+    else:
+        print(f"{args.name or 'all repos'}: manual sync queued ({st['id']})")
+    return 0
+
+
+def cmd_hosts_snapshots(args: argparse.Namespace) -> int:
+    rows = list_manual_snapshots(args.name)
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    if not rows:
+        print("(no manual snapshots)")
+    for r in rows:
+        print(f"  {r['full_name']:<70} {format_size(r['used_bytes']):>9} used")
+    return 0
+
+
+def cmd_hosts_snapshot_rm(args: argparse.Namespace) -> int:
+    if args.name not in known_host_names():
+        print(f"unknown host: {args.name}", file=sys.stderr)
+        return 2
+    snap = args.snapshot.split("@", 1)[-1]
+    if not MANUAL_SNAPSHOT_RE.match(snap):
+        print(f"not a manual snapshot name: {snap}", file=sys.stderr)
+        return 2
+    try:
+        _run_snapshot_helper("destroy", args.name, snap)
+    except TourbillonCmdError as e:
+        print(f"snapshot delete failed: {e}", file=sys.stderr)
+        return 1
+    print(f"destroyed {MANUAL_SNAPSHOT_PARENT}/{args.name}@{snap}")
+    return 0
 
 
 def cmd_not_yet(label: str):
@@ -2077,12 +2624,43 @@ def build_parser() -> argparse.ArgumentParser:
                     help="probe only; no rsync; no state writes")
     hp.add_argument("--quiet", action="store_true",
                     help="silent when nothing happened (cron-friendly)")
+    hp.add_argument("--snapshot", nargs="?", const="", default=None, metavar="LABEL",
+                    help="after each successful sync, pin backups-00/hosts/<host>@manual-<ts>[-LABEL] "
+                         "(kept until `hosts snapshot-rm`; see ADR-010)")
     hp.set_defaults(func=cmd_hosts_sync)
 
     hp = hsubs.add_parser("set-mail", help="toggle whether a host's failures trigger the cron mail alert")
     hp.add_argument("name", help="configured host name (basename of configs/hosts/*.toml)")
     hp.add_argument("state", choices=["on", "off"])
     hp.set_defaults(func=cmd_hosts_set_mail)
+
+    hp = hsubs.add_parser("request", help="queue a manual backup (forced sync + snapshot) for the requests runner")
+    hp.add_argument("name", help="configured host name (basename of configs/hosts/*.toml)")
+    hp.add_argument("--label", default="", help="snapshot label, e.g. pre-trixie (sanitized to [a-z0-9-], 40 chars)")
+    hp.add_argument("--json", action="store_true", help="emit the request status as JSON")
+    hp.set_defaults(func=cmd_hosts_request)
+
+    hp = hsubs.add_parser("snapshots", help="list manual (@manual-*) snapshots")
+    hp.add_argument("--name", help="only this host")
+    hp.add_argument("--json", action="store_true", help="emit structured JSON")
+    hp.set_defaults(func=cmd_hosts_snapshots)
+
+    hp = hsubs.add_parser("snapshot-rm", help="destroy one manual snapshot")
+    hp.add_argument("name", help="configured host name")
+    hp.add_argument("snapshot", help="manual-<ts>[-label] (or the full dataset@snap name)")
+    hp.set_defaults(func=cmd_hosts_snapshot_rm)
+
+    # requests noun (ADR-010)
+    reqs = subs.add_parser("requests", help="manual backup requests (dashboard 'Back up now' / 'Sync now')")
+    qsubs = reqs.add_subparsers(dest="requests_cmd", required=True, metavar="<verb>")
+    qp = qsubs.add_parser("run", help="drain the request queue (run by tourbillon-requests.service)")
+    qp.set_defaults(func=cmd_requests_run)
+    qp = qsubs.add_parser("status", help="status of manual requests")
+    qp.add_argument("--kind", choices=("host", "repos"))
+    qp.add_argument("--target", help="host name or repo slug (with --kind)")
+    qp.add_argument("--all", action="store_true", help="with --kind repos: the all-repos request")
+    qp.add_argument("--json", action="store_true", help="emit structured JSON")
+    qp.set_defaults(func=cmd_requests_status)
 
     sp = subs.add_parser("perf", help="transfer-rate history (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("perf"))
@@ -2138,6 +2716,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="suppress per-repo success lines; print failures + summary only "
                          "(intended for cron — silent runs leave no mail)")
     rp.set_defaults(func=cmd_repos_sync)
+
+    rp = rsubs.add_parser("request", help="queue a manual forced sync (all repos, or --name) for the requests runner")
+    rp.add_argument("--name", metavar="SLUG", help="only this repo (provider/owner/name); default all")
+    rp.add_argument("--json", action="store_true", help="emit the request status as JSON")
+    rp.set_defaults(func=cmd_repos_request)
 
     rp = rsubs.add_parser("prune", help="explicit removal of a local mirror (n.y.i.)")
     rp.add_argument("slug", help="provider/owner/repo to prune")

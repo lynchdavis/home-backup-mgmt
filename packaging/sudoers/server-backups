@@ -1,0 +1,6 @@
+# Installed by the server-backups package (ADR-010). The one root grant the
+# manual-backup feature adds: a validating helper that can only create or
+# destroy backups-00/hosts/<host>@manual-* snapshots. Everything else
+# tourbillon may sudo lives in /etc/sudoers.d/tourbillon
+# (bin/bootstrap-kodiak-tourbillon.sh).
+tourbillon ALL=(root) NOPASSWD: /usr/lib/server-backups/zfs-manual-snapshot

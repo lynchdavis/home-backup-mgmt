@@ -3,3 +3,5 @@ set -e
 
 systemctl stop tourbillon-dashboard || true
 systemctl disable tourbillon-dashboard || true
+systemctl stop tourbillon-requests.path || true
+systemctl disable tourbillon-requests.path || true

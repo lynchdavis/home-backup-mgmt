@@ -14,6 +14,7 @@ tasks:
   vet:
     desc: Syntax-check all first-party Python
     cmds:
+      - bash -n packaging/lib/zfs-manual-snapshot
       - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py bin/dump-saratoga-config.py dashboard/api/main.py dashboard/api/tourbillon_client.py dashboard/api/auth.py
 
   test:
@@ -37,6 +38,8 @@ tasks:
       - mkdir -p dist/deb-staging/opt/server-backups/doc
       - mkdir -p dist/deb-staging/opt/server-backups/tests
       - mkdir -p dist/deb-staging/etc/systemd/system
+      - install -d -m 0750 dist/deb-staging/etc/sudoers.d
+      - mkdir -p dist/deb-staging/usr/lib/server-backups
 
       # Control files
       - |
@@ -58,9 +61,19 @@ tasks:
       - cp VERSION dist/deb-staging/opt/server-backups/VERSION
       - find dist/deb-staging/opt/server-backups -name "__pycache__" -exec rm -rf {} +
 
-      # Systemd unit
+      # Systemd units
       - |
-        sed -e "s|{{"{{"}}REPO_URL}}|{{.REPO_URL}}|g" packaging/deb/tourbillon-dashboard.service > dist/deb-staging/etc/systemd/system/tourbillon-dashboard.service
+        for unit in tourbillon-dashboard.service tourbillon-requests.path tourbillon-requests.service; do
+          sed -e "s|{{"{{"}}REPO_URL}}|{{.REPO_URL}}|g" packaging/deb/$unit > dist/deb-staging/etc/systemd/system/$unit
+        done
+
+      # ADR-010: root-owned snapshot helper + its one-line sudoers grant.
+      # Outside /opt/server-backups on purpose -- postinst chowns that tree to
+      # tourbillon, and a helper tourbillon can rewrite would make the
+      # sudoers grant meaningless. sudoers.d files must be 0440 or sudo
+      # ignores them.
+      - install -m 0755 packaging/lib/zfs-manual-snapshot dist/deb-staging/usr/lib/server-backups/zfs-manual-snapshot
+      - install -m 0440 packaging/sudoers/server-backups dist/deb-staging/etc/sudoers.d/server-backups
 
       - dpkg-deb --root-owner-group --build dist/deb-staging dist/{{.DEB_NAME}}.deb
       - rm -rf dist/deb-staging

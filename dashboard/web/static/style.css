@@ -214,6 +214,7 @@ th {
 .badge.ok { background: rgba(46, 160, 67, 0.15); color: var(--ok); }
 .badge.warn { background: rgba(210, 153, 34, 0.15); color: var(--warn); }
 .badge.fail { background: rgba(218, 54, 51, 0.15); color: var(--fail); }
+.badge.info { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
 
 .kv-grid {
   display: grid;
@@ -236,7 +237,7 @@ th {
 
 /* ---------- form controls ---------- */
 
-input[type="password"], input[type="text"] {
+input[type="password"], input[type="text"], select {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -246,7 +247,7 @@ input[type="password"], input[type="text"] {
   min-width: 220px;
 }
 
-input[type="password"]:focus, input[type="text"]:focus {
+input[type="password"]:focus, input[type="text"]:focus, select:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -263,6 +264,21 @@ button {
 }
 
 button:hover { filter: brightness(1.08); }
+
+button.small { padding: 4px 10px; font-size: 0.8rem; }
+button.danger { background: transparent; color: var(--fail); border: 1px solid rgba(218, 54, 51, 0.5); }
+button.danger:hover { background: rgba(218, 54, 51, 0.12); filter: none; }
+
+/* ---------- manual backups (ADR-010) ---------- */
+
+.inline-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.inline-form .small-input { min-width: 0; width: 170px; padding: 6px 8px; font-size: 0.85rem; }
+.inline-form button { padding: 6px 12px; }
+.cell-note { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+td.backup-cell { min-width: 260px; }
+/* The config hosts table (mail toggle + backup form) scrolls inside its
+   panel on a phone instead of widening the page. */
+.table-scroll { overflow-x: auto; }
 
 .login-form label {
   color: var(--muted);

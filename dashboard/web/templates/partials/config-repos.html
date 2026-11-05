@@ -37,6 +37,14 @@
   {% endif %}
 {% endif %}
 
+<h3 class="section-gap">Sync now</h3>
+<p class="summary">Forces a sync regardless of each repo's interval —
+  all repos, or just one. A repo a scheduled sync is already working on is
+  skipped (or, for a single repo, waited on), never doubled up.</p>
+<div id="repo-sync" hx-get="/partials/repo-sync" hx-trigger="load" hx-swap="outerHTML">
+  <p class="loading">Loading…</p>
+</div>
+
 <h3 class="section-gap">Add a repo manually</h3>
 <p class="summary">For a repo Discover can't find — a different git host,
   or a private instance. Embed credentials directly in the clone URL if
