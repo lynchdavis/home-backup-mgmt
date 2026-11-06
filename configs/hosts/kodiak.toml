@@ -1,0 +1,27 @@
+# kodiak — the backup server backing up itself.
+#
+# Its boot disk (slot 252:4, a 7.5-year-old 2.5" laptop drive, no
+# redundancy) holds /, /etc, /home and tourbillon's own state, and until
+# 2026-11-05 nothing backed it up. Mirrored into backups-00/hosts/kodiak,
+# which is on a different disk (slot 252:0), so a boot-disk failure leaves
+# this copy intact.
+#
+# local = true: no SSH leg — kodiak-side `sudo -n rsync` reads the paths
+# directly (same grant every host sync already uses), and the package
+# capture runs locally. No bootstrap needed.
+local = true
+host = "localhost"
+
+paths = [
+    "/etc",
+    "/root",
+    "/home",
+    "/usr/local",
+    "/var/lib/tourbillon",   # state + every host's SSH key (perms preserved)
+    "/var/spool/cron",       # all crontabs (ldavis, root, tourbillon)
+]
+
+# Relative to each path's transfer root (/home/ here). A 22 GB one-off copy
+# of pilatus's home; pilatus has its own mirror (backups-00/hosts/pilatus),
+# and backups-00 had ~5 GB available when this host was added.
+extra_excludes = ["/ldavis/pilatus_ldavis_backup/"]

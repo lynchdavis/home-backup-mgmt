@@ -6,6 +6,54 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-05 (2)
+
+### v0.5.0: RAID controller health alert (ADR-011), kodiak self-backup
+
+Found while sizing a Black Friday disk purchase: kodiak's main array
+(`KodiakArray01`, RAID 10 over six 8 TB HGST SAS drives on the MegaRAID
+9361-8i — `data-00` / `media-00`) has been **degraded since 2026-07-25**;
+slot 252:3 (S/N `2EGLRHKV`) failed with unrecoverable read errors. No hot
+spare, so its mirror partner in 252:5 is the only copy of a third of the
+array. Nothing noticed: the OS sees one healthy virtual disk, and the
+existing drive/pool checks look at `/dev/sdb` and ZFS `backups-00`, neither
+of which is on the array.
+
+- **`tourbillon health`** (was not-yet-implemented): live controller check —
+  any VD not `Optl`, any drive not `Onln`/`JBOD`/`UGood`/hot-spare
+  (including `Rbld`, with progress), or the check itself failing, is a
+  problem. Records `$STATE/raid.json`; `--json` for the structured result.
+- **Hourly alert** (tourbillon crontab, `:15`):
+  `mail-on-output.sh -V "raid health" tourbillon health --alert` — mails on
+  a new or changed problem, a reminder every 24h while it persists, and once
+  on recovery; silent otherwise.
+- **Visibility:** RAID section in `tourbillon status`, the dashboard status
+  panel, and the weekly summary (a problem or a stale check is a FAIL).
+- **New root grant:** `/usr/lib/server-backups/raid-status` (root-owned,
+  accepts only `summary` / `rebuild`, each one fixed read-only
+  `storcli … J nolog` command) via `/etc/sudoers.d/server-backups`.
+- **storcli is hand-installed**, not a package dependency (Broadcom has no
+  apt repo): v007.2705 from Broadcom's zip, single binary at
+  `/opt/MegaRAID/storcli/storcli64`. If missing, the check alerts.
+
+### kodiak backs itself up (`configs/hosts/kodiak.toml`)
+
+kodiak's boot disk (slot 252:4 — a 7.5-year-old 2.5" laptop drive, no
+redundancy) holds `/etc`, `/home`, the crontabs and tourbillon's own state
+including every host's SSH key, and nothing backed it up.
+
+- **`local = true`** host field: no SSH leg — the kodiak-side `sudo -n rsync`
+  (the grant every host sync already uses) reads the paths directly, the
+  probe always succeeds, and the package capture runs locally. Refuses a
+  path that contains the backup destination. No bootstrap needed.
+- **`extra_excludes = [...]`** host field: per-host `--exclude` patterns on
+  top of the shared `excludes_file`.
+- kodiak mirrors `/etc /root /home /usr/local /var/lib/tourbillon
+  /var/spool/cron` into `backups-00/hosts/kodiak` (a different disk, slot
+  252:0), excluding a 22 GB one-off copy of pilatus's home that pilatus's
+  own mirror already covers. First sync 2026-11-05: 717 MB in 23s, 413 MB
+  on disk.
+
 ## 2026-11-05 (1)
 
 ### v0.4.0: dashboard "Back up now", repo "Sync now", package-list capture (ADR-010)

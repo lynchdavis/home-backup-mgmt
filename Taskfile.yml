@@ -15,6 +15,7 @@ tasks:
     desc: Syntax-check all first-party Python
     cmds:
       - bash -n packaging/lib/zfs-manual-snapshot
+      - bash -n packaging/lib/raid-status
       - python3 -m py_compile bin/tourbillon bin/weekly-summary-build.py bin/dump-saratoga-config.py dashboard/api/main.py dashboard/api/tourbillon_client.py dashboard/api/auth.py
 
   test:
@@ -73,6 +74,8 @@ tasks:
       # sudoers grant meaningless. sudoers.d files must be 0440 or sudo
       # ignores them.
       - install -m 0755 packaging/lib/zfs-manual-snapshot dist/deb-staging/usr/lib/server-backups/zfs-manual-snapshot
+      # ADR-011: same shape -- read-only storcli wrapper for the RAID health check.
+      - install -m 0755 packaging/lib/raid-status dist/deb-staging/usr/lib/server-backups/raid-status
       - install -m 0440 packaging/sudoers/server-backups dist/deb-staging/etc/sudoers.d/server-backups
 
       - dpkg-deb --root-owner-group --build dist/deb-staging dist/{{.DEB_NAME}}.deb

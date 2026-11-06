@@ -44,6 +44,15 @@ sudo_required = true
 #                       or ["/mnt/c/Users/<user>"]      (WSL rsync)
 paths = ["/home"]
 
+# The host is kodiak itself: no SSH — the kodiak-side `sudo -n rsync` reads
+# `paths` directly and the package capture runs locally. ssh_user, ssh_key,
+# sudo_required and rsync_path are ignored; the host is always reachable.
+local = false
+
+# Extra rsync --exclude patterns on top of excludes_file, relative to each
+# path's transfer root (e.g. "/ldavis/bigdir/" under /home).
+extra_excludes = []
+
 # rsync --exclude-from path, relative to the repo root. Pick by platform:
 #   linux-user.txt    : multi-user linux (default)
 #   mac-user.txt      : macOS single-user

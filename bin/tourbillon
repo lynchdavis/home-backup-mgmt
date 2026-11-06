@@ -906,7 +906,12 @@ def ssh_probe(host_cfg: dict) -> tuple[bool, str, str | None]:
     """`ssh -o BatchMode=yes ... true` with a short timeout, tried against
     each address from `host_candidates()` in order until one answers.
     Returns (reachable, message, resolved_host) — resolved_host is the
-    address that answered, or None if none did. Never raises."""
+    address that answered, or None if none did. Never raises.
+
+    A `local = true` host (kodiak backing up itself) has no SSH leg at all
+    and is always reachable."""
+    if host_cfg.get("local"):
+        return True, "local", "localhost"
     user = host_cfg.get("ssh_user", "tourbillon")
     key = resolve_ssh_key(host_cfg)
     timeout_s = parse_seconds_field(host_cfg.get("ssh_probe_timeout", "5s"))
@@ -1192,7 +1197,16 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
     excludes_path = REPO_ROOT / excludes_rel
 
     basename = Path(src_path).name or "_root_"
-    src = f"{user}@{host}:{src_path.rstrip('/')}/"
+    local = bool(cfg.get("local"))
+    if local:
+        # Never mirror the backup into itself (e.g. paths = ["/"]).
+        src_abs = Path(src_path).resolve()
+        if mountpoint.resolve() == src_abs or src_abs in mountpoint.resolve().parents:
+            return {"path": src_path, "ok": False, "duration_s": 0.0,
+                    "reason": f"{src_path} contains the backup destination {mountpoint}"}
+        src = f"{src_path.rstrip('/')}/"
+    else:
+        src = f"{user}@{host}:{src_path.rstrip('/')}/"
     dst_dir = mountpoint / basename
     dst_dir.mkdir(parents=True, exist_ok=True)
     dst = str(dst_dir) + "/"   # trailing slash so rsync writes INTO this dir
@@ -1217,22 +1231,30 @@ def rsync_one_path(cfg: dict, src_path: str, mountpoint: Path) -> dict:
         "--stats",
         f"--timeout={rsync_timeout_s}",
         f"--exclude-from={excludes_path}",
-        "-e", ssh_cmd,
     ]
-    # --rsync-path covers two orthogonal needs:
-    #   - sudo_required=true: wrap target rsync in sudo (multi-user model)
-    #   - rsync_path set:     point at a non-default rsync binary (e.g. macOS
-    #                         brew rsync, since /usr/bin/rsync on macOS is
-    #                         `openrsync` which can't speak the --server
-    #                         protocol GNU rsync uses)
-    # Combine both when both apply.
-    if sudo_required:
-        target_rsync = rsync_path or "/usr/bin/rsync"
-        cmd.append(f"--rsync-path=sudo {target_rsync}")
-    elif rsync_path:
-        cmd.append(f"--rsync-path={rsync_path}")
-    # else: single-user mode w/ PATH-resolved rsync — no --rsync-path flag.
-    cmd += [src, dst]
+    # Per-host additions on top of the shared excludes file, e.g. a large
+    # one-off copy that's already backed up elsewhere.
+    cmd += [f"--exclude={x}" for x in cfg.get("extra_excludes", [])]
+    if local:
+        # Both ends on kodiak: no ssh, no --rsync-path; the kodiak-side
+        # `sudo -n rsync` already reads everything.
+        cmd += [src, dst]
+    else:
+        cmd += ["-e", ssh_cmd]
+        # --rsync-path covers two orthogonal needs:
+        #   - sudo_required=true: wrap target rsync in sudo (multi-user model)
+        #   - rsync_path set:     point at a non-default rsync binary (e.g. macOS
+        #                         brew rsync, since /usr/bin/rsync on macOS is
+        #                         `openrsync` which can't speak the --server
+        #                         protocol GNU rsync uses)
+        # Combine both when both apply.
+        if sudo_required:
+            target_rsync = rsync_path or "/usr/bin/rsync"
+            cmd.append(f"--rsync-path=sudo {target_rsync}")
+        elif rsync_path:
+            cmd.append(f"--rsync-path={rsync_path}")
+        # else: single-user mode w/ PATH-resolved rsync — no --rsync-path flag.
+        cmd += [src, dst]
 
     started = time.time()
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -1763,6 +1785,215 @@ def smart_attrs_dict(device: str = "/dev/sdb") -> dict:
     return out
 
 
+# ---------- RAID controller health (ADR-011) ----------
+
+# Root-owned helper wrapping two fixed, read-only storcli commands; the one
+# storcli path tourbillon may sudo (see packaging/lib/raid-status).
+RAID_HELPER = os.environ.get(
+    "TOURBILLON_RAID_HELPER", "/usr/lib/server-backups/raid-status",
+)
+STATE_RAID = TOURBILLON_STATE_DIR / "raid.json"
+RAID_REMIND_S = 24 * 3600     # re-mail a persisting problem this often
+RAID_STALE_S = 3 * 3600       # hourly cron; a result older than this is stale
+RAID_VD_OK = {"Optl"}
+RAID_PD_OK = {"Onln", "JBOD", "UGood", "GHS", "DHS"}
+
+
+def _run_raid_helper(op: str) -> list[dict]:
+    """`sudo -n raid-status <op>` -> storcli's Controllers list. Raises
+    TourbillonCmdError with something a human can act on."""
+    try:
+        proc = subprocess.run(
+            ["sudo", "-n", RAID_HELPER, op],
+            capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise TourbillonCmdError(f"raid-status {op}: {e}")
+    if proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout or "").strip().splitlines()
+        raise TourbillonCmdError(
+            f"raid-status {op} exited {proc.returncode}: {msg[-1] if msg else 'no output'}"
+        )
+    try:
+        return json.loads(proc.stdout)["Controllers"]
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        raise TourbillonCmdError(f"raid-status {op}: unparseable storcli output ({e})")
+
+
+def raid_check() -> dict:
+    """Query the controller(s) live. Never raises: a failure to look is
+    itself reported as a problem, never as healthy."""
+    out: dict = {"checked_at": iso_now(), "controllers": [], "problems": []}
+    try:
+        summary = _run_raid_helper("summary")
+    except TourbillonCmdError as e:
+        out["error"] = str(e)
+        out["problems"].append(f"RAID check failed: {e}")
+        out["ok"] = False
+        return out
+
+    # Rebuild progress is best-effort detail; its absence isn't a problem.
+    rebuild: dict[str, str] = {}
+    try:
+        for c in _run_raid_helper("rebuild"):
+            for r in c.get("Response Data") or []:
+                if isinstance(r, dict) and r.get("Status") == "In progress":
+                    rebuild[r.get("Drive-ID", "")] = r.get("Progress%", "?")
+    except TourbillonCmdError:
+        pass
+
+    for c in summary:
+        cs = c.get("Command Status", {})
+        cid = cs.get("Controller", "?")
+        rd = c.get("Response Data") or {}
+        ctl = {
+            "id": cid,
+            "product": rd.get("Product Name", "?"),
+            "serial": rd.get("Serial Number", "?"),
+            "vds": [],
+            "pds": [],
+        }
+        out["controllers"].append(ctl)
+        if cs.get("Status") != "Success":
+            out["problems"].append(
+                f"controller {cid}: storcli {cs.get('Status', '?')}: {cs.get('Description', '?')}"
+            )
+            continue
+        for v in rd.get("VD LIST") or []:
+            vd = {
+                "dg_vd": v.get("DG/VD", "?"),
+                "name": v.get("Name", "") or v.get("DG/VD", "?"),
+                "type": v.get("TYPE", "?"),
+                "state": v.get("State", "?"),
+                "size": v.get("Size", "?"),
+            }
+            ctl["vds"].append(vd)
+            if vd["state"] not in RAID_VD_OK:
+                out["problems"].append(
+                    f"c{cid} VD {vd['dg_vd']} {vd['name']} ({vd['type']}) is {vd['state']}"
+                )
+        for p in rd.get("PD LIST") or []:
+            slot = p.get("EID:Slt", "?")
+            eid, _, sl = slot.partition(":")
+            pd = {
+                "slot": slot,
+                "did": p.get("DID"),
+                "state": p.get("State", "?"),
+                "dg": p.get("DG"),
+                "model": (p.get("Model") or "").strip(),
+                "size": p.get("Size", "?"),
+                "intf": p.get("Intf", "?"),
+            }
+            pct = rebuild.get(f"/c{cid}/e{eid}/s{sl}")
+            if pct is not None:
+                pd["rebuild_pct"] = pct
+            ctl["pds"].append(pd)
+            if pd["state"] not in RAID_PD_OK:
+                # Rebuild % stays out of this string: it's the alert
+                # fingerprint, and changing progress mustn't re-mail hourly.
+                out["problems"].append(
+                    f"c{cid} drive {slot} ({pd['model']} {pd['size']}, DG {pd['dg']}) is {pd['state']}"
+                )
+    if not out["controllers"]:
+        out["problems"].append("RAID check found no controllers")
+    out["ok"] = not out["problems"]
+    return out
+
+
+def raid_state() -> dict | None:
+    """Last recorded check (cron writes it hourly) — for readers that can't
+    sudo, e.g. the dashboard under NoNewPrivileges. Adds `stale`."""
+    try:
+        st = json.loads(STATE_RAID.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    try:
+        st["stale"] = time.time() - iso_parse(st["checked_at"]).timestamp() > RAID_STALE_S
+    except (KeyError, ValueError):
+        st["stale"] = True
+    return st
+
+
+def format_raid_report(r: dict) -> list[str]:
+    lines = []
+    if r.get("error"):
+        lines.append(f"  (unavailable) {r['error']}")
+    for c in r.get("controllers", []):
+        lines.append(f"  controller {c['id']}: {c['product']}  S/N {c['serial']}")
+        for v in c["vds"]:
+            mark = "ok " if v["state"] in RAID_VD_OK else "!! "
+            lines.append(f"    {mark}VD {v['dg_vd']:<5} {v['name']:<16} {v['type']:<7} {v['size']:>10}  {v['state']}")
+        for p in c["pds"]:
+            mark = "ok " if p["state"] in RAID_PD_OK else "!! "
+            extra = f"  rebuild {p['rebuild_pct']}" if p.get("rebuild_pct") else ""
+            lines.append(
+                f"    {mark}slot {p['slot']:<6} {p['model']:<22} {p['size']:>10} "
+                f"{p['intf']:<5} DG {str(p['dg']):<2} {p['state']}{extra}"
+            )
+    return lines
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    """Live RAID check; records $STATE/raid.json. --alert (cron) is silent
+    unless a mail is due: new/changed problems or a 24h reminder (exit 1),
+    or recovery after an alert (output + exit 0, mailed via -V)."""
+    r = raid_check()
+    prev = raid_state() or {}
+    fingerprint = sorted(r["problems"])
+    now = time.time()
+
+    alert = recovered = False
+    r["last_alert_at"] = prev.get("last_alert_at")
+    r["last_alert_problems"] = prev.get("last_alert_problems")
+    if r["problems"]:
+        last = r["last_alert_at"]
+        try:
+            last_age = now - iso_parse(last).timestamp() if last else None
+        except ValueError:
+            last_age = None
+        if fingerprint != r["last_alert_problems"] or last_age is None or last_age >= RAID_REMIND_S:
+            alert = True
+    elif r["last_alert_problems"]:
+        recovered = True
+
+    if args.alert:
+        if alert:
+            r["last_alert_at"] = iso_now()
+            r["last_alert_problems"] = fingerprint
+        elif recovered:
+            r["last_alert_at"] = None
+            r["last_alert_problems"] = None
+    try:
+        _write_json_atomic(STATE_RAID, r)
+    except OSError as e:
+        print(f"warning: couldn't record {STATE_RAID}: {e}", file=sys.stderr)
+
+    if args.json:
+        print(json.dumps(r, indent=2))
+        return 0 if r["ok"] else 1
+    if args.alert and not (alert or recovered):
+        return 0
+
+    if r["problems"]:
+        reminder = args.alert and fingerprint == prev.get("last_alert_problems")
+        heading = "RAID PROBLEM (reminder — still unresolved)" if reminder else "RAID PROBLEM"
+        print(f"{heading} on {os.uname().nodename}  {now_local_str()}")
+        print()
+        for prob in r["problems"]:
+            print(f"  - {prob}")
+    elif recovered:
+        print(f"RAID recovered on {os.uname().nodename}  {now_local_str()} — all arrays optimal")
+        print()
+        for prob in prev.get("last_alert_problems") or []:
+            print(f"  was: {prob}")
+    else:
+        print(f"RAID healthy  {now_local_str()}")
+    print()
+    for line in format_raid_report(r):
+        print(line)
+    return 1 if r["problems"] else 0
+
+
 # ---------- Top-level status formatter ----------
 
 def print_status() -> int:
@@ -1851,6 +2082,23 @@ def print_status() -> int:
         print(f"  next scrub: {nxt['next']} {nxt.get('tz', '')}  ({nxt.get('unit', '')})")
     print()
 
+    # --- RAID (last hourly check; reading it needs no sudo) ---
+    print("== RAID controller ==")
+    print()
+    rs = raid_state()
+    if rs is None:
+        print("  (no check recorded yet — runs hourly from tourbillon's crontab; `tourbillon health` runs one now)")
+    else:
+        age = format_age(rs.get("checked_at"), time.time())
+        verdict = "OK" if rs.get("ok") else "PROBLEM"
+        print(f"  state:    {verdict}  (checked {age} ago{', STALE' if rs.get('stale') else ''})")
+        for prob in rs.get("problems", []):
+            print(f"  !! {prob}")
+        for c in rs.get("controllers", []):
+            for v in c["vds"]:
+                print(f"  array:    {v['name']} {v['type']} {v['size']}  {v['state']}")
+    print()
+
     # --- Drive ---
     print("== Drive health (/dev/sdb) ==")
     print()
@@ -1899,6 +2147,7 @@ def gather_status_data() -> dict:
         "host_rows": host_rows,
         "pool": pool_status_dict(),
         "next_scrub": next_scrub_dict(),
+        "raid": raid_state(),
         "drive": smart_attrs_dict("/dev/sdb"),
     }
 
@@ -2245,12 +2494,15 @@ def capture_packages(cfg: dict, mountpoint: Path) -> dict:
     """Write the target's installed-package lists to <mountpoint>/_packages/.
     Returns {files: {section: line_count}, warning}. Never raises — a
     capture problem is a sync warning, never a sync failure (ADR-010)."""
-    user = cfg.get("ssh_user", "tourbillon")
-    key = resolve_ssh_key(cfg)
-    cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new"]
-    if key:
-        cmd += ["-i", key]
-    cmd += [f"{user}@{cfg['host']}", "sh -s"]
+    if cfg.get("local"):
+        cmd = ["sh", "-s"]   # unprivileged, same as over ssh
+    else:
+        user = cfg.get("ssh_user", "tourbillon")
+        key = resolve_ssh_key(cfg)
+        cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new"]
+        if key:
+            cmd += ["-i", key]
+        cmd += [f"{user}@{cfg['host']}", "sh -s"]
     try:
         proc = subprocess.run(cmd, input=PACKAGE_PROBE_SCRIPT,
                               capture_output=True, text=True, timeout=120)
@@ -2589,11 +2841,14 @@ def build_parser() -> argparse.ArgumentParser:
     subs = p.add_subparsers(dest="command", required=True, metavar="<command>")
 
     # Top-level
-    sp = subs.add_parser("status", help="one-screen rollup of saratoga + repos + pool + drive")
+    sp = subs.add_parser("status", help="one-screen rollup of saratoga + repos + pool + RAID + drive")
     sp.add_argument("--json", action="store_true", help="emit structured JSON instead of formatted text (for scripts / weekly-summary)")
     sp.set_defaults(func=cmd_status)
-    sp = subs.add_parser("health", help="disk + pool health (not yet implemented)")
-    sp.set_defaults(func=cmd_not_yet("health"))
+    sp = subs.add_parser("health", help="RAID controller health: degraded arrays, failed drives (ADR-011)")
+    sp.add_argument("--alert", action="store_true",
+                    help="cron mode: silent unless a mail is due (new/changed problem, 24h reminder, recovery)")
+    sp.add_argument("--json", action="store_true", help="emit the structured result")
+    sp.set_defaults(func=cmd_health)
     sp = subs.add_parser("logs", help="recent job logs (not yet implemented)")
     sp.set_defaults(func=cmd_not_yet("logs"))
 

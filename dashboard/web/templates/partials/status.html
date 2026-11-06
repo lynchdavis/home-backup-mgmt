@@ -28,6 +28,28 @@
     <div><span class="label">Next scrub</span><span>{{ data.next_scrub.next }} {{ data.next_scrub.tz }}</span></div>
   </div>
 
+  <h2>RAID controller</h2>
+  {% set raid = data.raid %}
+  {% if not raid %}
+    <p class="error">No RAID check recorded yet (runs hourly from tourbillon's crontab).</p>
+  {% else %}
+    <div class="kv-grid">
+      <div><span class="label">State</span><span>
+        <span class="badge {{ 'ok' if raid.ok else 'fail' }}">{{ 'OK' if raid.ok else 'PROBLEM' }}</span>
+        {% if raid.stale %}<span class="badge warn">stale</span>{% endif %}
+      </span></div>
+      {% for c in raid.controllers %}{% for v in c.vds %}
+      <div><span class="label">{{ v.name }}</span><span>{{ v.type }} {{ v.size }} — <span class="badge {{ 'ok' if v.state == 'Optl' else 'fail' }}">{{ v.state }}</span></span></div>
+      {% endfor %}{% endfor %}
+      <div><span class="label">Checked</span><span>{{ raid.checked_at }}</span></div>
+    </div>
+    {% if raid.problems %}
+    <ul class="error">
+      {% for p in raid.problems %}<li>{{ p }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  {% endif %}
+
   <h2>Drive — {{ data.drive.device }}</h2>
   <div class="kv-grid">
     <div><span class="label">Model</span><span>{{ data.drive.model }}</span></div>

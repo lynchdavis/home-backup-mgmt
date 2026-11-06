@@ -1,0 +1,31 @@
+#!/bin/bash
+# raid-status — the ONLY storcli access tourbillon may sudo (ADR-011).
+# Installed root-owned at /usr/lib/server-backups/, outside the
+# tourbillon-owned /opt/server-backups tree, and granted via
+# /etc/sudoers.d/server-backups.
+#
+# Accepts exactly one operation, each mapped to one fixed, read-only
+# storcli command — nothing tourbillon passes reaches storcli itself:
+#
+#   raid-status summary   ->  storcli64 /call show J nolog
+#   raid-status rebuild   ->  storcli64 /call/eall/sall show rebuild J nolog
+#
+# `nolog`: without it storcli writes storcli.log (and rotates up to 5 MB
+# copies) into the caller's working directory, as root.
+#
+# storcli is hand-installed from Broadcom's zip (not in any apt repo);
+# exit 3 when it's missing so the caller reports it instead of "healthy".
+set -euo pipefail
+
+STORCLI=/opt/MegaRAID/storcli/storcli64
+
+die() { echo "raid-status: $*" >&2; exit 2; }
+
+[ $# -eq 1 ] || die "usage: $0 summary|rebuild"
+[ -x "$STORCLI" ] || { echo "raid-status: storcli not installed at $STORCLI" >&2; exit 3; }
+
+case "$1" in
+    summary) exec "$STORCLI" /call show J nolog ;;
+    rebuild) exec "$STORCLI" /call/eall/sall show rebuild J nolog ;;
+    *)       die "unknown operation: $1" ;;
+esac
