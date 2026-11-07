@@ -6,6 +6,37 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-06 (1)
+
+### v0.5.1: pool-capacity alert, host errors survive an offline probe
+
+Prompted by a `repos sync` mail: `No space left on device`. `backups-00`
+had sat at 96% for weeks with no alert and had crossed ZFS's reserved slop
+space (1/32 of the pool, ~116 GB), so writable space was 0 on every dataset
+even though `zpool list` still showed 115 GB free. Every write to the pool
+— repo mirrors, host backups, saratoga replication — fails at that point.
+
+- **Pool capacity joins `tourbillon health`** (ADR-011): every imported ZFS
+  pool, no sudo. ≥ 95% full, or zero writable space (`zfs get available`),
+  is a problem — mailed by the same hourly `--alert` job, one combined
+  fingerprint with the RAID check, so a creeping percentage doesn't
+  re-mail. ≥ 90% is a warning: shown in `tourbillon status`, the dashboard
+  and the weekly summary (WARN), never mailed.
+- State file renamed `$STATE/raid.json` → `$STATE/health.json`;
+  `status --json` key `raid` → `health`; cron/mail tag `raid health` →
+  `storage health`; mail heading "STORAGE PROBLEM".
+- **Fix: an unreachable probe no longer erases the previous error.**
+  lynchmbp's 9.4 h sync on 2026-11-06 failed (most likely ENOSPC while the
+  pool was full) and the next probe, with the laptop asleep, reset
+  `last_error` to null — so `hosts status` showed "unreachable" instead of
+  the failure. Only a successful sync clears `last_error` now, and the
+  unreachable note shows it.
+- **Space reclaimed** (operator, by hand): destroyed kodiak's copies of the
+  May 24 – Sep 27 snapshots of `saratoga/media/music/{aac,flac}` (42
+  snapshots; saratoga still holds them; Oct 4 onward kept, so incremental
+  replication is unaffected) → 59.9 GB writable. A stopgap at ~6 GB/day;
+  the `backups-00` disk replacement is the real fix.
+
 ## 2026-11-05 (2)
 
 ### v0.5.0: RAID controller health alert (ADR-011), kodiak self-backup

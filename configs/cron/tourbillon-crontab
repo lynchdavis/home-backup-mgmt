@@ -29,8 +29,9 @@ MAILTO=lynchdavis0@gmail.com
 # for laptops/desktops, not a failure). Failures to stderr.
 5,35 * * * * /opt/server-backups/bin/mail-on-output.sh "hosts sync" /opt/server-backups/bin/tourbillon hosts sync --quiet
 
-# Hourly at :15 — RAID controller health (ADR-011): degraded array, failed
-# or rebuilding drive, or the check itself failing. --alert is silent unless
+# Hourly at :15 — storage health (ADR-011): degraded array, failed
+# or rebuilding drive, a ZFS pool ≥95% full or out of writable space, or
+# the check itself failing. --alert is silent unless
 # a mail is due: a new/changed problem or a 24h reminder (exit 1 -> FAILED
 # mail), or one "recovered" message (exit 0 + output -> mailed via -V).
-15 * * * * /opt/server-backups/bin/mail-on-output.sh -V "raid health" /opt/server-backups/bin/tourbillon health --alert
+15 * * * * /opt/server-backups/bin/mail-on-output.sh -V "storage health" /opt/server-backups/bin/tourbillon health --alert

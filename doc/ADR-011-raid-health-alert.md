@@ -1,4 +1,4 @@
-# ADR-011: RAID controller health — alert on a degraded array or failed drive
+# ADR-011: Storage health — alert on a degraded array, failed drive, or full pool
 
 **Status:** Accepted, 2026-11-05.
 **Builds on:** ADR-004 (tourbillon service user), ADR-007 (dashboard),
@@ -28,6 +28,14 @@ layer:
   not on the RAID volume at all.
 - The controller's own alarm only reaches the console/beeper.
 
+A day later (2026-11-06) a second blind spot surfaced the same way: a
+`repos sync` failure mail, `No space left on device`. `backups-00` had sat
+at 96% for weeks — visible in `tourbillon status` and the weekly summary,
+but nothing alerted — and had crossed ZFS's reserved slop space (1/32 of
+the pool, ~116 GB, `spa_slop_shift=5`), leaving `zfs get available` at 0 on
+every dataset while `zpool list` still showed 115 GB FREE. Every write to
+the pool — repo mirrors, host backups, saratoga replication — then fails.
+
 ## Decision
 
 ### A root-owned helper wraps storcli
@@ -54,37 +62,55 @@ layer:
   rebuild progress. Anything else — `Failed`, `Offln`, `UBad`, `Msng`, a
   VD in `Dgrd` / `Pdgd` / `OfLn`, a controller command that didn't
   succeed, the helper failing — is a problem.
-- Every run writes `$STATE/raid.json`. Readers that can't sudo (the
+- Every run writes `$STATE/health.json`. Readers that can't sudo (the
   dashboard, under `NoNewPrivileges`, and `tourbillon status` as `ldavis`)
   read that file instead of running storcli, and flag it stale past 3h.
 - `tourbillon health` alone prints a human report (exit 1 on problems);
   `--json` prints the structured result.
 
+### Pool capacity — same check, same mail
+
+- `capacity_check()` reads every imported ZFS pool (`zpool list -Hp` +
+  `zfs get available`, no sudo). **≥ 95% full → problem** (mailed);
+  **≥ 90% → warning** (status, dashboard, weekly summary WARN — never
+  mailed). **`available` = 0 → a separate problem**, because that's the
+  point writes actually fail, and it's a distinct fingerprint so crossing
+  it mails even when the ≥ 95% alert already went out.
+- Problem strings name the threshold, not the live percentage, so 96% →
+  97% doesn't re-mail.
+- Only ZFS pools: the LVM/ext4 filesystems on the RAID volume aren't
+  checked (they sit at 35% with ~16.7 TB unallocated in the VG).
+- `tourbillon health` therefore records `$STATE/health.json` (RAID +
+  pools), and `status --json` exposes it as `health`.
+
 ### Alerting — hourly check, deduped mail
 
 - tourbillon's crontab runs `tourbillon health --alert` hourly through
-  `mail-on-output.sh -V "raid health"`. In `--alert` mode the command is
+  `mail-on-output.sh -V "storage health"`. In `--alert` mode the command is
   **silent unless a mail is due**:
   - problems whose fingerprint (the sorted problem list) differs from the
-    last alert → print + exit 1 (mail: `raid health FAILED`);
+    last alert → print + exit 1 (mail: `storage health FAILED`);
   - the same problems, last alerted ≥ 24h ago → reminder, exit 1;
   - healthy after an alert → one "recovered" message, exit 0 (mailed
     via `-V`);
   - otherwise silent, exit 0.
+- RAID and pool problems share one fingerprint and one mail ("STORAGE
+  PROBLEM"); "recovered" is sent only once *nothing* is wrong.
 - So a failure mails within the hour, once a day while it persists, and
   once on recovery. A rebuild's changing progress percentage is excluded
   from the fingerprint so it doesn't re-mail hourly.
 
 ### Visibility
 
-- The weekly summary flags a non-healthy or stale RAID result as FAIL and
+- The weekly summary flags any problem or a stale check as FAIL (a ≥ 90% pool as WARN) and
   gains a "RAID controller" section; `tourbillon status` and the
   dashboard's status panel show array state and any non-healthy drives.
 
 ## Consequences
 
 **Good**
-- The failure mode that went unseen for 3½ months now mails within an hour.
+- Both failure modes that went unseen — a degraded array for 3½ months, a
+  full backup pool for weeks — now mail within an hour.
 - The privilege boundary keeps ADR-010's shape: one more validating helper
   under the same drop-in, read-only by construction.
 

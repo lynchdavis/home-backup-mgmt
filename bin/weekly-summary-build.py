@@ -205,15 +205,17 @@ def assess_overall(data: dict) -> tuple[str, str, str]:
     if any(pool.get(k, 0) for k in ("read_errors", "write_errors", "cksum_errors")):
         flags.append(("FAIL", "pool has read/write/checksum errors"))
 
-    # RAID controller (ADR-011) — last hourly check from tourbillon's crontab
-    raid = data.get("raid")
-    if not raid:
-        flags.append(("FAIL", "RAID: no check recorded"))
+    # Storage health (ADR-011) — last hourly RAID + pool-capacity check
+    health = data.get("health")
+    if not health:
+        flags.append(("FAIL", "storage health: no check recorded"))
     else:
-        for prob in raid.get("problems", []):
-            flags.append(("FAIL", f"RAID: {prob}"))
-        if raid.get("stale"):
-            flags.append(("FAIL", f"RAID check stale (last {raid.get('checked_at', '?')})"))
+        for prob in health.get("problems", []):
+            flags.append(("FAIL", prob))
+        for w in health.get("warnings", []):
+            flags.append(("WARN", w))
+        if health.get("stale"):
+            flags.append(("FAIL", f"storage health check stale (last {health.get('checked_at', '?')})"))
 
     # Drive
     drive = data.get("drive", {})
@@ -346,9 +348,15 @@ def render_pool(data: dict) -> str:
     return "".join(parts)
 
 
-def render_raid(data: dict) -> str:
-    r = data.get("raid")
-    parts = [section_heading("RAID controller")]
+def fmt_writable(pool: dict) -> str:
+    """fmt_size() renders 0 as '—'; for writable space 0 is the headline."""
+    av = pool.get("available")
+    return "?" if av is None else "0 B" if av == 0 else fmt_size(av)
+
+
+def render_health(data: dict) -> str:
+    r = data.get("health")
+    parts = [section_heading("Storage health — RAID + pool capacity")]
     if not r:
         parts.append(f'<p style="color:{COLOR_FAIL};">no check recorded (tourbillon health --alert, hourly)</p>')
         return "".join(parts)
@@ -360,8 +368,15 @@ def render_raid(data: dict) -> str:
         for v in c.get("vds", []):
             rows.append((v["name"], f'{h(v["type"])} {h(v["size"])} '
                          + badge(v["state"], COLOR_OK if v["state"] == "Optl" else COLOR_FAIL)))
+    for pl in r.get("pools", []):
+        pct = pl.get("capacity_pct", 0)
+        color = COLOR_FAIL if pct >= 95 or pl.get("available") == 0 else COLOR_WARN if pct >= 90 else COLOR_OK
+        rows.append((f"pool {pl['name']}", badge(f"{pct}%", color)
+                     + f' <span style="color:{COLOR_DIM};">writable {h(fmt_writable(pl))}</span>'))
     for prob in r.get("problems", []):
         rows.append(("problem", f'<span style="color:{COLOR_FAIL};">{h(prob)}</span>'))
+    for w in r.get("warnings", []):
+        rows.append(("warning", f'<span style="color:{COLOR_WARN};">{h(w)}</span>'))
     rows.append(("checked", h(r.get("checked_at", "—"))))
     parts.append(kv_table(rows))
     return "".join(parts)
@@ -450,9 +465,9 @@ def render_text(data: dict, badge_text: str) -> str:
         lines.append(f"  next scrub: {nxt.get('next','—')} {nxt.get('tz','')}")
     lines.append("")
 
-    # raid
-    r = data.get("raid")
-    lines.append("── RAID controller ──")
+    # storage health
+    r = data.get("health")
+    lines.append("── Storage health (RAID + pool capacity) ──")
     if not r:
         lines.append("  no check recorded")
     else:
@@ -460,8 +475,12 @@ def render_text(data: dict, badge_text: str) -> str:
         for c in r.get("controllers", []):
             for v in c.get("vds", []):
                 lines.append(f"  array:    {v['name']} {v['type']} {v['size']}  {v['state']}")
+        for pl in r.get("pools", []):
+            lines.append(f"  pool:     {pl['name']} {pl.get('capacity_pct','?')}% full, writable {fmt_writable(pl)}")
         for prob in r.get("problems", []):
             lines.append(f"  !! {prob}")
+        for w in r.get("warnings", []):
+            lines.append(f"  warning: {w}")
         lines.append(f"  checked:  {r.get('checked_at', '—')}")
     lines.append("")
 
@@ -518,7 +537,7 @@ def main() -> int:
         + render_repos(data)
         + render_hosts(data)
         + render_pool(data)
-        + render_raid(data)
+        + render_health(data)
         + render_drive(data)
 
         + f'<hr style="border:0;border-top:1px solid {COLOR_BORDER};margin:28px 0 12px 0;">'
