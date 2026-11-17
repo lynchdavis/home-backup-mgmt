@@ -6,6 +6,28 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-16 (1)
+
+### v0.5.2: drive-health check follows the WD Red by stable ID
+
+kodiak's boot drive moved from the HGST Travelstar 1.5 TB (RAID-card
+JBOD slot 252:4) to a Samsung 860 DCT 1.92 TB SSD in the old DVD bay,
+on motherboard SATA, by live `pvmove`. After the reboot the kernel
+renamed the disks: the SSD is `/dev/sda`, the RAID volume `/dev/sdb`, and
+the WD Red (`backups-00`) `/dev/sdc`. tourbillon's SMART check hardcoded
+`/dev/sdb`, so it would have read the RAID volume instead of the Red.
+
+- `DRIVE_DEVICE` defaults to
+  `/dev/disk/by-id/ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP` and can be
+  overridden with `TOURBILLON_DRIVE_DEVICE`. `smart_attrs_dict` records
+  the resolved `kernel_name` too, and `tourbillon status`, the dashboard
+  and the weekly summary show that name.
+- Packaging comments no longer name `/dev/sdb`. PLAYBOOK notes the
+  rename.
+- Also on 2026-11-16: KodiakArray01 back to Optimal after the slot 3
+  replacement (WD Ultrastar DC HC320, HUS728T8TAL5204), and patrol read
+  re-enabled.
+
 ## 2026-11-06 (1)
 
 ### v0.5.1: pool-capacity alert, host errors survive an offline probe

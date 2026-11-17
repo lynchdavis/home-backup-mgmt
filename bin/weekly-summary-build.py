@@ -384,7 +384,7 @@ def render_health(data: dict) -> str:
 
 def render_drive(data: dict) -> str:
     d = data.get("drive", {})
-    parts = [section_heading(f"Drive — {h(d.get('device', '/dev/sdb'))}")]
+    parts = [section_heading(f"Drive — {h(d.get('kernel_name') or d.get('device', '?'))}")]
     if "error" in d and not any(k in d for k in ("reallocated", "pending", "uncorrectable")):
         parts.append(f'<p style="color:{COLOR_FAIL};">unavailable: {h(d["error"])}</p>')
         return "".join(parts)
@@ -486,7 +486,7 @@ def render_text(data: dict, badge_text: str) -> str:
 
     # drive
     d = data.get("drive", {})
-    lines.append(f"── Drive {d.get('device','/dev/sdb')} ──")
+    lines.append(f"── Drive {d.get('kernel_name') or d.get('device', '?')} ──")
     if "error" in d and not any(k in d for k in ("reallocated", "pending", "uncorrectable")):
         lines.append(f"  unavailable: {d['error']}")
     else:

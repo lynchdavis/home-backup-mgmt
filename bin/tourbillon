@@ -1734,6 +1734,15 @@ def next_scrub_dict() -> dict | None:
     return None
 
 
+# The backups-00 disk (WD Red 4 TB), by stable ID. Kernel names shift when
+# disks are added or removed: the 2026-11-16 boot-drive move to the SSD
+# turned /dev/sdb into the RAID volume and the Red into /dev/sdc.
+DRIVE_DEVICE = os.environ.get(
+    "TOURBILLON_DRIVE_DEVICE",
+    "/dev/disk/by-id/ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP",
+)
+
+
 def _run_smartctl(args: list[str]) -> subprocess.CompletedProcess:
     """Run smartctl, preferring a direct call (works when the caller already
     has raw-disk access — e.g. the dashboard service's CAP_SYS_RAWIO ambient
@@ -1755,9 +1764,9 @@ def _run_smartctl(args: list[str]) -> subprocess.CompletedProcess:
     return direct
 
 
-def smart_attrs_dict(device: str = "/dev/sdb") -> dict:
+def smart_attrs_dict(device: str = DRIVE_DEVICE) -> dict:
     """smartctl -A + selftest; condense to key attributes. Never raises."""
-    out: dict = {"device": device}
+    out: dict = {"device": device, "kernel_name": os.path.realpath(device)}
     try:
         proc = _run_smartctl(["-A", "-i", device])
         for line in proc.stdout.splitlines():
@@ -2173,9 +2182,9 @@ def print_status() -> int:
     print()
 
     # --- Drive ---
-    print("== Drive health (/dev/sdb) ==")
+    s = smart_attrs_dict()
+    print(f"== Drive health ({s['kernel_name']}, backups-00) ==")
     print()
-    s = smart_attrs_dict("/dev/sdb")
     if "error" in s and not any(k in s for k in ("reallocated", "pending", "power_on_hours")):
         print(f"  (unavailable) {s['error']}")
     else:
@@ -2221,7 +2230,7 @@ def gather_status_data() -> dict:
         "pool": pool_status_dict(),
         "next_scrub": next_scrub_dict(),
         "health": health_state(),
-        "drive": smart_attrs_dict("/dev/sdb"),
+        "drive": smart_attrs_dict(),
     }
 
 

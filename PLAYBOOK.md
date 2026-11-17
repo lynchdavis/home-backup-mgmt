@@ -34,7 +34,7 @@ What this design gives up:
 
 ### Kodiak side
 
-- **ZFS pool `backups-00`** on `/dev/sdb` (WDC WD40EFRX 4TB, by-id `ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP`).
+- **ZFS pool `backups-00`** on the WD Red (`/dev/sdc` since the 2026-11-16 boot-drive move; was `/dev/sdb` — always use the by-id path) (WDC WD40EFRX 4TB, by-id `ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP`).
   - `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`, `acltype=posixacl`.
   - Mountpoint `/kodiak00/backups-00` (drop-in for the old LVM that lived there).
 - **Datasets**:
