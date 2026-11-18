@@ -16,7 +16,13 @@ Bonus resonance for the operator's tastes: Steve Miller's *"time keeps on spinni
 
 ## backups-00 (the ZFS pool)
 
-Pool that lives on the WD Red 4TB sdb drive, mounted at `/kodiak00/backups-00`. The name and path are a deliberate drop-in for the LVM that occupied that path before the migration. Existing scripts, runbooks, and muscle memory keep working.
+The backup pool, mounted at `/kodiak00/backups-00`. The name and path were a deliberate drop-in for the LVM that occupied that path before the migration, so existing scripts, runbooks and muscle memory kept working.
+
+Since 2026-11-17 the name means **the backup pool, wherever it lives**, not a disk. It started on a single WD Red 4 TB. It now sits on an LVM volume on the RAID-10 (`kodiak-datapool-00/backups-00`). The new pool took over the name at the swap so TrueNAS, iDrive and every path stayed put. See [ADR-012](ADR-012-backup-storage-allocation.md).
+
+## scratch-00
+
+The two WD Red 4 TB drives as a striped pool (no redundancy), mounted at `/kodiak00/scratch-00`. Scratch space only: never the only copy of anything, never a backup destination (ADR-012). The name pairs with `backups-00` for the same vestigial `-00` reason.
 
 The `-00` suffix is vestigial under ZFS — you grow a pool by adding vdevs, not by spawning siblings — but vestigial-but-familiar beat clever-but-new.
 

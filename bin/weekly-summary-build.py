@@ -217,11 +217,14 @@ def assess_overall(data: dict) -> tuple[str, str, str]:
         if health.get("stale"):
             flags.append(("FAIL", f"storage health check stale (last {health.get('checked_at', '?')})"))
 
-    # Drive
-    drive = data.get("drive", {})
-    for k in ("reallocated", "pending", "uncorrectable"):
-        if drive.get(k, 0) > 0:
-            flags.append(("FAIL", f"drive {k} sector(s): {drive[k]}"))
+    # Drives
+    for d in drives_of(data):
+        name = d.get("kernel_name") or d.get("device", "?")
+        if not has_smart(d):
+            flags.append(("WARN", f"drive {name}: no SMART data ({d.get('error', '?')})"))
+        for k in ("reallocated", "pending", "uncorrectable"):
+            if d.get(k, 0) > 0:
+                flags.append(("FAIL", f"drive {name} {k} sector(s): {d[k]}"))
 
     if any(f[0] == "FAIL" for f in flags):
         return ("FAIL", "⚠ Attention required", COLOR_FAIL)
@@ -382,23 +385,39 @@ def render_health(data: dict) -> str:
     return "".join(parts)
 
 
+def drives_of(data: dict) -> list[dict]:
+    """`drives` list (v0.6.0+); older status JSON had a single `drive`."""
+    if "drives" in data:
+        return data["drives"] or []
+    return [data["drive"]] if data.get("drive") else []
+
+
+def has_smart(d: dict) -> bool:
+    return any(k in d for k in ("reallocated", "pending", "uncorrectable", "power_on_hours"))
+
+
+def drive_label(d: dict) -> str:
+    return f"{d.get('kernel_name') or d.get('device', '?')} ({d.get('pool') or 'not in a pool'})"
+
+
 def render_drive(data: dict) -> str:
-    d = data.get("drive", {})
-    parts = [section_heading(f"Drive — {h(d.get('kernel_name') or d.get('device', '?'))}")]
-    if "error" in d and not any(k in d for k in ("reallocated", "pending", "uncorrectable")):
-        parts.append(f'<p style="color:{COLOR_FAIL};">unavailable: {h(d["error"])}</p>')
-        return "".join(parts)
-    re_v = d.get("reallocated")
-    pe_v = d.get("pending")
-    un_v = d.get("uncorrectable")
-    parts.append(kv_table([
-        ("drive", f'{h(d.get("model"))} <span style="color:{COLOR_DIM};">S/N {h(d.get("serial"))}</span>'),
-        ("reallocated", badge(re_v, COLOR_OK if re_v == 0 else COLOR_FAIL)),
-        ("pending", badge(pe_v, COLOR_OK if pe_v == 0 else COLOR_FAIL)),
-        ("uncorrectable", badge(un_v, COLOR_OK if un_v == 0 else COLOR_FAIL)),
-        ("power-on hours", h(d.get("power_on_hours"))),
-        ("last test", h(d.get("last_test", "—"))),
-    ]))
+    parts = []
+    for d in drives_of(data):
+        parts.append(section_heading(f"Drive — {h(drive_label(d))}"))
+        if not has_smart(d):
+            parts.append(f'<p style="color:{COLOR_FAIL};">unavailable: {h(d.get("error", "no SMART data"))}</p>')
+            continue
+        re_v = d.get("reallocated")
+        pe_v = d.get("pending")
+        un_v = d.get("uncorrectable")
+        parts.append(kv_table([
+            ("drive", f'{h(d.get("model"))} <span style="color:{COLOR_DIM};">S/N {h(d.get("serial"))}</span>'),
+            ("reallocated", badge(re_v, COLOR_OK if re_v == 0 else COLOR_FAIL)),
+            ("pending", badge(pe_v, COLOR_OK if pe_v == 0 else COLOR_FAIL)),
+            ("uncorrectable", badge(un_v, COLOR_OK if un_v == 0 else COLOR_FAIL)),
+            ("power-on hours", h(d.get("power_on_hours"))),
+            ("last test", h(d.get("last_test", "—"))),
+        ]))
     return "".join(parts)
 
 
@@ -484,19 +503,19 @@ def render_text(data: dict, badge_text: str) -> str:
         lines.append(f"  checked:  {r.get('checked_at', '—')}")
     lines.append("")
 
-    # drive
-    d = data.get("drive", {})
-    lines.append(f"── Drive {d.get('kernel_name') or d.get('device', '?')} ──")
-    if "error" in d and not any(k in d for k in ("reallocated", "pending", "uncorrectable")):
-        lines.append(f"  unavailable: {d['error']}")
-    else:
-        lines.append(f"  drive:        {d.get('model','—')} (S/N {d.get('serial','—')})")
-        lines.append(f"  reallocated:  {d.get('reallocated','—')}")
-        lines.append(f"  pending:      {d.get('pending','—')}")
-        lines.append(f"  uncorrectable:{d.get('uncorrectable','—')}")
-        lines.append(f"  power-on hrs: {d.get('power_on_hours','—')}")
-        lines.append(f"  last test:    {d.get('last_test','—')}")
-    lines.append("")
+    # drives
+    for d in drives_of(data):
+        lines.append(f"── Drive {drive_label(d)} ──")
+        if not has_smart(d):
+            lines.append(f"  unavailable: {d.get('error', 'no SMART data')}")
+        else:
+            lines.append(f"  drive:        {d.get('model','—')} (S/N {d.get('serial','—')})")
+            lines.append(f"  reallocated:  {d.get('reallocated','—')}")
+            lines.append(f"  pending:      {d.get('pending','—')}")
+            lines.append(f"  uncorrectable:{d.get('uncorrectable','—')}")
+            lines.append(f"  power-on hrs: {d.get('power_on_hours','—')}")
+            lines.append(f"  last test:    {d.get('last_test','—')}")
+        lines.append("")
 
     lines.append("─" * 60)
     lines.append(f"Heartbeat email — generated {datetime.datetime.now().strftime('%Y-%m-%d %H:%M %Z')}.")

@@ -34,8 +34,11 @@ What this design gives up:
 
 ### Kodiak side
 
-- **ZFS pool `backups-00`** on the WD Red (`/dev/sdc` since the 2026-11-16 boot-drive move; was `/dev/sdb` — always use the by-id path) (WDC WD40EFRX 4TB, by-id `ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP`).
-  - `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`, `acltype=posixacl`.
+- **ZFS pool `backups-00`** on the LVM volume `kodiak-datapool-00/backups-00` (6 TB to start) on the RAID-10 `KodiakArray01`, since 2026-11-17 ([ADR-012](doc/ADR-012-backup-storage-allocation.md)). Before that it was a single WD Red 4 TB.
+  - `ashift=12`, `autoexpand=on`, `compression=lz4`, `atime=off`, `xattr=on`, `acltype=posix`.
+  - Grow online: `sudo lvextend -L +<n>T kodiak-datapool-00/backups-00 && sudo zpool online -e backups-00 kodiak--datapool--00-backups--00`. Do it at the 90% warning.
+  - Boot ordering: `/etc/systemd/system/zfs-import-cache.service.d/server-backups-lvm.conf` (shipped in the package) makes the ZFS import wait for the LV.
+- **ZFS pool `scratch-00`**: the two WD Reds striped (by-id `ata-WDC_WD40EFRX-68WT0N0_WD-WCC4E1DKPPNP`, `…_WD-WCC4E2TJ6UVU`), ~7.25 TB, `/kodiak00/scratch-00`. No redundancy, so scratch only, never a backup destination.
   - Mountpoint `/kodiak00/backups-00` (drop-in for the old LVM that lived there).
 - **Datasets**:
   - `backups-00/saratoga` — parent container for saratoga DR (`canmount=noauto`)

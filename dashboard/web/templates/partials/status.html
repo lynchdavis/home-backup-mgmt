@@ -54,12 +54,19 @@
     {% for w in health.warnings %}<p class="badge warn">{{ w }}</p>{% endfor %}
   {% endif %}
 
-  <h2>Drive — {{ data.drive.kernel_name or data.drive.device }} (backups-00)</h2>
+  <h2>Drives</h2>
+  {% for d in data.drives %}
+  <h3>{{ d.kernel_name or d.device }} ({{ d.pool or "not in a pool" }})</h3>
+  {% if d.power_on_hours is not defined and d.reallocated is not defined %}
+    <p class="badge fail">unavailable: {{ d.error or "no SMART data" }}</p>
+  {% else %}
   <div class="kv-grid">
-    <div><span class="label">Model</span><span>{{ data.drive.model }}</span></div>
-    <div><span class="label">Power-on hours</span><span>{{ data.drive.power_on_hours }}</span></div>
-    <div><span class="label">Reallocated / Pending / Uncorrectable</span><span>{{ data.drive.reallocated }} / {{ data.drive.pending }} / {{ data.drive.uncorrectable }}</span></div>
+    <div><span class="label">Model</span><span>{{ d.model }} · S/N {{ d.serial }}</span></div>
+    <div><span class="label">Power-on hours</span><span>{{ d.power_on_hours }}</span></div>
+    <div><span class="label">Reallocated / Pending / Uncorrectable</span><span>{{ d.reallocated }} / {{ d.pending }} / {{ d.uncorrectable }}</span></div>
   </div>
+  {% endif %}
+  {% endfor %}
 
   <p class="timestamp">as of {{ data.timestamp }}</p>
 {% endif %}

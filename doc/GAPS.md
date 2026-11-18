@@ -27,7 +27,9 @@ The point of this doc is to be honest about what could go wrong, not to chase ze
 
 These are the gaps where one bad day = significant data loss.
 
-### 1.1 Pool is a single disk, no parity
+### 1.1 Pool is a single disk, no parity — RESOLVED 2026-11-17
+
+**Resolved by [ADR-012](ADR-012-backup-storage-allocation.md):** `backups-00` now lives on an LVM volume on the RAID-10 (six 8 TB SAS drives), so it survives a disk failure. The WD Reds became `scratch-00`. The text below is the original write-up.
 
 `backups-00` is one `WDC_WD40EFRX-68WT0N0` SATA drive. ZFS provides checksum-based corruption *detection*, but with no redundancy there's no self-repair. If `sdb` dies (mechanical, controller, firmware brick), we lose:
 

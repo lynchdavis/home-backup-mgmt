@@ -39,6 +39,7 @@ tasks:
       - mkdir -p dist/deb-staging/opt/server-backups/doc
       - mkdir -p dist/deb-staging/opt/server-backups/tests
       - mkdir -p dist/deb-staging/etc/systemd/system
+      - mkdir -p dist/deb-staging/etc/systemd/system/zfs-import-cache.service.d
       - install -d -m 0750 dist/deb-staging/etc/sudoers.d
       - mkdir -p dist/deb-staging/usr/lib/server-backups
 
@@ -67,6 +68,9 @@ tasks:
         for unit in tourbillon-dashboard.service tourbillon-requests.path tourbillon-requests.service; do
           sed -e "s|{{"{{"}}REPO_URL}}|{{.REPO_URL}}|g" packaging/deb/$unit > dist/deb-staging/etc/systemd/system/$unit
         done
+
+      # ADR-012: backups-00 sits on an LVM volume; make the ZFS cache import wait for it.
+      - install -m 0644 packaging/deb/zfs-import-cache-lvm.conf dist/deb-staging/etc/systemd/system/zfs-import-cache.service.d/server-backups-lvm.conf
 
       # ADR-010: root-owned snapshot helper + its one-line sudoers grant.
       # Outside /opt/server-backups on purpose -- postinst chowns that tree to

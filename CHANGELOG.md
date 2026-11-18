@@ -6,6 +6,59 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-18 (1)
+
+### v0.6.0: backups move to the RAID-10; the WD Reds become scratch (ADR-012)
+
+`backups-00` sat on a single 4 TB WD Red: no redundancy (GAPS §1.1), and
+95% full with about a week of headroom. KodiakArray01 (RAID-10, 6× 8 TB
+SAS) had 16.7 TB unallocated. ADR-012 sets the rule: backups live on
+redundant storage that is not the hardware they protect.
+
+- **Storage.** New LV `kodiak-datapool-00/backups-00` (6 TB) carrying a
+  ZFS pool, built as `backups-new` and filled by `zfs send -R` while
+  backups kept running. At a short cut-over the pools swap names by
+  export/import: the RAID-10 pool becomes `backups-00` at
+  `/kodiak00/backups-00`. TrueNAS replication, iDrive's backup set,
+  sudoers, sanoid and the scripts see no change in name or path.
+  saratoga resumes incrementally, with no re-seed. The bulk copy took
+  12.5 h on 2026-11-17. The cut-over on 2026-11-18 paused backups for
+  9 minutes (09:01–09:10 EST).
+- **scratch-00.** The original Red plus a second one (S/N
+  WD-WCC4E2TJ6UVU, bay 4) form a striped pool, `scratch-00` (about
+  7.25 TB, no redundancy), mounted at `/kodiak00/scratch-00`. It holds
+  scratch only, never a backup.
+- **tourbillon.** `repos sync` and `repos status` honor `target_dataset`
+  in `configs/repos/defaults.toml`. `repos_target_root()` resolves the
+  dataset's mountpoint, which replaces the hardcoded
+  `/kodiak00/backups-00/repos`. It falls back to that path if `zfs`
+  can't answer. Hosts already took `target_dataset` from config. The
+  privileged sudoers and helper paths stay pinned to `backups-00/hosts`
+  on purpose.
+- **Pool error counters.** `pool_status_dict` read the READ/WRITE/CKSUM
+  counters only from vdevs named `ata-…` or `/dev/…`. The LV-backed pool
+  therefore showed `?` in `status`, the dashboard and the weekly summary.
+  It now reads `zpool status -P` and sums every leaf vdev (both disks of
+  a stripe), abbreviated counts like `1.2K` included.
+- **Drive health covers both Reds.** `DRIVE_DEVICES` lists them by
+  stable ID. Override it with `TOURBILLON_DRIVE_DEVICES`
+  (whitespace-separated), which replaces 0.5.2's
+  `TOURBILLON_DRIVE_DEVICE`.
+  - Each drive is labeled with the pool it belongs to, read from
+    `zpool status -P`, rather than a fixed name.
+  - A pulled drive reports "device not present".
+  - `status --json` has a `drives` list in place of `drive`.
+  - Shown in `tourbillon status`, the dashboard and the weekly summary.
+    The summary also reads the old single-`drive` JSON, and warns when a
+    drive returns no SMART data.
+- **Packaging.** New drop-in
+  `/etc/systemd/system/zfs-import-cache.service.d/server-backups-lvm.conf`
+  orders the ZFS import after the LV appears (`Wants=`/`After=` its
+  device unit). Without it, `backups-00` could miss the boot-time import.
+- **Docs.** ADR-012 (new), NAMING (`backups-00` now names the backup pool
+  wherever it lives; `scratch-00` added), PLAYBOOK "Final shape" (layout
+  and how to grow it), GAPS §1.1 resolved, README.
+
 ## 2026-11-16 (1)
 
 ### v0.5.2: drive-health check follows the WD Red by stable ID
