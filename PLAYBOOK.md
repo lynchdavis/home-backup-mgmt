@@ -182,8 +182,10 @@ that the policy does what it says.
 ### 3b. Monthly `zpool scrub` on `backups-00`
 
 Scrub reads every block in the pool and verifies checksums against ZFS's
-recorded metadata. On a single-disk pool there's no parity for self-repair,
-but scrub *detects* silent corruption before you hit it during a real read.
+recorded metadata. Neither pool has ZFS-level redundancy (`backups-00` is
+one vdev on the RAID-10 LV, `scratch-00` a plain stripe), so there's no
+self-repair, but scrub *detects* silent corruption before you hit it
+during a real read.
 Standard cadence: monthly.
 
 `zfsutils-linux` ships a parameterized systemd timer for exactly this. We
@@ -191,6 +193,7 @@ don't need a custom cron entry — just enable the shipped timer:
 
 ```bash
 sudo systemctl enable --now zfs-scrub-monthly@backups-00.timer
+sudo systemctl enable --now zfs-scrub-monthly@scratch-00.timer   # since 2026-11-18
 ```
 
 Verify:
