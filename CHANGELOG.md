@@ -6,6 +6,17 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-19 (1)
+
+### v0.6.1: "next scrub" shows the pool's own timer
+
+- `next_scrub_dict()` took the first `zfs-scrub*` timer systemd listed,
+  so once `scratch-00` got its monthly scrub (due 00:21, ahead of
+  `backups-00` at 00:37) the `backups-00` pool section in `tourbillon
+  status`, the dashboard and the weekly summary showed `scratch-00`'s
+  timer. It now takes a pool (default `backups-00`) and lists only
+  `zfs-scrub*@<pool>.timer`.
+
 ## 2026-11-18 (1)
 
 ### v0.6.0: backups move to the RAID-10; the WD Reds become scratch (ADR-012)

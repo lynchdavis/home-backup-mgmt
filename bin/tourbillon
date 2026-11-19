@@ -1751,11 +1751,14 @@ def pool_status_dict(pool: str = "backups-00") -> dict:
     return out
 
 
-def next_scrub_dict() -> dict | None:
-    """Read the next-scheduled scrub timer firing (if installed)."""
+def next_scrub_dict(pool: str = "backups-00") -> dict | None:
+    """Read the next firing of this pool's scrub timer (if installed). Each
+    pool has its own zfs-scrub-{monthly,weekly}@<pool>.timer instance; a bare
+    zfs-scrub* glob would report whichever pool is due first."""
     try:
         proc = subprocess.run(
-            ["systemctl", "list-timers", "--no-pager", "--no-legend", "zfs-scrub*"],
+            ["systemctl", "list-timers", "--no-pager", "--no-legend",
+             f"zfs-scrub*@{pool}.timer"],
             capture_output=True, text=True, check=False,
         )
         for line in proc.stdout.splitlines():
