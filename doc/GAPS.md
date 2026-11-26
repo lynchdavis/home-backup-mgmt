@@ -113,7 +113,21 @@ full `backups-00/saratoga` structure:
   subset only" scoping — reproducible/re-rippable content, reasonably
   excluded.
 - **Not covered — `tank/scratch` + `tank/staging`**: transient, reasonably
-  excluded.
+  excluded. *(Superseded 2026-11-22, see below: both are now pushed.)*
+- **2026-11-22 audit: `tank/archive` itself was never covered.** About
+  300 GB lives directly in the `tank/archive` parent dataset, not in a
+  child: `archives/` (99G), `backups/` (81G), `videos/` (103G, the family
+  video), `applications/` (8.6G), `RepositoryBackups/` (8.8G, the CyFIR
+  Bitbucket backups). The clone list named only child datasets, so the
+  "Covered" line above was true per child and wrong for the tree. Also
+  uncovered: `backups-00/repos`, `tank/staging` (two August 2026 shoots
+  that were never promoted), and `data-00/backups/host-backups/dev-01-cyfir`.
+  **Fix (v0.7.0):** `idrive-refresh-clones.sh` discovers its sources
+  (every leaf under `tank`, plus any parent holding >1 MiB of its own),
+  so `tank-archive`, `tank-staging` and `tank-scratch` clones now exist;
+  the five paths were added to the iDrive backup set by hand (see
+  IDRIVE_RESTORE.md). Photo promotion is now nightly and automatic
+  (data-organizer `promote --cron`). Evidence: `bin/idrive-coverage-audit.sh`.
 - **`backups-00/hosts/*` — fixed 2026-09-27, confirmed landed 2026-09-29**
   (arrow-iii, pilatus, lynchmbp, ldavis-dev-01): had contradicted ADR-005's
   own documented scope (which explicitly included "hosts (~17GB estimated

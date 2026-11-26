@@ -6,6 +6,37 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-22 (1)
+
+### v0.7.0: iDrive covers all of `tank`, not a hand-kept list of children
+
+An audit found about 300 GB that lives directly in the `tank/archive`
+parent dataset: `archives/`, `backups/`, `videos/` (103 GB of family video),
+`applications/` and `RepositoryBackups/` (the CyFIR Bitbucket backups).
+None of it was off-site. The clone list named child datasets only. See
+ADR-005 "Update 2026-11-22" and GAPS §1.2.
+
+- **`bin/idrive-refresh-clones.sh` discovers its sources.** Every leaf
+  dataset under `backups-00/saratoga/tank`, plus any parent with >1 MiB
+  of its own data. New clones: `tank-archive`, `tank-staging`,
+  `tank-scratch` (16 in all, was 13). Children of a cloned parent show
+  up as empty dirs, so nothing uploads twice.
+- **New `bin/idrive-coverage-audit.sh`** (run with sudo). Collects the
+  ZFS inventory, the iDrive backup set, exclude lists, schedule and recent
+  logs (credentials are never copied), the contents of the unmounted
+  saratoga datasets (via temporary read-only clones, destroyed on exit),
+  and a photo/video scan outside the photo archive. Refuses to clone
+  during the 01:45–06:30 replication window.
+- **Scope changes (operator decisions):** `backups-00/repos` and
+  `data-00/backups/host-backups/dev-01-cyfir` are now pushed. The iDrive
+  backup set gets one entry per path (added by hand in the iDrive menu).
+- Docs: ADR-005 update, GAPS §1.2, IDRIVE_RESTORE.md scope.
+
+**Operator steps after install:** add the five new paths to the iDrive
+backup set. Then set `canmount=noauto` on `backups-00/saratoga/tank/staging`
+and unmount it. It was the one replicated saratoga dataset left mounted,
+against the PLAYBOOK §3 rule; the `tank-staging` clone replaces it.
+
 ## 2026-11-19 (1)
 
 ### v0.6.1: "next scrub" shows the pool's own timer

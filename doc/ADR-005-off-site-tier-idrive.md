@@ -109,6 +109,33 @@ sudo zfs clone "$LATEST" backups-00/idrive-staging/photography
 
 ---
 
+### Update 2026-11-22 — scope was per-child; the `tank/archive` parent was missed
+
+An audit (`bin/idrive-coverage-audit.sh`) found ~300 GB living directly in the
+`tank/archive` parent dataset (`archives/`, `backups/`, `videos/`,
+`applications/`, `RepositoryBackups/`), plus `tank/staging`, never pushed. The
+scope above listed child datasets, and `idrive-refresh-clones.sh` copied that
+list, so the parent's own data was never in anyone's view. Not a new-dataset
+problem: those directories predate this ADR.
+
+**Decisions** (operator, 2026-11-22):
+
+- **Scope is "everything in `tank`"** that replicates to kodiak (so not
+  `tank/system` / `tank/timemachine`, which replication already excludes).
+  `tank/staging` and `tank/scratch` are in: small, and staging holds photos
+  that exist nowhere else until promoted.
+- **Clone sources are discovered, not listed.** Every leaf dataset under
+  `backups-00/saratoga/tank`, plus any parent with >1 MiB of its own data.
+  A clone of a parent holds only the parent's own files (children appear as
+  empty mountpoint dirs), so nothing uploads twice.
+- **`backups-00/repos` is now pushed** (reverses "Not pushed" above): the repos
+  are the operator's top priority and cost ~320 MB.
+- **`data-00/backups/host-backups/dev-01-cyfir` is pushed** (legacy CyFIR code).
+- **Backup-set entries stay individual paths**, one per clone, rather than the
+  `idrive-staging/` parent (re-upload risk not worth testing). Consequence: a
+  newly discovered clone must also be added to the set by hand; the audit
+  script lists both sides for comparison.
+
 ## Mechanics
 
 ### Update 2026-05-31 — iDrive client architecture (post-research)

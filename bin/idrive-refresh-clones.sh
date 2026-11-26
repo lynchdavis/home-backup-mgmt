@@ -30,27 +30,47 @@ set -uo pipefail
 STAGING_PARENT="backups-00/idrive-staging"
 STAGING_MOUNT="/kodiak00/backups-00/idrive-staging"
 
-# The saratoga child datasets to clone. Each gets cloned to
-# STAGING_PARENT/<flat-name>, mounted at STAGING_MOUNT/<flat-name>.
-# Update this list as the saratoga schema evolves.
-SOURCES=(
-    # photos
-    "backups-00/saratoga/tank/archive/photography"
-    # documents (non-photo archive)
-    "backups-00/saratoga/tank/archive/books"
-    "backups-00/saratoga/tank/archive/employers"
-    "backups-00/saratoga/tank/archive/finance"
-    "backups-00/saratoga/tank/archive/legal"
-    "backups-00/saratoga/tank/archive/medical"
-    "backups-00/saratoga/tank/archive/personal"
-    "backups-00/saratoga/tank/archive/writing"
-    "backups-00/saratoga/tank/archive/software"
-    # active (currently-being-edited)
-    "backups-00/saratoga/tank/active/aviation"
-    "backups-00/saratoga/tank/active/finance-current"
-    "backups-00/saratoga/tank/active/flightclub-personal"
-    "backups-00/saratoga/tank/active/personal"
-)
+# Which saratoga datasets to clone is DISCOVERED, not listed: every dataset
+# under SOURCE_ROOT is cloned if it is a leaf (no children), or if it holds
+# real data of its own (usedbydataset > PARENT_MIN_BYTES). The second rule is
+# what covers tank/archive itself (archives/, backups/, videos/, applications/,
+# RepositoryBackups/ live directly in that parent dataset, ~300 GB). Before
+# 2026-11-22 this was a hand-kept list of child datasets, which silently
+# skipped the parent's own data.
+#
+# A clone of a parent contains only the parent's own files; its children show
+# up as empty mountpoint directories, so nothing is uploaded twice.
+#
+# Each source gets cloned to STAGING_PARENT/<flat-name>, mounted at
+# STAGING_MOUNT/<flat-name> (tank/archive -> tank-archive,
+# tank/archive/photography -> tank-archive-photography).
+SOURCE_ROOT="backups-00/saratoga/tank"
+PARENT_MIN_BYTES=$((1024 * 1024))     # pure container parents hold ~128K
+# Datasets never to push. tank/system and tank/timemachine are already
+# excluded from replication to kodiak, so they never show up here.
+EXCLUDE=()
+
+discover_sources() {
+    local all ds kids own
+    all=$(zfs list -H -r -t filesystem -o name "$SOURCE_ROOT") || return 1
+    while read -r ds; do
+        [ "$ds" = "$SOURCE_ROOT" ] && continue
+        local skip=0
+        for x in "${EXCLUDE[@]}"; do [ "$ds" = "$x" ] && skip=1; done
+        [ "$skip" -eq 1 ] && continue
+        kids=$(printf '%s\n' "$all" | grep -c "^${ds}/")
+        own=$(zfs get -H -p -o value usedbydataset "$ds")
+        if [ "$kids" -eq 0 ] || [ "$own" -gt "$PARENT_MIN_BYTES" ]; then
+            echo "$ds"
+        fi
+    done <<<"$all"
+}
+
+mapfile -t SOURCES < <(discover_sources)
+if [ "${#SOURCES[@]}" -eq 0 ]; then
+    echo "ERROR: discovered no source datasets under $SOURCE_ROOT" >&2
+    exit 1
+fi
 
 # ── flags ────────────────────────────────────────────────────────────────
 VERBOSE=0

@@ -8,20 +8,30 @@ the first one to reach for.
 **Scope — what's actually up there** (see `doc/ADR-005-off-site-tier-idrive.md`
 and `doc/GAPS.md` §1.2 for the full history):
 
-- `backups-00/saratoga/tank/{active,archive}/*` (~1.65TB) — via the
-  `backups-00/idrive-staging/*` ZFS-clone mirrors of saratoga's canonical
-  archive.
+- `backups-00/saratoga/tank/**` (~1.95TB) — via the
+  `backups-00/idrive-staging/*` ZFS-clone mirrors: every `tank/active/*` and
+  `tank/archive/*` child, **plus `tank-archive`** (the ~300 GB that lives in
+  the `tank/archive` parent itself: archives, backups, videos, applications,
+  RepositoryBackups), `tank-staging` and `tank-scratch`. Since 2026-11-22 the
+  clone list is discovered, not hand-kept (ADR-005 update).
+- `backups-00/repos` (GitHub + Bitbucket mirrors, ~320 MB) — since 2026-11-22.
+- `/kodiak00/data-00/backups/host-backups/dev-01-cyfir` (12 GB, CyFIR dev
+  box incl. cyfir-tools) — since 2026-11-22.
 - `/kodiak00/data-00/{videos,archive}` (178GB) — real family footage +
   personal document archives.
 - `backups-00/hosts/*` (arrow-iii, pilatus, lynchmbp, ldavis-dev-01 — ~1TB).
 
 **Not up there, deliberately:** `backups-00/saratoga/media/*` (music/movies/
-tv/audiobooks — reproducible), `tank/scratch` + `tank/staging` (transient),
-`backups-00/repos` (recoverable from GitHub/Bitbucket), the two migration-era
+tv/audiobooks — reproducible; `media/staging` too), `tank/timemachine` (not
+replicated to kodiak at all; not in active use), the two migration-era
 `data-00/backups/host-backups/*-LynchMBP` snapshots (operator decision,
-2026-09-27 — the live `hosts/lynchmbp` mirror above is sufficient), and the
-~50GB `data-00/backups/{Alex Backup, Leigh Backup, ...}` old-machine-backups
-bucket (parked, pending operator review).
+2026-09-27 — the live `hosts/lynchmbp` mirror above is sufficient), and most
+of the `data-00/backups/{Alex Backup, Leigh Backup, ...}` old-machine-backups
+bucket. The canonical copy of those (`tank/archive/backups/`, 81 GB) is now
+covered through `tank-archive`. Note: the backup set still has three stray
+hand-picked `data-00/backups/Alex Backup/*` folders and ~20 single images from
+`data-00/backups/ldavis-FP-mbp/Downloads/` (found 2026-11-22); harmless
+duplicates, safe to remove from the set.
 
 ---
 
