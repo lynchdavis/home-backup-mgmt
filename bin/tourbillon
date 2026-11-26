@@ -1795,11 +1795,19 @@ def _run_smartctl(args: list[str]) -> subprocess.CompletedProcess:
     systemd unit with NoNewPrivileges=true can't use the sudo path at all
     (the setuid escalation is blocked at the kernel level), which is exactly
     why the direct-call attempt comes first.
+
+    The exit code alone can't tell a real read from a failed one. A caller
+    in the `disk` group (the tourbillon user) can open the device but not
+    send ATA pass-through without CAP_SYS_RAWIO. smartctl then prints only
+    "Probable ATA device behind a SAT layer / Try an additional '-d ata'..."
+    and exits 0. Every successful -A/-i/-l read prints an "=== START OF"
+    section header, so a missing header also means: retry via sudo.
     """
     direct = subprocess.run(
         ["/usr/sbin/smartctl", *args], capture_output=True, text=True, check=False,
     )
-    if direct.returncode not in (0, 4):  # 4 = some SMART attrs failed, still readable
+    # 4 = some SMART attrs failed, still readable
+    if direct.returncode not in (0, 4) or "=== START OF" not in direct.stdout:
         sudo_attempt = subprocess.run(
             ["sudo", "-n", "/usr/sbin/smartctl", *args], capture_output=True, text=True, check=False,
         )

@@ -6,6 +6,21 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-25 (1)
+
+### v0.7.1: drive health reads SMART when run as the tourbillon user
+
+- `_run_smartctl()` falls back to `sudo -n` when smartctl's output has no
+  `=== START OF` section, not only on a non-zero exit. The tourbillon
+  user is in the `disk` group, so smartctl could open the Reds but not
+  send ATA pass-through, printed "Probable ATA device behind a SAT layer"
+  and exited 0. `tourbillon status` run as tourbillon showed both drives
+  as unavailable. The dashboard (CAP_SYS_RAWIO) and the weekly summary
+  (run by the operator) were unaffected.
+- Host change, not packaged: `/etc/sudoers.d/tourbillon` smartctl rules
+  now name both Reds by `/dev/disk/by-id` path. The old `/dev/sdb` lines
+  were stale since the Reds' kernel names moved.
+
 ## 2026-11-22 (1)
 
 ### v0.7.0: iDrive covers all of `tank`, not a hand-kept list of children
