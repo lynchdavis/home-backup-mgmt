@@ -469,9 +469,11 @@ If a machine is decommissioned permanently, leaving `configs/hosts/<name>.toml` 
 
 ### 4.2 ZFS not encrypted at rest
 
-`backups-00` was created without `encryption=on`. If kodiak is physically stolen, `/dev/sdb` reads cleartext.
+`backups-00` was created without `encryption=on`. If kodiak is physically stolen, its backing volume (LV `kodiak-datapool-00/backups-00` on the RAID-10, since ADR-012) reads cleartext.
 
 For a locked house, single-user threat model: usually fine. But irrecoverable to retrofit — encryption is a pool-create property. Would require a new pool + send/recv.
+
+*2026-11-18:* the ADR-012 rebuild was such a new pool + send/recv, but a plain `zfs send -R` of unencrypted datasets, so `backups-00` is still `encryption=off`. Gap unchanged.
 
 **Severity:** low for current threat model. Worth a one-line note in any future "pool rebuild" event.
 

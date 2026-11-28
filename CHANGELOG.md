@@ -6,6 +6,33 @@ how-to lives in `PLAYBOOK.md`.
 
 Most-recent first.
 
+## 2026-11-26 (1)
+
+### Post-migration cleanup (ADR-012), no release
+
+- **Old copies on `scratch-00` destroyed.** That covered `hosts`, `repos`,
+  `saratoga` and the 13 old `idrive-staging` clones, about 3.5 TB.
+  - This ran on 2026-11-25/26, after seven daily TrueNAS pushes had landed
+    on the new `backups-00`.
+  - Before destroying, each of the 34 datasets was checked to share
+    snapshot GUIDs with a newer copy on `backups-00`.
+  - The only snapshot without a match was the 96K `@empty` placeholder on
+    the `saratoga` container, which TrueNAS doesn't replicate.
+  - `scratch-00` is now an empty pool. Its root `@empty` snapshot was
+    removed on 2026-11-27.
+- **Migration snapshots removed.** The `@migrate-1` and `@migrate-2`
+  snapshots on `backups-00/hosts` and `backups-00/repos` (14 in all) are
+  gone.
+- **Reds self-tested.** Both ran a SMART extended self-test, completed
+  without error on 2026-11-26. They show 0 reallocated, pending and
+  uncorrectable sectors.
+- **Host housekeeping on kodiak (not packaged):**
+  - `/etc/sudoers.d/ldavis` set to mode 0440, since `visudo -c` flagged
+    it at 0644.
+  - The stale `/etc/sudoers.d/tourbillon.bak-20260930` was removed.
+  - The old HGST's EFI entry, Boot0001, was already gone, presumably
+    pruned by the firmware.
+
 ## 2026-11-25 (1)
 
 ### v0.7.1: drive health reads SMART when run as the tourbillon user
